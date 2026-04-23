@@ -92,6 +92,7 @@ const organisationTypeOptions = [
   "Trust",
   "Society",
   "Other",
+  "Institute",
 ].map((opt) => ({ value: opt, label: opt }));
 
 const accountTypeOptions = [
@@ -161,6 +162,23 @@ const customSelectStyles = (isDark) => ({
     },
   }),
 });
+
+// GST sector classification (Indian GST law)
+const GST_MANDATORY_SECTORS = [
+  "Private Limited", "Public Limited", "Partnership",
+  "Proprietorship", "LLP", "Sole Proprietorship",
+  "Private", "Public Limited Company",
+];
+const GST_CONDITIONAL_SECTORS = ["NGO", "Non-profit", "Trust", "Society"];
+const GST_EXEMPT_SECTORS      = ["Educational", "Healthcare", "Hospital", "Institute"];
+const getGSTStatus = (orgType) => {
+  if (!orgType) return "optional";
+  const lower = orgType.toLowerCase().trim();
+  if (GST_MANDATORY_SECTORS.includes(lower))  return "mandatory";
+  if (GST_CONDITIONAL_SECTORS.includes(lower)) return "conditional";
+  if (GST_EXEMPT_SECTORS.includes(lower))      return "exempt";
+  return "optional"; // "other" and unknown types
+};
 const CreateGroup = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -474,26 +492,24 @@ const CreateGroup = () => {
       if (!formData.organisation_type)
         addError("organisation_type", "Organisation type is required.");
       if (!formData.address.trim()) addError("address", "Address is required.");
-      if (
-        formData.organisation_type &&
-        formData.organisation_type.toLowerCase() !== "educational"
-      ) {
-        if (!formData.gst_no.trim())
-          addError(
-            "gst_no",
-            "GST number is required for non-educational organisations."
-          );
-        if (!files.bank_check && !filePreviews.bank_check)
-          addError(
-            "bank_check",
-            "Bank check is required for non-educational organisations."
-          );
-        if (!files.company_logo && !filePreviews.company_logo)
-          addError(
-            "company_logo",
-            "Company logo is required for non-educational organisations."
-          );
-      }
+      if (formData.organisation_type) {
+          const gstStatus = getGSTStatus(formData.organisation_type);
+          const isExempt  = gstStatus === "exempt";
+          if (gstStatus === "mandatory" && !formData.gst_no.trim()) {
+            addError(
+              "gst_no",
+              `GST number is mandatory for ${formData.organisation_type} organisations under Indian GST law.`
+            );
+          }
+          if (!isExempt) {
+            if (!files.bank_check && !filePreviews.bank_check) {
+              addError("bank_check", "Cancelled bank cheque is required.");
+            }
+            if (!files.company_logo && !filePreviews.company_logo) {
+              addError("company_logo", "Company logo is required.");
+            }
+          }
+        }
     }
     if (!files.id_proof && !filePreviews.id_proof) {
       addError("id_proof", "Aadhaar card is required for verification.");
@@ -1351,45 +1367,80 @@ const CreateGroup = () => {
                           </p>
                         )}
                       </div>
+                      {(() => {
+                        const gstStatus = getGSTStatus(formData.organisation_type);
+                        const isMandatory   = gstStatus === "mandatory";
+                        const isConditional = gstStatus === "conditional";
+                        const isExempt      = gstStatus === "exempt";
 
-                      <div>
-                        <label
-                          className={`flex items-center text-sm font-medium mb-2 ${
-                            darkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          GST IN{" "}
-                          {formData.organisation_type &&
-                            formData.organisation_type.toLowerCase() !==
-                              "educational" && (
-                              <span className="text-red-400 mx-1">*</span>
+                        const gstNote = isMandatory
+                          ? "Mandatory for your organisation type under Indian GST law."
+                          : isConditional
+                          ? "Optional — required only if you conduct commercial activities or cross ₹20L turnover."
+                          : isExempt
+                          ? "Generally exempt — enter only if your organisation has voluntarily registered for GST."
+                          : "Enter your GST number if registered.";
+
+                        const gstBadge = isMandatory
+                          ? { text: "Required", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" }
+                          : isConditional
+                          ? { text: "Conditional", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" }
+                          : isExempt
+                          ? { text: "Usually Exempt", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" }
+                          : { text: "Optional", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
+
+                        return (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <label
+                                className={`flex items-center text-sm font-medium ${
+                                  darkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
+                              >
+                                GST IN
+                                {isMandatory && <span className="text-red-400 mx-1">*</span>}
+                                <InfoTooltip note={gstNote} />
+                              </label>
+                              {formData.organisation_type && (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${gstBadge.cls}`}>
+                                  {gstBadge.text}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Contextual hint for conditional/exempt sectors */}
+                            {(isConditional || isExempt) && formData.organisation_type && (
+                              <p className={`text-xs mb-2 ${
+                                darkMode ? "text-gray-400" : "text-gray-500"
+                              }`}>
+                                {isConditional
+                                  ? "For NGOs, Trusts & Societies: GST applies only if conducting ticketed/commercial events."
+                                  : "For Educational & Healthcare: GST is exempt for core services but applies to paid events."}
+                              </p>
                             )}
-                          <InfoTooltip note="Mandatory for all non-educational organizations." />
-                        </label>
-                        <input
-                          type="text"
-                          name="gst_no"
-                          value={formData.gst_no}
-                          onChange={handleInputChange}
-                          placeholder="Enter your GST number"
-                          className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                                  ${
-                                    darkMode
-                                      ? "text-white border-gray-600"
-                                      : "text-gray-900 border-gray-300"
-                                  }
-                                  ${errors.gst_no ? "border-red-500" : ""}`}
-                          ref={(el) => (errorFieldRefs.current.gst_no = el)}
-                          style={{
-                            backgroundColor: darkMode ? "#212426" : "white",
-                          }}
-                        />
-                        {errors.gst_no && (
-                          <p className="text-red-500 text-sm mt-1">
-                            {errors.gst_no}
-                          </p>
-                        )}
-                      </div>
+
+                            <input
+                              type="text"
+                              name="gst_no"
+                              value={formData.gst_no}
+                              onChange={handleInputChange}
+                              placeholder={
+                                isMandatory
+                                  ? "Enter your GST number (mandatory)"
+                                  : "Enter your GST number (if registered)"
+                              }
+                              className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                                ${darkMode ? "text-white border-gray-600" : "text-gray-900 border-gray-300"}
+                                ${errors.gst_no ? "border-red-500" : ""}`}
+                              ref={(el) => (errorFieldRefs.current.gst_no = el)}
+                              style={{ backgroundColor: darkMode ? "#212426" : "white" }}
+                            />
+                            {errors.gst_no && (
+                              <p className="text-red-500 text-sm mt-1">{errors.gst_no}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
 
