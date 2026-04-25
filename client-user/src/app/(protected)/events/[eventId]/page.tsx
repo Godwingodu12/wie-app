@@ -24,24 +24,15 @@ import {
   ParentEventSummary,
   Group,
 } from "@/types/ticket";
+import { motion, AnimatePresence } from "framer-motion";
 import { Alert } from "@/components/events/Alert";
 import {
-  MapPin,
-  Calendar,
-  Users,
-  Clock,
-  DollarSign,
   Loader2,
   AlertCircle,
-  ArrowLeft,
-  ExternalLink,
-  User,
-  Phone,
-  Mail,
-  Tag,
-  Info,
-  ShoppingCart,
   Heart,
+  ChevronLeft,
+  ChevronRight,
+  Maximize,
 } from "lucide-react";
 declare global {
   interface Window {
@@ -111,6 +102,21 @@ export default function EventDetailPage() {
   const [activeSection, setActiveSection] = useState<
     "about" | "details" | "guests" | "photos" | "hashtags" | "additional"
   >("about");
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const mediaItems = [
+    event?.event_banner,
+    event?.event_portrait,
+    ...(event?.event_images?.map((img: any) => img.path) || []),
+  ].filter(Boolean) as string[];
+
+  const handleNextMedia = () => {
+    setCurrentMediaIndex((prev) => (prev + 1) % mediaItems.length);
+  };
+
+  const handlePrevMedia = () => {
+    setCurrentMediaIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
+  };
+
   const hasAdditionalInfo = Boolean(
     event?.POCS?.length ||
     event?.prohibited_items?.length ||
@@ -747,7 +753,7 @@ export default function EventDetailPage() {
         className={`
         flex-1 transition-all duration-300
         w-full max-w-[100vw] overflow-x-hidden
-        ${isMobile ? "pl-0" : isCollapsed ? "pl-20" : "pl-64"}
+        ${isMobile ? "pl-0" : isCollapsed ? "pl-20" : "pl-20 lg:pl-64"}
       `}
       >
         {alertMessage && (
@@ -763,307 +769,319 @@ export default function EventDetailPage() {
         )}
 
         <div className="w-full">
-          {/* Event Banner */}
-          {event?.event_banner && (
-            <div
-              className={`relative w-full flex flex-col group overflow-hidden ${
-                isMobile
-                  ? "min-h-[260px]"
-                  : "aspect-[1920/720]"
-              }`}
+          {/* Top row controls moved outside banner */}
+          <div className={`max-w-[98%] sm:max-w-[95%] md:max-w-[92%] lg:max-w-[90%] mx-auto px-2 md:px-0 flex items-center justify-between ${isMobile ? "mt-2 mb-2" : "mt-3 mb-2.5"}`}>
+            <button
+              onClick={handleBack}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 border"
+              style={{
+                borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
+                background: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                backdropFilter: "blur(4px)",
+              }}
             >
-              {/* Background image */}
-              <img
-                src={event.event_banner}
-                alt={event.event_name}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
+              <img src={BackIcon.src} alt="Back" className="w-3 h-3 sm:w-3.5 sm:h-3.5" style={{ filter: isDark ? "none" : "invert(1)" }} />
+            </button>
 
-              {/* Overlay - Consistent dark overlay for hero contrast */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
-
-              {/* Content */}
-              <div
-                className={`relative z-10 flex-1 flex flex-col justify-between w-full ${isMobile ? "px-4 py-6" : "px-8 py-6"}`}
-              >
-                {/* Top row */}
-                <div
-                  className={`flex items-center justify-between ${isMobile ? "mt-2" : "mt-12"}`}
-                >
-                  <button
-                    onClick={handleBack}
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 border border-white/20 bg-white/10 backdrop-blur-sm"
-                  >
-                    <img src={BackIcon.src} alt="Back" className="w-4 h-4" />
-                  </button>
-
-                  <div className="flex gap-3">
-                    {event?.event_status !== "cancelled" && (
-                      <div className="relative">
-                        <button
-                          onClick={handleLike}
-                          className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all border border-white/20"
-                          style={{
-                            background: "rgba(255, 255, 255, 0.1)",
-                            backdropFilter: "blur(4px)",
-                          }}
-                        >
-                          <Heart
-                            className="w-6 h-6 transition-all"
-                            fill={userLiked ? "url(#heartGradient)" : "none"}
-                            stroke={userLiked ? "url(#heartGradient)" : "#FFFFFF"}
-                            strokeWidth={userLiked ? 1.5 : 2}
-                          />
-                        </button>
-                      </div>
-                    )}
+            <div className="flex gap-2 sm:gap-3">
+              {event?.event_status !== "cancelled" && (
+                <div className="relative">
                     <button
-                      onClick={() => setShowShareOptions(true)}
-                      className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-80 transition-colors border border-white/20 bg-white/10 backdrop-blur-sm"
-                    >
-                      <img
-                        src={ShareIcon.src}
-                        alt="Share"
-                        className="w-6 h-6"
-                      />
-                    </button>
-                  </div>
+                    onClick={handleLike}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:opacity-80 transition-all border"
+                    style={{
+                      borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
+                      background: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    <Heart
+                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all"
+                      fill={userLiked ? "url(#heartGradient)" : "none"}
+                      stroke={userLiked ? "url(#heartGradient)" : (isDark ? "#FFFFFF" : "#000000")}
+                      strokeWidth={userLiked ? 1.5 : 2}
+                    />
+                  </button>
+                </div>
+              )}
+                <button
+                onClick={() => setShowShareOptions(true)}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:opacity-80 transition-colors border"
+                  style={{
+                    borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
+                    background: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  <img
+                    src={ShareIcon.src}
+                    alt="Share"
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                    style={{ filter: isDark ? "none" : "invert(1)" }}
+                  />
+                </button>
+            </div>
+          </div>
+
+          <div className="max-w-[98%] sm:max-w-[95%] md:max-w-[92%] lg:max-w-[90%] mx-auto px-2 md:px-0">
+            {/* Event Media Gallery / Banner */}
+            {mediaItems.length > 0 && (
+              <div
+                className="relative rounded-2xl md:rounded-3xl overflow-hidden text-white aspect-[3/4] xs:aspect-[4/5] sm:aspect-[3/2] md:aspect-video lg:aspect-[21/9] min-h-[250px] xs:min-h-[300px] sm:min-h-[350px] md:min-h-0 lg:min-h-0 group transition-all duration-500 hover:shadow-2xl shadow-xl border border-white/10"
+              >
+                {/* Background Images / Slideshow */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={mediaItems[currentMediaIndex]}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5 }}
+                      className="absolute inset-0 w-full h-full"
+                      style={{
+                        backgroundImage: `url(${mediaItems[currentMediaIndex]})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  </AnimatePresence>
                 </div>
 
-                {/* Bottom content */}
-                <div className="relative">
-                  {/* LEFT CONTENT (text column) */}
-                  <div className="max-w-4xl transition-opacity duration-300 group-hover:opacity-0 group-hover:pointer-events-none">
-                    {/* Meta */}
-                    <div className="flex flex-row overflow-x-auto scrollbar-hide flex-nowrap items-center gap-1.5 sm:gap-3 mb-4 max-w-full">
-                      {/* Category */}
-                      <div
-                        className="px-2 py-1 md:px-4 md:py-2 rounded-xl transition-all shadow-lg flex-shrink-0"
-                        style={{
-                          backgroundColor: isDark
-                            ? "#1C2024B2"
-                            : "#FFFFFF",
-                          backdropFilter: isDark ? "blur(20px)" : "none",
-                          color: isDark ? "#FFFFFF" : "#000000",
-                          border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}`,
-                        }}
-                      >
-                        <span className="text-[10px] md:text-sm font-bold">
-                          {event.event_category}
-                        </span>
-                      </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent transition-opacity duration-500 pointer-events-none"></div>
 
-                      {/* Subcategory */}
-                      {event.event_subcategory && (
-                        <div
-                          className="px-2 py-1 md:px-4 md:py-2 rounded-xl transition-all shadow-lg flex-shrink-0"
-                          style={{
-                            backgroundColor: isDark
-                              ? "#1C2024B2"
-                              : "#FFFFFF",
-                            backdropFilter: isDark ? "blur(20px)" : "none",
-                            color: isDark ? "#FFFFFF" : "#000000",
-                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}`,
-                          }}
-                        >
-                          <span className="text-[10px] md:text-sm font-bold">
-                            {event.event_subcategory}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Age */}
-                      <div
-                        className="px-2 py-1 md:px-4 md:py-2 rounded-xl transition-all shadow-lg flex-shrink-0"
-                        style={{
-                          backgroundColor: isDark
-                            ? "#1C2024B2"
-                            : "#FFFFFF",
-                          backdropFilter: isDark ? "blur(20px)" : "none",
-                          color: isDark ? "#FFFFFF" : "#000000",
-                          border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}`,
-                        }}
-                      >
-                        <span className="text-xs md:text-sm font-bold">
-                          {event.min_age_allowed}
-                          {event.max_age_allowed
-                            ? `-${event.max_age_allowed}`
-                            : "+"}
-                        </span>
-                      </div>
-
-                      {/* Free / Paid */}
-                      {event.payment_type && (
-                        <div
-                          className="px-2 py-1 md:px-4 md:py-2 rounded-xl transition-all shadow-lg flex-shrink-0"
-                          style={{
-                            backgroundColor: isDark
-                              ? "#1C2024B2"
-                              : "#FFFFFF",
-                            backdropFilter: isDark ? "blur(20px)" : "none",
-                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}`,
-                          }}
-                        >
-                          <span
-                            className="text-xs md:text-sm font-bold"
-                            style={{
-                              color:
-                                event.payment_type === "free"
-                                  ? "#10b981"
-                                  : "#f59e0b",
-                            }}
-                          >
-                            {event.payment_type === "free" ? "Free" : "Paid"}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Online */}
-                      {event.location_type === "online" && (
-                        <div
-                          className="px-2 py-1 md:px-4 md:py-2 rounded-xl transition-all shadow-lg flex-shrink-0"
-                          style={{
-                            backgroundColor: isDark
-                              ? "#1C2024B2"
-                              : "#FFFFFF",
-                            backdropFilter: isDark ? "blur(20px)" : "none",
-                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}`,
-                          }}
-                        >
-                          <span className="text-blue-500 text-xs md:text-sm font-extrabold">
-                            Online
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <h1
-                      className={`${isMobile ? "text-2xl sm:text-3xl" : "text-4xl md:text-5xl"} font-bold leading-tight text-white drop-shadow-md break-words`}
+                {/* Slideshow Controls */}
+                {mediaItems.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handlePrevMedia(); }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-black/40"
                     >
-                      {event.event_name}
-                    </h1>
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleNextMedia(); }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-black/40"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
 
-                    {/* Host info */}
-                    <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-3">
-                      {(group?.group_logo || event.event_logo || event.created_by) && (
-                        <img
-                          src={group?.group_logo || event.event_logo || (event.created_by?.startsWith('http') ? event.created_by : `https://avatar.iran.liara.run/username?username=${event.created_by}`)}
-                          alt={group?.group_name || event.created_by}
-                          className="w-8 h-8 rounded-full object-cover shrink-0"
-                          style={{
-                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.2)"}`,
-                          }}
+                    {/* Indicators */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                      {mediaItems.map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`h-1 rounded-full transition-all duration-300 ${
+                            idx === currentMediaIndex ? "w-6 bg-white" : "w-1.5 bg-white/40"
+                          }`}
                         />
-                      )}
-                      <span className="text-xs sm:text-sm text-white/80">
-                        By{" "}
-                        <span className="font-bold underline cursor-pointer text-white">
-                          {group?.group_name || (group as any)?.name || event.created_by}
-                        </span>
-                      </span>
-                    </div> {/* End of Host info */}
-                  </div>
+                      ))}
+                    </div>
+                  </>
+                )}
 
-                  {/* Stats and Action Buttons Row */}
-                  <div className="flex flex-row items-center justify-between w-full mt-3 sm:mt-4 z-20 relative">
-                    {/* Stats */}
-                    <div className="flex items-center gap-3 sm:gap-6 text-[10px] sm:text-sm font-extrabold text-white transition-opacity duration-300 group-hover:opacity-0 group-hover:pointer-events-none">
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <img src={PublicIcon.src} className="w-4 h-4 sm:w-6 sm:h-6" />
-                        <span>{eventStats?.views || 0}</span>
-                      </div>
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <img src={TicketIcon.src} className="w-4 h-4 sm:w-6 sm:h-6" />
-                        <span>{bookingCount}</span>
-                      </div>
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <img src={ShareIcon.src} className="w-4 h-4 sm:w-6 sm:h-6" />
-                        <span>{shareCount}</span>
+                {/* Maximize Button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setActivePhoto(mediaItems[currentMediaIndex]); }}
+                  className="absolute top-4 right-4 p-2 rounded-xl bg-black/20 backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-black/40"
+                >
+                  <Maximize className="w-5 h-5" />
+                </button>
+
+                {/* Content */}
+                <div className="absolute inset-0 z-10 w-full h-full flex flex-col justify-end p-3 xs:p-4 sm:p-5 md:p-6 lg:p-7">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6">
+                    <div className="md:flex-1 min-w-0">
+                      {/* LEFT CONTENT (text column) */}
+                      <div className="max-w-full pl-0 md:pl-1">
+                        {/* Meta Badge Row */}
+                        <div className="flex flex-row flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5 md:mb-2">
+                          {/* Category */}
+                          <div
+                            className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0"
+                          >
+                            <span className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold text-white whitespace-nowrap uppercase tracking-wider">
+                              {event.event_category}
+                            </span>
+                          </div>
+
+                          {/* Subcategory */}
+                          {event.event_subcategory && (
+                            <div
+                              className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0"
+                            >
+                               <span className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold text-white whitespace-nowrap uppercase tracking-wider">
+                                {event.event_subcategory}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Age Badge */}
+                          {(event as Event)?.min_age_allowed !== undefined && (
+                            <div
+                              className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center gap-1 flex-shrink-0"
+                            >
+                              <span className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-black tracking-wide text-white">
+                                {(event as Event)?.min_age_allowed || 0}+
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Free / Paid Badge */}
+                          {event.payment_type && (
+                            <div
+                              className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0"
+                            >
+                              <span
+                                className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold uppercase tracking-wider"
+                                style={{
+                                  color: event.payment_type === "free" ? "#10b981" : "#f59e0b",
+                                }}
+                              >
+                                {event.payment_type === "free" ? "Free" : "Paid"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Title */}
+                        <h1
+                          className="text-sm xs:text-base sm:text-lg md:text-lg lg:text-lg xl:text-xl font-black mb-1.5 md:mb-2 tracking-tight text-white line-clamp-2 leading-tight drop-shadow-2xl"
+                          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                        >
+                          {event.event_name}
+                        </h1>
+
+                        {/* Host and Stats row - Responsive alignment */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 md:gap-5 mb-1">
+                          {/* Host info */}
+                          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                            {(group?.group_logo || event.event_logo || event.created_by) && (
+                              <img
+                                src={group?.group_logo || event.event_logo || (event.created_by?.startsWith('http') ? event.created_by : `https://avatar.iran.liara.run/username?username=${event.created_by}`)}
+                                alt={group?.group_name || event.created_by}
+                                className="w-5 h-5 xs:w-6 xs:h-6 md:w-7 md:h-7 rounded-full object-cover shrink-0 border-2 border-white/20 shadow-lg"
+                              />
+                            )}
+                            <div className="flex flex-col">
+                              <span className="text-[6px] xs:text-[7px] md:text-[8px] text-white/60 uppercase tracking-widest font-bold">Hosted By</span>
+                              <span className="text-[8px] xs:text-[10px] md:text-[11px] font-bold text-white hover:underline cursor-pointer truncate max-w-[100px] sm:max-w-[150px] md:max-w-[200px]">
+                                {group?.group_name || (group as any)?.name || event.created_by}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Simplified Stats - Just Icons + Counts, No labels */}
+                          <div className="w-fit bg-white/10 backdrop-blur-2xl border border-white/20 rounded-lg px-2 md:px-2.5 py-1 flex items-center gap-2 md:gap-2.5 text-[8px] md:text-[10px] font-bold text-white shadow-2xl">
+                            <div className="flex items-center gap-1 md:gap-1.5">
+                              <img src={PublicIcon.src} className="w-2.5 h-2.5 md:w-3 md:h-3 opacity-90" alt="Views" />
+                              <span>{eventStats?.views?.toLocaleString() || 0}</span>
+                            </div>
+                            <div className="w-px h-2.5 bg-white/20" />
+                            <div className="flex items-center gap-1 md:gap-1.5">
+                              <img src={BookTicketIcon.src} className="w-2.5 h-2.5 md:w-3 md:h-3 opacity-90" alt="Tickets" />
+                              <span>{bookingCount?.toLocaleString() || 0}</span>
+                            </div>
+                            <div className="w-px h-2.5 bg-white/20" />
+                            <div className="flex items-center gap-1 md:gap-1.5">
+                              <img src={ShareIcon.src} className="w-2.5 h-2.5 md:w-3 md:h-3 opacity-90" alt="Share" />
+                              <span>{eventStats?.shares?.toLocaleString() || 0}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* ✅ RIGHT-MOST BUTTONS */}
-                    <div
-                      className="flex flex-row justify-end items-center gap-1.5 sm:gap-4 xl:absolute xl:right-0 xl:top-1/2 xl:-translate-y-1/2"
-                    >
+                    {/* Action Buttons Row */}
+                    <div className="flex flex-row flex-nowrap w-full md:w-auto justify-end items-center gap-1.5 sm:gap-2.5 mt-2 md:mt-0 md:shrink-0">
                       {event?.event_status !== "cancelled" && (
                         <>
                           <button
                             onClick={handleSave}
-                            className="flex items-center justify-center transition-all px-2.5 py-1 sm:py-2.5 rounded-full border border-[#9575CD] hover:opacity-80 flex-initial"
+                            className="flex-none flex items-center justify-center transition-all active:scale-95 shadow-lg group/wishlist"
                             style={{
-                              minWidth: isMobile ? '0' : '166.5px',
-                              height: isMobile ? '32px' : '48px',
-                              background: userSaved
-                                ? "rgba(234,179,8,0.3)"
-                                : "rgba(255,255,255,0.1)",
+                              width: "166.5px",
+                              height: "48px",
+                              borderRadius: "25px",
+                              border: userSaved ? "0.4px solid #facc15" : "0.4px solid #9575CD",
+                              opacity: 1,
+                              gap: "10px",
+                              padding: "8px 12px",
                               color: userSaved ? "#facc15" : "#FFFFFF",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              backdropFilter: "blur(12px)",
+                              maxWidth: "calc(50% - 4px)",
                             }}
                           >
                             <img
                               src={WishListIcon.src}
-                              className="w-3.5 h-3.5 sm:w-5 sm:h-5 block transition-all"
-                              style={{ filter: userSaved ? "none" : "none" }}
+                              className="w-3.5 h-3.5 md:w-4 md:h-4 transition-transform duration-300 group-hover/wishlist:scale-110"
+                              alt="Wishlist"
+                              style={{ filter: userSaved ? "none" : "brightness(0) invert(1)" }}
                             />
-                            <span className="font-bold text-[10px] sm:text-sm">
+                            <span className="font-bold text-[11px] md:text-[14px] whitespace-nowrap">
                               {userSaved ? "Saved" : "Wishlist"}
                             </span>
                           </button>
 
                           {hasBooked ? (
                             <button
-                              onClick={() => {
-                                setShowTicketModal(true);
-                              }}
-                              className="flex items-center justify-center transition-all px-2.5 py-1.5 sm:py-2.5 rounded-full hover:opacity-90 flex-initial"
+                              onClick={() => setShowTicketModal(true)}
+                              className="flex-none flex items-center justify-center transition-all active:scale-95 shadow-[0_8px_20px_rgba(136,96,217,0.3)]"
                               style={{
-                                minWidth: isMobile ? '0' : '166.5px',
-                                height: isMobile ? '32px' : '48px',
+                                width: "166.5px",
+                                height: "48px",
+                                borderRadius: "25px",
+                                gap: "10px",
+                                padding: "8px 12px",
+                                opacity: 1,
                                 background: "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)",
                                 color: "#FFFFFF",
+                                maxWidth: "calc(50% - 4px)",
                               }}
                             >
                               <img
                                 src={TicketIcon.src}
-                                className="w-3.5 h-3.5 sm:w-5 sm:h-5 block"
+                                className="w-3.5 h-3.5 md:w-4 md:h-4"
                                 alt="View Ticket"
                               />
-                              <span className="font-bold text-[10px] sm:text-sm ml-1 sm:ml-2">View Ticket</span>
+                              <span className="font-bold text-[11px] md:text-[14px] whitespace-nowrap">View Ticket</span>
                             </button>
                           ) : (
                             <button
                               onClick={handleBookEvent}
-                              className="flex items-center justify-center transition-all px-2.5 py-1 sm:py-2.5 rounded-full hover:opacity-90 flex-initial"
+                              className="flex-none flex items-center justify-center transition-all active:scale-95 shadow-[0_8px_20px_rgba(136,96,217,0.3)] group/book"
                               style={{
-                                minWidth: isMobile ? '0' : '166.5px',
-                                height: isMobile ? '32px' : '48px',
+                                width: "166.5px",
+                                height: "48px",
+                                borderRadius: "25px",
+                                gap: "10px",
+                                padding: "8px 12px",
+                                opacity: 1,
                                 background: "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)",
                                 color: "#FFFFFF",
+                                maxWidth: "calc(50% - 4px)",
                               }}
                             >
                               {actionLabel !== "Watch Now" && (
                                 <img
                                   src={BookTicketIcon.src}
-                                  className="w-3.5 h-3.5 sm:w-5 sm:h-5 block"
+                                  className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover/book:rotate-12 transition-transform"
                                   alt="Book Ticket"
                                 />
                               )}
-                              <span className="font-bold text-[10px] sm:text-sm ml-1 sm:ml-2">{actionLabel}</span>
+                              <span className="font-bold text-[11px] md:text-[14px] whitespace-nowrap uppercase tracking-wider">{actionLabel}</span>
                             </button>
                           )}
                         </>
                       )}
-                      {/* Cancelled state — show refund CTA if user has booked */}
+
                       {event?.event_status === "cancelled" && hasBooked && (
                         <button
                           onClick={() =>
                             router.push(`/bookings/${userBooking?.id}/refund`)
                           }
-                          className="flex items-center justify-center h-8 sm:h-12 px-3 sm:px-6 gap-1 sm:gap-2 rounded-full text-white font-semibold text-[10px] sm:text-base"
-                          style={{
-                            background: "rgba(239,68,68,0.2)",
-                            border: "1px solid rgba(239,68,68,0.5)",
-                          }}
+                          className="flex items-center justify-center h-[40px] sm:h-[52px] px-6 gap-2 rounded-full text-white font-bold text-xs sm:text-base border border-red-500/50 bg-red-500/20 hover:bg-red-500/30 transition-all active:scale-95"
                         >
                           Track Refund →
                         </button>
@@ -1071,12 +1089,17 @@ export default function EventDetailPage() {
                     </div>
                   </div>
                 </div>
+
               </div>
-            </div>
-          )}
-          <div className="relative z-20 w-full px-2 md:px-8">
+            )}
+          </div>
+          <div className="relative z-20 w-full mx-auto px-4 md:px-8 mt-6 md:mt-10">
             <div
-              className={`flex flex-nowrap gap-2 md:gap-4 py-3 w-full items-center justify-start overflow-x-auto scrollbar-hide`}
+              className={`flex flex-nowrap gap-1 md:gap-2 p-1.5 rounded-[18px] md:rounded-[24px] ${
+                isDark ? "bg-black/30" : "bg-white/70"
+              } backdrop-blur-2xl border ${
+                isDark ? "border-white/10" : "border-black/5"
+              } w-full sm:w-fit mx-auto items-center justify-start sm:justify-center overflow-x-auto scrollbar-hide shadow-xl md:shadow-2xl mb-8 md:mb-12 px-3 sm:px-1.5`}
             >
               {SECTIONS.map((item) => {
                 const isActive = activeSection === item.key;
@@ -1085,38 +1108,37 @@ export default function EventDetailPage() {
                   <button
                     key={item.key}
                     onClick={() => setActiveSection(item.key)}
-                    className={`flex justify-center items-center rounded-[12px] text-[10px] sm:text-sm md:text-base font-bold transition-all duration-200 cursor-pointer shadow-sm text-center leading-tight whitespace-nowrap shrink-0`}
-                    style={
-                      isActive
-                        ? {
-                            width: isMobile ? "auto" : `${item.width}px`,
-                            height: isMobile ? "38px" : "53px",
-                            padding: isMobile ? "0px 12px" : "20px 32px",
-                            background: isDark
-                              ? `linear-gradient(180deg, #373737 0%, #262626 50%, #1C1C1C 100%) padding-box, linear-gradient(180deg, #666666 0%, #616060 50%, #393939 100%) border-box`
-                              : `linear-gradient(180deg, #ffffff 0%, #f9fafb 50%, #f3f4f6 100%) padding-box, linear-gradient(180deg, #e5e7eb 0%, #d1d5db 50%, #9ca3af 100%) border-box`,
-                            border: isDark
-                              ? "0.6px solid transparent"
-                              : "1px solid #d1d5db",
-                            color: isDark ? "#FFFFFF" : "#111827",
-                            gap: "10px",
-                          }
-                        : {
-                            width: isMobile ? "auto" : `${item.width}px`,
-                            height: isMobile ? "38px" : "53px",
-                            padding: isMobile ? "0px 12px" : "20px 32px",
-                            background: isDark
-                              ? "var(--Event_card_bg, #38383833)"
-                              : "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5))",
-                            border: isDark
-                              ? "0.5px solid rgba(255, 255, 255, 0.1)"
-                              : "1px solid #e5e7eb",
-                            color: isDark ? "#9CA3AF" : "#6B7280",
-                            gap: "10px",
-                          }
-                    }
+                    className={`relative group flex justify-center items-center rounded-[14px] md:rounded-[18px] transition-all duration-300 cursor-pointer text-center leading-tight whitespace-nowrap shrink-0 px-5 md:px-8 h-[38px] md:h-[52px]`}
                   >
-                    {item.label}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabBackground"
+                        className="absolute inset-0 z-0 rounded-[14px] md:rounded-[18px] shadow-md md:shadow-lg"
+                        initial={false}
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 30,
+                        }}
+                        style={{
+                          background: isDark
+                            ? `linear-gradient(180deg, #373737 0%, #262626 50%, #1C1C1C 100%) padding-box, linear-gradient(180deg, #666666 0%, #616060 50%, #393939 100%) border-box`
+                            : `linear-gradient(180deg, #ffffff 0%, #f3f4f6 50%, #e5e7eb 100%) padding-box, linear-gradient(180deg, #e5e7eb 0%, #d1d5db 50%, #9ca3af 100%) border-box`,
+                          border: isDark
+                            ? "1px solid rgba(255, 255, 255, 0.1)"
+                            : "1px solid rgba(0, 0, 0, 0.05)",
+                        }}
+                      />
+                    )}
+                    <span
+                      className={`relative z-10 text-[11px] sm:text-xs md:text-sm font-bold transition-transform duration-200 group-active:scale-95 ${
+                        isActive
+                          ? isDark ? "text-white" : "text-gray-900"
+                          : isDark ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
                   </button>
                 );
               })}
@@ -1136,7 +1158,7 @@ export default function EventDetailPage() {
               ? event.parentEventName
               : parentEvent?.event_name;
             return (
-              <div key="sub-event-badge" className="mb-4">
+              <div key="sub-event-badge" className="mb-6 flex justify-center">
                 <span
                   className="px-4 py-2 rounded-full text-sm font-bold shadow-sm"
                   style={{
@@ -1159,13 +1181,13 @@ export default function EventDetailPage() {
             style={{ backgroundColor: themeStyles.background }}
           >
             {/* ================= MAIN CONTENT ================= */}
-            <div className="space-y-4 md:space-y-12 px-4 md:px-8">
+            <div className="space-y-4 md:space-y-12 max-w-[95%] md:max-w-[90%] mx-auto px-4 md:px-8">
               {/* ================= ABOUT ================= */}
               {activeSection === "about" && (
                 <div className="px-1 sm:px-4 md:px-8 py-2 md:py-4 space-y-4 md:space-y-12">
                   {/* META ROW */}
                   <div
-                    className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 text-sm"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 text-sm"
                     style={{ color: themeStyles.text }}
                   >
                     {/* Date */}
@@ -1379,8 +1401,8 @@ export default function EventDetailPage() {
                   {event.location && (
                     <div
                       className="
-          w-full md:w-[60%]
-          h-[260px]
+          w-full lg:w-[60%]
+          h-[260px] md:h-[320px]
           rounded-2xl
           overflow-hidden
         "
@@ -1755,11 +1777,11 @@ export default function EventDetailPage() {
             </div>
           </div>
           {isMainEvent(event) && event.sub_events && event.sub_events.length > 0 && (
-            <div className="mt-10 px-4 md:px-8">
+            <div className="mt-10 max-w-[95%] md:max-w-[90%] mx-auto px-4 md:px-8">
               <SubEventGrid subEvents={event.sub_events} />
             </div>
           )}
-          <div className="mt-10">
+          <div className="mt-10 max-w-[95%] md:max-w-[90%] mx-auto">
             <SimilarEvents similarEvents={similarEvents} />
           </div>
         </div>
