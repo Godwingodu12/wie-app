@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getTicketImageUrl } from "../../utils/imageUtils.js";
 import {
@@ -41,6 +41,7 @@ import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
 import SortablePhoto from "../../components/CreateGroup/SortablePhoto.jsx";
+import FullScreenViewer from "../../components/CreateGroup/FullScreenViewer.jsx";
 import { sanitizeEditorHtml } from "../../utils/editorUtils";
 import {
   DndContext,
@@ -83,14 +84,15 @@ const UpdateTicketAddOns = () => {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState(null);
   const [groupHasGSTIN, setGroupHasGSTIN] = useState(false);
-  const [groupGSTIN, setGroupGSTIN]       = useState('');
-  const [gstEnabled, setGstEnabled]       = useState(false);
+  const [groupGSTIN, setGroupGSTIN] = useState('');
+  const [gstEnabled, setGstEnabled] = useState(false);
   const GST_PERCENTAGE = 18;
   const gstApplicable = groupHasGSTIN || gstEnabled;
   const [mainEventData, setMainEventData] = useState(null);
   const [videoFiles, setVideoFiles] = useState({});
   const [previewImageFiles, setPreviewImageFiles] = useState({});
   const [alert, setAlert] = useState(null);
+  const [fullScreenViewer, setFullScreenViewer] = useState(null);
   const [isReorderingImages, setIsReorderingImages] = useState(false);
   const [isReorderingVideos, setIsReorderingVideos] = useState(false);
   const [confirmState, setConfirmState] = useState({
@@ -137,6 +139,14 @@ const UpdateTicketAddOns = () => {
   };
   const showAlert = (data) => setAlert({ ...data, show: true });
   const hideAlert = () => setAlert(null);
+
+  const openViewer = useCallback((url, mimeType, name) => {
+    setFullScreenViewer({ url, mimeType, name });
+  }, []);
+
+  const closeViewer = useCallback(() => {
+    setFullScreenViewer(null);
+  }, []);
   const [showExtraMedia, setShowExtraMedia] = useState(false);
   const [poc, setPoc] = useState({
     POC_name: "",
@@ -210,7 +220,7 @@ const UpdateTicketAddOns = () => {
     event_banner: null,
     event_portrait: null,
     event_images: [],
-  event_videos: [],
+    event_videos: [],
   });
   const categoryOptions = Object.keys(eventCategories).map((category) => ({
     value: category,
@@ -220,9 +230,9 @@ const UpdateTicketAddOns = () => {
 
   const subCategoryOptions = formData.event_category
     ? eventCategories[formData.event_category].map((sub) => ({
-        value: sub,
-        label: sub,
-      }))
+      value: sub,
+      label: sub,
+    }))
     : [];
   const fetchData = async () => {
     if (!ticketId) {
@@ -344,37 +354,37 @@ const UpdateTicketAddOns = () => {
         const cleanBankInfo = {
           bank_acc_type: String(
             bankInfo.bank_acc_type ||
-              bankInfo.primary_bank_acc_type ||
-              bankInfo.accountType ||
-              bankInfo.account_type ||
-              bankInfo.type ||
-              ""
+            bankInfo.primary_bank_acc_type ||
+            bankInfo.accountType ||
+            bankInfo.account_type ||
+            bankInfo.type ||
+            ""
           ).trim(),
           bank_acc_holder: String(
             bankInfo.bank_acc_holder ||
-              bankInfo.primary_bank_acc_holder ||
-              bankInfo.accountHolder ||
-              bankInfo.account_holder ||
-              bankInfo.holder ||
-              bankInfo.name ||
-              ""
+            bankInfo.primary_bank_acc_holder ||
+            bankInfo.accountHolder ||
+            bankInfo.account_holder ||
+            bankInfo.holder ||
+            bankInfo.name ||
+            ""
           ).trim(),
           bank_acc_no: String(
             bankInfo.bank_acc_no ||
-              bankInfo.primary_bank_acc_no ||
-              bankInfo.accountNumber ||
-              bankInfo.account_number ||
-              bankInfo.number ||
-              bankInfo.acc_no ||
-              ""
+            bankInfo.primary_bank_acc_no ||
+            bankInfo.accountNumber ||
+            bankInfo.account_number ||
+            bankInfo.number ||
+            bankInfo.acc_no ||
+            ""
           ).trim(),
           bank_ifsc: String(
             bankInfo.bank_ifsc ||
-              bankInfo.primary_bank_ifsc ||
-              bankInfo.ifsc ||
-              bankInfo.ifscCode ||
-              bankInfo.ifsc_code ||
-              ""
+            bankInfo.primary_bank_ifsc ||
+            bankInfo.ifsc ||
+            bankInfo.ifscCode ||
+            bankInfo.ifsc_code ||
+            ""
           ).trim(),
         };
         const hasAnyBankData = Object.values(cleanBankInfo).some(
@@ -511,11 +521,10 @@ const UpdateTicketAddOns = () => {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <label
-                className={`font-medium text-md ${
-                  groupHasBankAccount && !groupBankDetailsIncomplete
-                    ? "text-gray-900 dark:text-white"
-                    : "text-black dark:text-gray-400"
-                }`}
+                className={`font-medium text-md ${groupHasBankAccount && !groupBankDetailsIncomplete
+                  ? "text-gray-900 dark:text-white"
+                  : "text-black dark:text-gray-400"
+                  }`}
               >
                 Do you want to use the bank account used for group creation?
               </label>
@@ -648,7 +657,7 @@ const UpdateTicketAddOns = () => {
           "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
       });
       return;
-}
+    }
 
     // 2. Check for duplicate email
     const isDuplicateEmail = formData.POCS.some(
@@ -702,7 +711,7 @@ const UpdateTicketAddOns = () => {
       setPreviews((prev) => ({ ...prev, [type]: previewUrl }));
     }
   };
-    const removeSingleFile = (type) => {
+  const removeSingleFile = (type) => {
     setPreviews((prev) => ({ ...prev, [type]: null }));
     setFormData((prev) => ({ ...prev, [type]: null }));
     setErrors((prev) => ({ ...prev, [type]: null }));
@@ -853,7 +862,7 @@ const UpdateTicketAddOns = () => {
                 : null,
             ticketTypeColor:
               seat.ticketTypeColor !== undefined &&
-              seat.ticketTypeColor !== null
+                seat.ticketTypeColor !== null
                 ? String(seat.ticketTypeColor)
                 : null,
             price:
@@ -892,9 +901,8 @@ const UpdateTicketAddOns = () => {
         showAlert({
           type: "success",
           message: "Layout Generated!",
-          description: `Successfully generated ${
-            generatedLayout.seats?.length || 0
-          } seats. All seats are ready for assignment.`,
+          description: `Successfully generated ${generatedLayout.seats?.length || 0
+            } seats. All seats are ready for assignment.`,
         });
       } else {
         throw new Error("No seating layout returned from server");
@@ -937,44 +945,44 @@ const UpdateTicketAddOns = () => {
         "Seating layout has been removed. Upload a new file to generate a layout.",
     });
   };
-const handleMultipleFileChange = async (e, targetField) => {
-  const files = Array.from(e.target.files);
-  if (files.length === 0) return;
+  const handleMultipleFileChange = async (e, targetField) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
 
-  const limit = targetField === 'event_images' ? 10 : 5;
-  const currentCount = previews[targetField]?.length || 0;
+    const limit = targetField === 'event_images' ? 10 : 5;
+    const currentCount = previews[targetField]?.length || 0;
 
-  if (currentCount + files.length > limit) {
-    showAlert({
-      type: "error",
-      message: "Limit Reached",
-      description: `Max ${limit} files allowed for this section.`
-    });
-    return;
-  }
+    if (currentCount + files.length > limit) {
+      showAlert({
+        type: "error",
+        message: "Limit Reached",
+        description: `Max ${limit} files allowed for this section.`
+      });
+      return;
+    }
 
-  setLoading(true);
-  // Using URL.createObjectURL for faster, more reliable previews
-  const newItems = files.map((file) => ({
-    id: `${file.name}-${Date.now()}-${Math.random()}`, // Unique string ID
-    preview: URL.createObjectURL(file), // Visually shows the image/video
-    name: file.name,
-    isExisting: false,
-    mimeType: file.type,
-    originalFile: file,
-  }));
+    setLoading(true);
+    // Using URL.createObjectURL for faster, more reliable previews
+    const newItems = files.map((file) => ({
+      id: `${file.name}-${Date.now()}-${Math.random()}`, // Unique string ID
+      preview: URL.createObjectURL(file), // Visually shows the image/video
+      name: file.name,
+      isExisting: false,
+      mimeType: file.type,
+      originalFile: file,
+    }));
 
-  setPreviews((prev) => ({
-    ...prev,
-    [targetField]: [...(prev[targetField] || []), ...newItems],
-  }));
+    setPreviews((prev) => ({
+      ...prev,
+      [targetField]: [...(prev[targetField] || []), ...newItems],
+    }));
 
-  setFormData((prev) => ({
-    ...prev,
-    [targetField]: [...(prev[targetField] || []), ...newItems.map(i => i.originalFile)],
-  }));
-  setLoading(false);
-};
+    setFormData((prev) => ({
+      ...prev,
+      [targetField]: [...(prev[targetField] || []), ...newItems.map(i => i.originalFile)],
+    }));
+    setLoading(false);
+  };
 
 
   const handleSaveOrUpdateTickets = (updatedTickets) => {
@@ -1373,7 +1381,7 @@ const handleMultipleFileChange = async (e, targetField) => {
           const resolvedPrice = Number(t.ticket_price ?? t.price ?? 0);
 
           const ticket = {
-            ticket_type:  t.ticket_type  || t.name          || "Standard Ticket",
+            ticket_type: t.ticket_type || t.name || "Standard Ticket",
             ticket_price: resolvedPrice,                       // GST-inclusive price organiser entered
             max_capacity: Number(t.max_capacity ?? t.capacity ?? 0),
             ticket_photo: t.ticket_photo || t.existingPhotoPath || t.image || "",
@@ -1477,15 +1485,15 @@ const handleMultipleFileChange = async (e, targetField) => {
         // seat-assignment modal, so we trust that data directly instead of only
         // looking in seatAssignments (which may be empty for pre-existing layouts).
         const processedSeats = generatedSeatingLayout.seats.map((seat) => ({
-          seatId:          String(seat.seatId),
-          row:             String(seat.row),
-          column:          Number(seat.column),
-          isAvailable:     seat.isAvailable !== false,
-          isSelected:      false,
-          ticketTypeId:    seat.ticketTypeId    ? String(seat.ticketTypeId)    : null,
-          ticketTypeName:  seat.ticketTypeName  ? String(seat.ticketTypeName)  : null,
+          seatId: String(seat.seatId),
+          row: String(seat.row),
+          column: Number(seat.column),
+          isAvailable: seat.isAvailable !== false,
+          isSelected: false,
+          ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
+          ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
           ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
-          price:           seat.price !== undefined ? Number(seat.price) : 0,
+          price: seat.price !== undefined ? Number(seat.price) : 0,
         }));
 
         // Build ticketTypeAssignments.
@@ -1510,12 +1518,12 @@ const handleMultipleFileChange = async (e, targetField) => {
                 return null;
               }
               return {
-                ticketTypeId:  normalizedTypeId,
+                ticketTypeId: normalizedTypeId,
                 ticketTypeName: ticketDetails.name,
-                color:         ticketDetails.color,
+                color: ticketDetails.color,
                 assignedSeats: seatIds.map((id) => String(id)),
-                capacity:      seatIds.length,
-                price:         ticketDetails.price,
+                capacity: seatIds.length,
+                price: ticketDetails.price,
               };
             })
             .filter(Boolean);
@@ -1527,11 +1535,11 @@ const handleMultipleFileChange = async (e, targetField) => {
             const key = seat.ticketTypeId;
             if (!assignmentMap[key]) {
               assignmentMap[key] = {
-                ticketTypeId:   key,
-                ticketTypeName: seat.ticketTypeName  || "",
-                color:          seat.ticketTypeColor || "",
-                assignedSeats:  [],
-                price:          seat.price || 0,
+                ticketTypeId: key,
+                ticketTypeName: seat.ticketTypeName || "",
+                color: seat.ticketTypeColor || "",
+                assignedSeats: [],
+                price: seat.price || 0,
               };
             }
             assignmentMap[key].assignedSeats.push(seat.seatId);
@@ -1550,26 +1558,26 @@ const handleMultipleFileChange = async (e, targetField) => {
         ) {
           processedAssignments = generatedSeatingLayout.ticketTypeAssignments.map(
             (a) => ({
-              ticketTypeId:   String(a.ticketTypeId  || ""),
+              ticketTypeId: String(a.ticketTypeId || ""),
               ticketTypeName: String(a.ticketTypeName || ""),
-              color:          String(a.color          || ""),
-              assignedSeats:  (a.assignedSeats || []).map(String),
-              capacity:       Number(a.capacity || 0),
-              price:          Number(a.price    || 0),
+              color: String(a.color || ""),
+              assignedSeats: (a.assignedSeats || []).map(String),
+              capacity: Number(a.capacity || 0),
+              price: Number(a.price || 0),
             })
           );
         }
 
         payload.seating_layout = {
-          rows:                  (generatedSeatingLayout.rows || []).map((r) => String(r)),
-          columns:               Number(generatedSeatingLayout.columns || 0),
-          seats:                 processedSeats,
+          rows: (generatedSeatingLayout.rows || []).map((r) => String(r)),
+          columns: Number(generatedSeatingLayout.columns || 0),
+          seats: processedSeats,
           ticketTypeAssignments: processedAssignments,
         };
 
         // Validation log
         const assignedSeatsCount = processedSeats.filter((s) => s.ticketTypeId).length;
-        const seatsWithPrice     = processedSeats.filter((s) => s.price > 0).length;
+        const seatsWithPrice = processedSeats.filter((s) => s.price > 0).length;
         if (assignedSeatsCount > 0 && assignedSeatsCount !== seatsWithPrice) {
           console.warn("⚠️ MISMATCH: Some assigned seats missing prices!", {
             assigned: assignedSeatsCount, withPrice: seatsWithPrice,
@@ -1590,19 +1598,19 @@ const handleMultipleFileChange = async (e, targetField) => {
     // CRITICAL: Deep clone payload to avoid mutation
     const subEventData = JSON.parse(JSON.stringify(payload));
     if (!(formData.event_portrait instanceof File) && previews.event_portrait?.data) {
-    // Extract the raw path/URL from the preview data
-    subEventData.existing_event_portrait = previews.event_portrait.data;
-  }
+      // Extract the raw path/URL from the preview data
+      subEventData.existing_event_portrait = previews.event_portrait.data;
+    }
 
-  // 2. Sync Reorderable Image Gallery
-subEventData.existing_event_images = previews.event_images
-  ?.filter(img => img.isExisting)
-  .map(img => img.path || img.preview);// Send the server path
+    // 2. Sync Reorderable Image Gallery
+    subEventData.existing_event_images = previews.event_images
+      ?.filter(img => img.isExisting)
+      .map(img => img.path || img.preview);// Send the server path
 
-  // 3. Sync Reorderable Video Gallery
-  subEventData.existing_event_videos = previews.event_videos
-    ?.filter(vid => vid.isExisting)
-    .map(vid => vid.path || vid.preview);
+    // 3. Sync Reorderable Video Gallery
+    subEventData.existing_event_videos = previews.event_videos
+      ?.filter(vid => vid.isExisting)
+      .map(vid => vid.path || vid.preview);
     // Add this inside buildFormData before 'return submissionForm'
     for (let pair of submissionForm.entries()) {
       if (pair[0] === 'sub_event') {
@@ -1681,9 +1689,9 @@ subEventData.existing_event_images = previews.event_images
       submissionForm.append("event_banner", formData.event_banner);
     }
 
-if (formData.event_portrait instanceof File) {
-    submissionForm.append("event_portrait", formData.event_portrait);
-  }
+    if (formData.event_portrait instanceof File) {
+      submissionForm.append("event_portrait", formData.event_portrait);
+    }
 
     if (formData.event_rules_file instanceof File) {
       submissionForm.append("event_rules", formData.event_rules_file);
@@ -1981,11 +1989,11 @@ if (formData.event_portrait instanceof File) {
       }
       const initialCenter =
         formData.exact_map_location.latitude &&
-        formData.exact_map_location.longitude
+          formData.exact_map_location.longitude
           ? {
-              lat: parseFloat(formData.exact_map_location.latitude),
-              lng: parseFloat(formData.exact_map_location.longitude),
-            }
+            lat: parseFloat(formData.exact_map_location.latitude),
+            lng: parseFloat(formData.exact_map_location.longitude),
+          }
           : INITIAL_MAP_LOCATION;
 
       // Clean up existing map first
@@ -2333,9 +2341,8 @@ if (formData.event_portrait instanceof File) {
           showAlert({
             type: "error",
             message: "Data Validation Failed",
-            description: `${
-              assignedCount - priceCount
-            } assigned seats are missing price data. Please reassign seats.`,
+            description: `${assignedCount - priceCount
+              } assigned seats are missing price data. Please reassign seats.`,
           });
           return;
         }
@@ -2392,74 +2399,74 @@ if (formData.event_portrait instanceof File) {
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
   const handleRemoveImage = (index, targetField) => {
-  setFormData((prev) => {
-    const updatedList = [...prev[targetField]];
-    updatedList.splice(index, 1);
-    return { ...prev, [targetField]: updatedList };
-  });
-};
-const removeImageFromList = (idToRemove, targetField = 'event_images') => {
-  setPreviews((prev) => {
-    const itemToRemove = prev[targetField].find(img => img.id === idToRemove);
-    // Cleanup local URL memory
-    if (itemToRemove && itemToRemove.preview?.startsWith('blob:')) {
-      URL.revokeObjectURL(itemToRemove.preview);
-    }
-    return {
-      ...prev,
-      [targetField]: prev[targetField].filter((item) => item.id !== idToRemove),
-    };
-  });
-
-  // Keep formData files count in sync for the backend
-  setFormData((prev) => ({
-    ...prev,
-    [targetField]: prev[targetField].filter((_, index) => {
-       const previewItem = previews[targetField][index];
-       return previewItem?.id !== idToRemove;
-    })
-  }));
-};
-
-const handleDragEnd = (event, targetField) => {
-  const { active, over } = event;
-
-  if (active.id !== over.id) {
+    setFormData((prev) => {
+      const updatedList = [...prev[targetField]];
+      updatedList.splice(index, 1);
+      return { ...prev, [targetField]: updatedList };
+    });
+  };
+  const removeImageFromList = (idToRemove, targetField = 'event_images') => {
     setPreviews((prev) => {
-      const oldIndex = prev[targetField].findIndex((item) => item.id === active.id);
-      const newIndex = prev[targetField].findIndex((item) => item.id === over.id);
-
+      const itemToRemove = prev[targetField].find(img => img.id === idToRemove);
+      // Cleanup local URL memory
+      if (itemToRemove && itemToRemove.preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(itemToRemove.preview);
+      }
       return {
         ...prev,
-        [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
+        [targetField]: prev[targetField].filter((item) => item.id !== idToRemove),
       };
     });
-  }
-};
-const sensors = useSensors(
-  useSensor(MouseSensor, {
-    activationConstraint: { distance: 10 }, // Drag starts only after moving 10px
-  }),
-  useSensor(TouchSensor, {
-    activationConstraint: { delay: 250, tolerance: 5 },
-  })
-);
 
-const handleReorderToggle = (targetField) => {
-  // Ensure we check for the correct string passed from the button
-  const isImage = targetField === 'event_images' || targetField === 'image_upload_addon';
-  const setState = isImage ? setIsReorderingImages : setIsReorderingVideos;
-  const currentState = isImage ? isReorderingImages : isReorderingVideos;
+    // Keep formData files count in sync for the backend
+    setFormData((prev) => ({
+      ...prev,
+      [targetField]: prev[targetField].filter((_, index) => {
+        const previewItem = previews[targetField][index];
+        return previewItem?.id !== idToRemove;
+      })
+    }));
+  };
 
-  if (currentState) {
-    showAlert({
-      type: "success",
-      message: "Order Saved",
-      description: `${isImage ? 'Image' : 'Video'} sequence updated.`
-    });
-  }
-  setState(!currentState);
-};
+  const handleDragEnd = (event, targetField) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setPreviews((prev) => {
+        const oldIndex = prev[targetField].findIndex((item) => item.id === active.id);
+        const newIndex = prev[targetField].findIndex((item) => item.id === over.id);
+
+        return {
+          ...prev,
+          [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
+        };
+      });
+    }
+  };
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 10 }, // Drag starts only after moving 10px
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    })
+  );
+
+  const handleReorderToggle = (targetField) => {
+    // Ensure we check for the correct string passed from the button
+    const isImage = targetField === 'event_images' || targetField === 'image_upload_addon';
+    const setState = isImage ? setIsReorderingImages : setIsReorderingVideos;
+    const currentState = isImage ? isReorderingImages : isReorderingVideos;
+
+    if (currentState) {
+      showAlert({
+        type: "success",
+        message: "Order Saved",
+        description: `${isImage ? 'Image' : 'Video'} sequence updated.`
+      });
+    }
+    setState(!currentState);
+  };
 
   const populateFormWithSubEventData = async (subEventId) => {
     setSubEventLoading(true);
@@ -2640,8 +2647,8 @@ const handleReorderToggle = (targetField) => {
           event_language: Array.isArray(subEvent.event_language)
             ? subEvent.event_language
             : subEvent.event_language
-            ? [subEvent.event_language]
-            : [],
+              ? [subEvent.event_language]
+              : [],
           min_age_allowed: subEvent.min_age_allowed || "",
           max_age_allowed: subEvent.max_age_allowed || "",
           seating_arrangement: subEvent.seating_arrangement || "none",
@@ -2652,8 +2659,8 @@ const handleReorderToggle = (targetField) => {
           hashtag: Array.isArray(subEvent.hashtag)
             ? subEvent.hashtag
             : typeof subEvent.hashtag === "string"
-            ? JSON.parse(subEvent.hashtag || "[]")
-            : [],
+              ? JSON.parse(subEvent.hashtag || "[]")
+              : [],
           event_dates: mappedEventDates,
           event_date_type: subEvent.event_date_type,
           gate_open_time: Boolean(subEvent.gate_open_time),
@@ -2698,28 +2705,28 @@ const handleReorderToggle = (targetField) => {
           ...prev,
           event_banner: subEvent.event_banner
             ? {
-                data: getTicketImageUrl(String(subEvent.event_banner)),
-                name: "event_banner.jpg",
-                type: "image",
-              }
+              data: getTicketImageUrl(String(subEvent.event_banner)),
+              name: "event_banner.jpg",
+              type: "image",
+            }
             : null,
-            event_images: imagePreviews,
+          event_images: imagePreviews,
           event_videos: videoPreviews,
           event_logo: subEvent.event_logo
             ? {
-                data: getTicketImageUrl(String(subEvent.event_logo)),
-                name: "event_logo.jpg",
-                type: "image",
-              }
+              data: getTicketImageUrl(String(subEvent.event_logo)),
+              name: "event_logo.jpg",
+              type: "image",
+            }
             : null,
 
-            event_portrait: subEvent.event_portrait ? { data: getTicketImageUrl(subEvent.event_portrait) } : null,
+          event_portrait: subEvent.event_portrait ? { data: getTicketImageUrl(subEvent.event_portrait) } : null,
           ticket_layout: subEvent.ticket_layout
             ? {
-                data: getTicketImageUrl(String(subEvent.ticket_layout)),
-                name: "ticket_layout.jpg",
-                type: "image",
-              }
+              data: getTicketImageUrl(String(subEvent.ticket_layout)),
+              name: "ticket_layout.jpg",
+              type: "image",
+            }
             : null,
         }));
         // If group has GSTIN → gstEnabled stays true (set at fetchData)
@@ -2760,17 +2767,17 @@ const handleReorderToggle = (targetField) => {
                   // ✅ PRESERVE EXACT VALUES FROM DB - NO FALLBACKS TO NULL
                   ticketTypeId:
                     seat.ticketTypeId !== undefined &&
-                    seat.ticketTypeId !== null
+                      seat.ticketTypeId !== null
                       ? String(seat.ticketTypeId)
                       : null,
                   ticketTypeName:
                     seat.ticketTypeName !== undefined &&
-                    seat.ticketTypeName !== null
+                      seat.ticketTypeName !== null
                       ? String(seat.ticketTypeName)
                       : null,
                   ticketTypeColor:
                     seat.ticketTypeColor !== undefined &&
-                    seat.ticketTypeColor !== null
+                      seat.ticketTypeColor !== null
                       ? String(seat.ticketTypeColor)
                       : null,
                   price:
@@ -2841,8 +2848,7 @@ const handleReorderToggle = (targetField) => {
 
             if (assignedSeats.length > validSeats.length) {
               console.warn(
-                `⚠️ Warning: ${
-                  assignedSeats.length - validSeats.length
+                `⚠️ Warning: ${assignedSeats.length - validSeats.length
                 } seats have incomplete assignment data`
               );
             }
@@ -2964,6 +2970,15 @@ const handleReorderToggle = (targetField) => {
   return (
     <>
       <ScrollBarStyle isDark={darkMode} />
+      {fullScreenViewer && (
+        <FullScreenViewer
+          fileUrl={fullScreenViewer.url}
+          fileType={fullScreenViewer.mimeType}
+          fileName={fullScreenViewer.name}
+          onClose={closeViewer}
+          darkMode={darkMode}
+        />
+      )}
       <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
@@ -3170,9 +3185,8 @@ const handleReorderToggle = (targetField) => {
             showAlert({
               type: "warning",
               message: "Incomplete Assignments",
-              description: `${
-                assignedSeats.length - validSeats.length
-              } seats are missing data. Please check ticket types.`,
+              description: `${assignedSeats.length - validSeats.length
+                } seats are missing data. Please check ticket types.`,
             });
           } else {
             showAlert({
@@ -3217,11 +3231,10 @@ const handleReorderToggle = (targetField) => {
             <div className="w-full max-w-5xl mx-auto">
               <header className="text-center mt-4 mb-12">
                 <div
-                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
-                    darkMode
-                      ? "bg-[#1E1242] text-gray-300"
-                      : "bg-[#1E1242] text-gray-300"
-                  }`}
+                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${darkMode
+                    ? "bg-[#1E1242] text-gray-300"
+                    : "bg-[#1E1242] text-gray-300"
+                    }`}
                 >
                   <img src={Addon_Form_Icon} alt="h-15 w-15" />
                 </div>
@@ -3275,42 +3288,42 @@ const handleReorderToggle = (targetField) => {
                               className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg overflow-hidden shadow-md cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 text-white"
                             >
                               <div className="p-4 flex items-center">
-                              <div className="flex-1 w-4/5">
-                                <h3 className="font-semibold text-lg mb-1 truncate">
-                                  {event.event_name}
-                                </h3>
-                                <p className="text-sm opacity-90 mb-2">
-                                  {event.event_category}
-                                </p>
-                                {/* Optional: Add more details */}
-                                {event.event_dates &&
-                                  event.event_dates.length > 0 && (
-                                    <p className="text-xs opacity-80">
-                                      {new Date(
-                                        event.event_dates[0].start_date
-                                      ).toLocaleDateString()}
-                                    </p>
-                                  )}
-                              </div>
-                              {/* Edit icon */}
-                              <div className="ml-3 w-1/5">
-                                <svg
-                                  className="w-5 h-5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                  />
-                                </svg>
+                                <div className="flex-1 w-4/5">
+                                  <h3 className="font-semibold text-lg mb-1 truncate">
+                                    {event.event_name}
+                                  </h3>
+                                  <p className="text-sm opacity-90 mb-2">
+                                    {event.event_category}
+                                  </p>
+                                  {/* Optional: Add more details */}
+                                  {event.event_dates &&
+                                    event.event_dates.length > 0 && (
+                                      <p className="text-xs opacity-80">
+                                        {new Date(
+                                          event.event_dates[0].start_date
+                                        ).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                </div>
+                                {/* Edit icon */}
+                                <div className="ml-3 w-1/5">
+                                  <svg
+                                    className="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     ) : (
                       <p className="text-black dark:text-gray-400">
@@ -3405,10 +3418,9 @@ const handleReorderToggle = (targetField) => {
                             onChange={handleInputChange}
                             placeholder="Type your custom subcategory..."
                             className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                              ${
-                                errors.event_subcategory
-                                  ? "border-red-500"
-                                  : darkMode
+                              ${errors.event_subcategory
+                                ? "border-red-500"
+                                : darkMode
                                   ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
                                   : "bg-white text-black border-black"
                               }`}
@@ -3429,9 +3441,9 @@ const handleReorderToggle = (targetField) => {
                           value={
                             formData.event_subcategory
                               ? subCategoryOptions.find(
-                                  (option) =>
-                                    option.value === formData.event_subcategory
-                                )
+                                (option) =>
+                                  option.value === formData.event_subcategory
+                              )
                               : null
                           }
                           onChange={handleSelectChange}
@@ -3511,11 +3523,10 @@ const handleReorderToggle = (targetField) => {
                           key={type}
                           type="button"
                           onClick={() => handleLocationTypeChange(type)}
-                          className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                            formData.location_type === type.toLowerCase()
-                              ? "bg-[#10B981] text-white shadow-lg"
-                              : "bg-gray-200 dark:bg-[#374151] text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                          }`}
+                          className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${formData.location_type === type.toLowerCase()
+                            ? "bg-[#10B981] text-white shadow-lg"
+                            : "bg-gray-200 dark:bg-[#374151] text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                            }`}
                         >
                           {type}
                         </button>
@@ -3609,22 +3620,22 @@ const handleReorderToggle = (targetField) => {
 
                   {(formData.location_type === "online" ||
                     formData.location_type === "recorded") && (
-                    <div className="space-y-8 animate-fade-in">
-                      {/* Event Link Input (remains the same) */}
-                      <FormInput
-                        label="Maximum number of people allowed (capacity)?"
-                        id="total_capacity"
-                        name="total_capacity"
-                        type="number"
-                        value={formData.total_capacity}
-                        onChange={handleInputChange}
-                        placeholder="Enter capacity"
-                        error={errors.total_capacity}
-                        required
-                        darkMode={darkMode}
-                      />
-                    </div>
-                  )}
+                      <div className="space-y-8 animate-fade-in">
+                        {/* Event Link Input (remains the same) */}
+                        <FormInput
+                          label="Maximum number of people allowed (capacity)?"
+                          id="total_capacity"
+                          name="total_capacity"
+                          type="number"
+                          value={formData.total_capacity}
+                          onChange={handleInputChange}
+                          placeholder="Enter capacity"
+                          error={errors.total_capacity}
+                          required
+                          darkMode={darkMode}
+                        />
+                      </div>
+                    )}
                 </div>
 
                 {/* --- MORE DETAILS SECTION --- */}
@@ -3793,11 +3804,10 @@ const handleReorderToggle = (targetField) => {
                       onClick={handleOpenDateModal}
                       disabled={pageLoading || !mainEventStartDate}
                       className={`px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center gap-2
-    ${
-      pageLoading || !mainEventStartDate
-        ? "opacity-50 cursor-not-allowed"
-        : "hover:bg-indigo-700"
-    }`}
+    ${pageLoading || !mainEventStartDate
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-indigo-700"
+                        }`}
                     >
                       Add dates and time
                       <img src={Date_Form_Icon} alt="" />
@@ -3850,11 +3860,10 @@ const handleReorderToggle = (targetField) => {
                             }
                           />
                           <div
-                            className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
-                              darkMode
-                                ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                : "bg-gray-200 after:border-black peer-checked:bg-indigo-500"
-                            }`}
+                            className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${darkMode
+                              ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
+                              : "bg-gray-200 after:border-black peer-checked:bg-indigo-500"
+                              }`}
                           ></div>
                         </label>
                       </div>
@@ -3879,11 +3888,10 @@ const handleReorderToggle = (targetField) => {
                               value={formData.gate_open_hour || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                                    ${
-                                                      darkMode
-                                                        ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-black"
-                                                    }`}
+                                                    ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 Hour
@@ -3905,11 +3913,10 @@ const handleReorderToggle = (targetField) => {
                               value={formData.gate_open_minute || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                                    ${
-                                                      darkMode
-                                                        ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-black"
-                                                    }`}
+                                                    ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 Minute
@@ -3931,11 +3938,10 @@ const handleReorderToggle = (targetField) => {
                               value={formData.gate_open_ampm || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                                    ${
-                                                      darkMode
-                                                        ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-black"
-                                                    }`}
+                                                    ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 AM/PM
@@ -3976,9 +3982,8 @@ const handleReorderToggle = (targetField) => {
                       {formData.guests.map((guest) => (
                         <div
                           key={guest.id}
-                          className={`rounded-lg p-3 flex items-center justify-between ${
-                            darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
-                          }`}
+                          className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
+                            }`}
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
                             <img
@@ -4006,11 +4011,10 @@ const handleReorderToggle = (targetField) => {
                             <button
                               type="button"
                               onClick={() => handleEditGuest(guest)}
-                              className={`p-2 ${
-                                darkMode
-                                  ? "text-gray-400 hover:text-white"
-                                  : "text-black hover:text-black"
-                              }`}
+                              className={`p-2 ${darkMode
+                                ? "text-gray-400 hover:text-white"
+                                : "text-black hover:text-black"
+                                }`}
                               title="Edit"
                             >
                               ✏️
@@ -4031,30 +4035,26 @@ const handleReorderToggle = (targetField) => {
                       </p>
                     </div>
                     <div
-                      className={`bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-black"
-                      }`}
+                      className={`bg-transparent border rounded-lg ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                        }`}
                     >
                       <div
-                        className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-black"
-                        } flex items-center space-x-1`}
+                        className={`p-2 border-b ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                          } flex items-center space-x-1`}
                       >
                         <button
                           type="button"
                           onClick={() => handleFormat("bold", rulesEditorRef)}
-                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           B
                         </button>
                         <button
                           type="button"
                           onClick={() => handleFormat("italic", rulesEditorRef)}
-                          className={`w-8 h-8 flex items-center justify-center rounded italic ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded italic ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           I
                         </button>
@@ -4063,9 +4063,8 @@ const handleReorderToggle = (targetField) => {
                           onClick={() =>
                             handleFormat("underline", rulesEditorRef)
                           }
-                          className={`w-8 h-8 flex items-center justify-center rounded underline ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded underline ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           U
                         </button>
@@ -4088,11 +4087,10 @@ const handleReorderToggle = (targetField) => {
                     <div>
                       <label
                         htmlFor="rule-file-upload"
-                        className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${
-                          darkMode
-                            ? "border-gray-600 hover:bg-gray-700"
-                            : "border-black hover:bg-gray-100"
-                        }`}
+                        className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${darkMode
+                          ? "border-gray-600 hover:bg-gray-700"
+                          : "border-black hover:bg-gray-100"
+                          }`}
                       >
                         Attach document
                       </label>
@@ -4110,9 +4108,8 @@ const handleReorderToggle = (targetField) => {
                       />
                       {formData.event_rules_file && (
                         <span
-                          className={`ml-4 text-sm ${
-                            darkMode ? "text-gray-400" : "text-gray-600"
-                          }`}
+                          className={`ml-4 text-sm ${darkMode ? "text-gray-400" : "text-gray-600"
+                            }`}
                         >
                           {formData.event_rules_file.name}
                         </span>
@@ -4139,21 +4136,19 @@ const handleReorderToggle = (targetField) => {
                       {formData.prohibited_items.map((item) => (
                         <div
                           key={item}
-                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-                            darkMode
-                              ? "bg-[#2B2B2B] text-gray-300"
-                              : "bg-gray-200 text-gray-700"
-                          }`}
+                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${darkMode
+                            ? "bg-[#2B2B2B] text-gray-300"
+                            : "bg-gray-200 text-gray-700"
+                            }`}
                         >
                           <span>{item}</span>
                           <button
                             type="button"
                             onClick={() => removeProhibitedItem(item)}
-                            className={`${
-                              darkMode
-                                ? "text-black hover:text-white"
-                                : "text-gray-400 hover:text-black"
-                            }`}
+                            className={`${darkMode
+                              ? "text-black hover:text-white"
+                              : "text-gray-400 hover:text-black"
+                              }`}
                           >
                             &times;
                           </button>
@@ -4174,27 +4169,24 @@ const handleReorderToggle = (targetField) => {
                         (errorFieldRefs.current.event_description = el)
                       }
                       className={`mt-4 bg-transparent border rounded-lg
-                        ${
-                          errors.event_description
-                            ? "border-red-500"
-                            : darkMode
+                        ${errors.event_description
+                          ? "border-red-500"
+                          : darkMode
                             ? "border-[#4A4A4A]"
                             : "border-black"
                         }`}
                     >
                       <div
-                        className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-black"
-                        } flex items-center space-x-1`}
+                        className={`p-2 border-b ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                          } flex items-center space-x-1`}
                       >
                         <button
                           type="button"
                           onClick={() =>
                             handleFormat("bold", descriptionEditorRef)
                           }
-                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           B
                         </button>
@@ -4203,9 +4195,8 @@ const handleReorderToggle = (targetField) => {
                           onClick={() =>
                             handleFormat("italic", descriptionEditorRef)
                           }
-                          className={`w-8 h-8 flex items-center justify-center rounded italic ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded italic ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           I
                         </button>
@@ -4214,9 +4205,8 @@ const handleReorderToggle = (targetField) => {
                           onClick={() =>
                             handleFormat("underline", descriptionEditorRef)
                           }
-                          className={`w-8 h-8 flex items-center justify-center rounded underline ${
-                            darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded underline ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                            }`}
                         >
                           U
                         </button>
@@ -4344,148 +4334,154 @@ const handleReorderToggle = (targetField) => {
                       Event Media
                     </h2>
 
-                      <FileMediaInput
-                        id="event_banner"
-                        label="Event Banner* (Desktop)"
-                        aspectRatio={1920 / 720}
-                        info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, WEBP format."
-                        preview={previews.event_banner}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeSingleFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.webp"
-                        maxSizeMB={1.5}
-                        ref={(el) => (errorFieldRefs.current.event_banner = el)}
-                      />
+                    <FileMediaInput
+                      id="event_banner"
+                      label="Event Banner* (Desktop)"
+                      aspectRatio={1920 / 720}
+                      info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, WEBP format."
+                      preview={previews.event_banner}
+                      onFileChange={handleMediaFileChange}
+                      onRemove={removeSingleFile}
+                      darkMode={darkMode}
+                      acceptedFiles=".jpg,.jpeg,.png,.webp"
+                      maxSizeMB={1.5}
+                      ref={(el) => (errorFieldRefs.current.event_banner = el)}
+                    />
 
-                      <FileMediaInput
-                        id="event_portrait"
-                        label="Portrait Image (Mobile App)"
-                        aspectRatio={4 / 5}
-                        resolution="1080px by 1350px"
-                        info="Resolution: (1080px × 1350px). Recommended for mobile app views."
-                        preview={previews.event_portrait}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeSingleFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.webp"
-                        maxSizeMB={1.5}
-                      />
+                    <FileMediaInput
+                      id="event_portrait"
+                      label="Portrait Image (Mobile App)"
+                      aspectRatio={4 / 5}
+                      resolution="1080px by 1350px"
+                      info="Resolution: (1080px × 1350px). Recommended for mobile app views."
+                      preview={previews.event_portrait}
+                      onFileChange={handleMediaFileChange}
+                      onRemove={removeSingleFile}
+                      darkMode={darkMode}
+                      acceptedFiles=".jpg,.jpeg,.png,.webp"
+                      maxSizeMB={1.5}
+                    />
+                  </div>
+                  {/* --- IMAGE GALLERY --- */}
+                  <div className="mt-8">
+                    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        Image galleries
+                        <InfoTooltip note="Max 10 images. 1.5MB max." />
+                      </label>
                     </div>
-                    {/* --- IMAGE GALLERY --- */}
-                    <div className="mt-8">
-                      <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                        <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                          Image galleries
-                          <InfoTooltip note="Max 10 images. 1.5MB max." />
-                        </label>
-                      </div>
-                      <div className="p-3 rounded-xl border border-dashed border-gray-600">
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-                            <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
-                          </button>
-                  <button
-                    type="button"
-                    disabled={previews.event_images?.length >= 10} // Disable if 10 reached
-                    onClick={() => document.getElementById('image_upload_addon').click()}
-                    className={`px-3 py-1 text-xs rounded text-white transition-all ${
-                      previews.event_images?.length >= 10
-                        ? "bg-gray-500 cursor-not-allowed opacity-50"
-                        : "bg-indigo-600 hover:bg-indigo-700"
-                    }`}
-                  >
-                    {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
-                  </button>      </div>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => handleDragEnd(e, 'event_images')}
-                  >
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-                      <SortableContext
-                        // Mapping to just the ID strings is crucial for dnd-kit
-                        items={previews.event_images?.map(img => img.id) || []}
-                        strategy={rectSortingStrategy}
+                    <div className="p-3 rounded-xl border border-dashed border-gray-600">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+                          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={previews.event_images?.length >= 10} // Disable if 10 reached
+                          onClick={() => document.getElementById('image_upload_addon').click()}
+                          className={`px-3 py-1 text-xs rounded text-white transition-all ${previews.event_images?.length >= 10
+                            ? "bg-gray-500 cursor-not-allowed opacity-50"
+                            : "bg-indigo-600 hover:bg-indigo-700"
+                            }`}
+                        >
+                          {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
+                        </button>      </div>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(e) => handleDragEnd(e, 'event_images')}
                       >
-                        {previews.event_images?.map((img) => (
-                          <SortablePhoto
-                            key={img.id}
-                            img={img}
-                            isReordering={isReorderingImages}
-                            onRemove={(id) => removeImageFromList(id, 'event_images')}
-                            targetField="event_images"
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+                          <SortableContext
+                            // Mapping to just the ID strings is crucial for dnd-kit
+                            items={previews.event_images?.map(img => img.id) || []}
+                            strategy={rectSortingStrategy}
+                          >
+                            {previews.event_images?.map((img) => (
+                              <SortablePhoto
+                                key={img.id}
+                                img={img}
+                                isReordering={isReorderingImages}
+                                onRemove={(id) => removeImageFromList(id, 'event_images')}
+                                targetField="event_images"
+                                onPreview={(file) => {
+                                  const url = file.preview || file.url || file;
+                                  openViewer(url, file.mimeType || "image/jpeg", file.name || "Image");
+                                }}
+                              />
+                            ))}
+                          </SortableContext>
+                          {/* Hidden file input */}
+                          <input
+                            id="image_upload_addon"
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => handleMultipleFileChange(e, 'event_images')}
                           />
-                        ))}
-                      </SortableContext>
-                      {/* Hidden file input */}
-                      <input
-                        id="image_upload_addon"
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleMultipleFileChange(e, 'event_images')}
-                      />
-                    </div>
-                  </DndContext>
-                      </div>
-
+                        </div>
+                      </DndContext>
                     </div>
 
+                  </div>
 
-                    {/* --- VIDEO GALLERY --- */}
-                    <div className="mt-10">
-                      <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                        <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                          Video sneak peek
-                          <InfoTooltip note="Max 5 videos." />
-                        </label>
-                      </div>
-                      <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
-                              <div className="flex gap-2">
-                          <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-                            <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
-                          </button>
-                  <button
-                    type="button"
-                    disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
-                    onClick={() => document.getElementById('video_upload_addon').click()}
-                    className={`px-3 py-1 text-xs rounded text-white transition-all ${
-                      previews.event_videos?.length >= 5
-                        ? "bg-gray-500 cursor-not-allowed opacity-50"
-                        : "bg-indigo-600 hover:bg-indigo-700"
-                    }`}
-                  >
-                    {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
-                  </button>      </div>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
-                  >
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-                      <SortableContext
-                        items={previews.event_videos?.map(vid => vid.id) || []}
-                        strategy={rectSortingStrategy}
+
+                  {/* --- VIDEO GALLERY --- */}
+                  <div className="mt-10">
+                    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        Video sneak peek
+                        <InfoTooltip note="Max 5 videos." />
+                      </label>
+                    </div>
+                    <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+                          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
+                          onClick={() => document.getElementById('video_upload_addon').click()}
+                          className={`px-3 py-1 text-xs rounded text-white transition-all ${previews.event_videos?.length >= 5
+                            ? "bg-gray-500 cursor-not-allowed opacity-50"
+                            : "bg-indigo-600 hover:bg-indigo-700"
+                            }`}
+                        >
+                          {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
+                        </button>      </div>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
                       >
-                        {previews.event_videos?.map((vid) => (
-                          <SortablePhoto
-                            key={vid.id}
-                            img={vid}
-                            isReordering={isReorderingVideos}
-                            onRemove={(id) => removeImageFromList(id, 'event_videos')}
-                            targetField="event_videos"
-                          />
-                        ))}
-                      </SortableContext>
-                      <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+                          <SortableContext
+                            items={previews.event_videos?.map(vid => vid.id) || []}
+                            strategy={rectSortingStrategy}
+                          >
+                            {previews.event_videos?.map((vid) => (
+                              <SortablePhoto
+                                key={vid.id}
+                                img={vid}
+                                isReordering={isReorderingVideos}
+                                onRemove={(id) => removeImageFromList(id, 'event_videos')}
+                                targetField="event_videos"
+                                onPreview={(file) => {
+                                  const url = file.preview || file.url || file;
+                                  openViewer(url, file.mimeType || "video/mp4", file.name || "Video");
+                                }}
+                              />
+                            ))}
+                          </SortableContext>
+                          <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+                        </div>
+                      </DndContext>
                     </div>
-                  </DndContext>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="space-y-12">
+                <div className="space-y-12">
                   <div className="space-y-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Payment Type
@@ -4519,16 +4515,14 @@ const handleReorderToggle = (targetField) => {
                   </div>
                   {/* ── GST Notice / Toggle  */}
                   {formData.payment_type === 'paid' && (
-                    <div className={`rounded-lg border p-4 ${
-                      groupHasGSTIN
-                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
-                        : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
-                    }`}>
+                    <div className={`rounded-lg border p-4 ${groupHasGSTIN
+                      ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                      : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
+                      }`}>
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3">
-                          <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                            groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
-                          }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
+                            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                               d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
                           </svg>
@@ -4563,13 +4557,11 @@ const handleReorderToggle = (targetField) => {
                             <button
                               type="button"
                               onClick={() => setGstEnabled(prev => !prev)}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
-                              }`}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
                             >
-                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                gstEnabled ? 'translate-x-6' : 'translate-x-1'
-                              }`} />
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gstEnabled ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
                             </button>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {gstEnabled ? 'GST ON' : 'GST OFF'}
@@ -4593,12 +4585,11 @@ const handleReorderToggle = (targetField) => {
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
                               <label
-                                className={`font-medium text-md ${
-                                  groupHasBankAccount &&
+                                className={`font-medium text-md ${groupHasBankAccount &&
                                   !groupBankDetailsIncomplete
-                                    ? "text-gray-900 dark:text-white"
-                                    : "text-black dark:text-gray-400"
-                                }`}
+                                  ? "text-gray-900 dark:text-white"
+                                  : "text-black dark:text-gray-400"
+                                  }`}
                               >
                                 Do you want to use the bank account used for
                                 group creation?
@@ -4837,16 +4828,16 @@ const handleReorderToggle = (targetField) => {
                                       const newTickets = prev.ticket_types && prev.ticket_types.length > 0
                                         ? [...prev.ticket_types]
                                         : [{
-                                            id: Date.now(),
-                                            name: "Standard Ticket",
-                                            ticket_type: "Standard Ticket",
-                                            price: "",
-                                            ticket_price: "",
-                                            capacity: prev.total_capacity || "",
-                                            max_capacity: prev.total_capacity || "",
-                                            image: "",
-                                            existingPhotoPath: "",
-                                          }];
+                                          id: Date.now(),
+                                          name: "Standard Ticket",
+                                          ticket_type: "Standard Ticket",
+                                          price: "",
+                                          ticket_price: "",
+                                          capacity: prev.total_capacity || "",
+                                          max_capacity: prev.total_capacity || "",
+                                          image: "",
+                                          existingPhotoPath: "",
+                                        }];
 
                                       newTickets[0] = {
                                         ...newTickets[0],
@@ -4861,11 +4852,10 @@ const handleReorderToggle = (targetField) => {
                                   placeholder="Enter ticket price"
                                   min="1"
                                   step="1"
-                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
-                                    errors.simpleTicketPrice
-                                      ? "border-2 border-red-500"
-                                      : "border border-black dark:border-gray-700"
-                                  }`}
+                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${errors.simpleTicketPrice
+                                    ? "border-2 border-red-500"
+                                    : "border border-black dark:border-gray-700"
+                                    }`}
                                 />
                                 {errors.simpleTicketPrice && (
                                   <p className="text-red-500 text-xs mt-1">
@@ -4893,16 +4883,16 @@ const handleReorderToggle = (targetField) => {
                                       const newTickets = prev.ticket_types && prev.ticket_types.length > 0
                                         ? [...prev.ticket_types]
                                         : [{
-                                            id: Date.now(),
-                                            name: "Standard Ticket",
-                                            ticket_type: "Standard Ticket",
-                                            price: prev.ticket_types?.[0]?.price || "",
-                                            ticket_price: prev.ticket_types?.[0]?.ticket_price || "",
-                                            capacity: "",
-                                            max_capacity: "",
-                                            image: "",
-                                            existingPhotoPath: "",
-                                          }];
+                                          id: Date.now(),
+                                          name: "Standard Ticket",
+                                          ticket_type: "Standard Ticket",
+                                          price: prev.ticket_types?.[0]?.price || "",
+                                          ticket_price: prev.ticket_types?.[0]?.ticket_price || "",
+                                          capacity: "",
+                                          max_capacity: "",
+                                          image: "",
+                                          existingPhotoPath: "",
+                                        }];
 
                                       newTickets[0] = {
                                         ...newTickets[0],
@@ -4921,11 +4911,10 @@ const handleReorderToggle = (targetField) => {
                                   placeholder="Enter total capacity"
                                   min="1"
                                   step="1"
-                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
-                                    errors.simpleTicketCapacity
-                                      ? "border-2 border-red-500"
-                                      : "border border-black dark:border-gray-700"
-                                  }`}
+                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${errors.simpleTicketCapacity
+                                    ? "border-2 border-red-500"
+                                    : "border border-black dark:border-gray-700"
+                                    }`}
                                 />
                                 {errors.simpleTicketCapacity && (
                                   <p className="text-red-500 text-xs mt-1">
@@ -4945,15 +4934,15 @@ const handleReorderToggle = (targetField) => {
                               const inclPrice = Number(rawPrice);
                               if (isNaN(inclPrice) || inclPrice <= 0) return null;
 
-                              const capacity   = Number(formData.total_capacity);
-                              const divisor    = 1 + GST_PERCENTAGE / 100;                                        // 1.18
-                              const basePrice  = gstApplicable
+                              const capacity = Number(formData.total_capacity);
+                              const divisor = 1 + GST_PERCENTAGE / 100;                                        // 1.18
+                              const basePrice = gstApplicable
                                 ? Math.round((inclPrice / divisor) * 100) / 100                                   // ₹100.00
                                 : inclPrice;
-                              const gstAmt     = gstApplicable
+                              const gstAmt = gstApplicable
                                 ? Math.round((inclPrice - basePrice) * 100) / 100                                  // ₹18.00
                                 : 0;
-                              const maxRev     = Math.round(inclPrice * capacity * 100) / 100;                    // total
+                              const maxRev = Math.round(inclPrice * capacity * 100) / 100;                    // total
 
                               return (
                                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
@@ -4976,9 +4965,8 @@ const handleReorderToggle = (targetField) => {
                                       </>
                                     )}
 
-                                    <div className={`flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 ${
-                                      gstApplicable ? 'border-t border-gray-200 dark:border-gray-600 pt-1 mt-1' : ''
-                                    }`}>
+                                    <div className={`flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 ${gstApplicable ? 'border-t border-gray-200 dark:border-gray-600 pt-1 mt-1' : ''
+                                      }`}>
                                       <span>Ticket price (buyer pays)</span>
                                       <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                     </div>
@@ -5122,9 +5110,9 @@ const handleReorderToggle = (targetField) => {
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
                                 {formData.ticket_types.map((ticket) => {
                                   const inclPrice = Number(ticket.price || ticket.ticket_price || 0);
-                                  const divisor   = 1 + GST_PERCENTAGE / 100;
+                                  const divisor = 1 + GST_PERCENTAGE / 100;
                                   const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
-                                  const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
+                                  const gstAmt = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
 
                                   return (
                                     <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] rounded-lg shadow-sm dark:shadow-none overflow-hidden">
@@ -5417,7 +5405,7 @@ const handleReorderToggle = (targetField) => {
                                     </svg>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
                                       {formData.total_capacity &&
-                                      seatingLayoutFile
+                                        seatingLayoutFile
                                         ? "✓ Ready to generate"
                                         : "No preview available"}
                                     </p>
@@ -5441,8 +5429,8 @@ const handleReorderToggle = (targetField) => {
                   {isSubmitting
                     ? "Saving..."
                     : isEditingSubEvent
-                    ? "Save changes & add new event +"
-                    : "Add more sub events +"}
+                      ? "Save changes & add new event +"
+                      : "Add more sub events +"}
                 </button>
                 <div className="t-8 flex justify-end gap-4">
                   <div className="flex gap-4">
