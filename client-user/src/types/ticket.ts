@@ -94,6 +94,7 @@ export interface SubEvent {
   event_description: string;
   event_logo?: string;
   event_banner?: string;
+  event_portrait?: string;
   event_images: EventImage[];
   hashtag: string[];
   payment_type: "free" | "paid";
@@ -167,6 +168,7 @@ export interface Event {
   updatedAt: string;
   event_banner?: string;
   event_logo?: string;
+  event_portrait?: string;
   event_rules?: EventRules;
   booking_end_date?: string;
   booking_start_date?: string;
