@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { FiEye } from "react-icons/fi";
 
 const SortablePhoto = ({
   img,
@@ -36,16 +37,23 @@ const SortablePhoto = ({
       style={style}
       {...attributes}
       {...listeners}
-      className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 bg-black"
+      className="group relative aspect-square rounded-lg overflow-hidden border border-gray-700 bg-black"
       onClick={() => !isReordering && onPreview?.(img)}
     >
       {/* IMAGE PREVIEW */}
       {!isVideo && (
-        <img
-          src={img.preview}
-          alt="preview"
-          className="w-full h-full object-cover"
-        />
+        <>
+          <img
+            src={img.preview}
+            alt="preview"
+            className="w-full h-full object-cover"
+          />
+          {!isReordering && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <FiEye className="text-white w-6 h-6" />
+            </div>
+          )}
+        </>
       )}
 
       {/* VIDEO PREVIEW */}

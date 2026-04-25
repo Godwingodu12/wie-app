@@ -230,22 +230,15 @@ export const createBooking = async (req: Request, res: Response) => {
 
     const user = await getUserById(userId);
     const group = await getGroupById(ticket.groupId);
-    const includeGst = parseFloat(process.env.TAX_PERCENTAGE || "0") > 0;
-    const fees = calculateFeeBreakdown(
-      ticketType.ticket_price,
-      quantity,
-      includeGst,
-    );
+    // ticket_price already contains GST if organiser enabled it — we never add tax here
+    const fees = calculateFeeBreakdown(ticketType.ticket_price, quantity);
     const {
       ticketSubtotal: subtotal,
       platformFee,
-      organizerGst,
-      platformGst,
       gatewayFeeAbsorbed,
       totalAmount,
     } = fees;
-    // convenienceFee alias for DB storage (internal accounting only — not shown to user)
-    const convenienceFee = gatewayFeeAbsorbed;
+    const convenienceFee = gatewayFeeAbsorbed; // internal accounting only — not shown to user
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
@@ -269,10 +262,10 @@ export const createBooking = async (req: Request, res: Response) => {
       ticketType: ticketType.ticket_type,
       quantity,
       pricePerTicket: ticketType.ticket_price,
-      subtotal, // ✅ pure ticket value — host's 100% share
-      tax: organizerGst, // GST on ticket (TAX_PERCENTAGE% from env) — shown to user
+      subtotal, // ticket_price × qty (GST already inside if organiser set it)
+      tax: 0, // GST is the organiser's responsibility — not tracked here
       platformFee, // ₹5 flat WIE fee — shown to user as "Convenience Fee"
-      totalAmount, // ✅ what user pays
+      totalAmount, // ticketSubtotal + platformFee
       currency: "INR",
       userDetails: {
         name: user.name || "",
@@ -289,8 +282,6 @@ export const createBooking = async (req: Request, res: Response) => {
         groupName: group.name || "",
       },
       convenienceFee,
-      organizerGst,
-      platformGst,
       settlementMode: "DELAYED",
       refundPolicyId: "DEFAULT",
       financialState: "CREATED",
@@ -379,7 +370,6 @@ export const createBooking = async (req: Request, res: Response) => {
           bookingId: booking.bookingId,
           subtotal: booking.subtotal, // ticket value
           platformFee: booking.platformFee, // ₹5 WIE convenience fee
-          tax: organizerGst, // GST on ticket (if applicable)
           totalAmount: booking.totalAmount, // grand total
           currency: booking.currency,
           feeBreakdown: {
@@ -387,17 +377,8 @@ export const createBooking = async (req: Request, res: Response) => {
               {
                 label: "Ticket price",
                 amount: subtotal,
-                note: `₹${ticketType.ticket_price} × ${quantity}`,
+                note: `₹${ticketType.ticket_price} × ${quantity} (GST included if applicable)`,
               },
-              ...(organizerGst > 0
-                ? [
-                    {
-                      label: `GST (${process.env.TAX_PERCENTAGE || 18}%)`,
-                      amount: organizerGst,
-                      note: "On ticket price",
-                    },
-                  ]
-                : []),
               {
                 label: "Convenience fee",
                 amount: platformFee,
@@ -687,22 +668,14 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
     const quantity = selectedSeats.length;
     subtotal = parseFloat(subtotal.toFixed(2));
 
+    // seat prices are already GST-inclusive if organiser set GST — we never add tax
     const avgPricePerSeat = quantity > 0 ? subtotal / quantity : 0;
-    const includeGstSeated = parseFloat(process.env.TAX_PERCENTAGE || "0") > 0;
-    const seatedFees = calculateFeeBreakdown(
-      avgPricePerSeat,
-      quantity,
-      includeGstSeated,
-    );
+    const seatedFees = calculateFeeBreakdown(avgPricePerSeat, quantity);
 
     const platformFee = seatedFees.platformFee;
-    const organizerGst = seatedFees.organizerGst;
-    const platformGst = seatedFees.platformGst;
     const convenienceFee = seatedFees.gatewayFeeAbsorbed; // internal accounting only
-    // Recalculate total using actual subtotal (not avg-rounded subtotal from engine)
-    const totalAmount = parseFloat(
-      (subtotal + organizerGst + platformFee).toFixed(2), // gateway absorbed — NOT added
-    );
+    // Recalculate using actual subtotal (not avg-rounded value from engine)
+    const totalAmount = parseFloat((subtotal + platformFee).toFixed(2));
 
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
@@ -728,10 +701,10 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       quantity,
       pricePerTicket:
         quantity > 0 ? parseFloat((subtotal / quantity).toFixed(2)) : 0,
-      subtotal, //sum of seat prices for host's
-      tax: organizerGst, // GST on seat prices (TAX_PERCENTAGE%)
+      subtotal, // sum of seat prices (GST already inside if organiser set it)
+      tax: 0, // GST is organiser's responsibility — not tracked here
       platformFee, // ₹5 × seats WIE flat fee
-      totalAmount, // what user pays (gateway absorbed by WIE)
+      totalAmount, // ticketSubtotal + platformFee
       currency: "INR",
       userDetails: {
         name: user.name || "",
@@ -794,18 +767,15 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
           bookingId: booking.bookingId,
           subtotal: booking.subtotal,
           platformFee: booking.platformFee,
-          tax: organizerGst,
-          platformGst: platformGst,
+          tax: 0,
           convenienceFee: convenienceFee,
           totalAmount: booking.totalAmount,
           currency: booking.currency,
           seatDetails,
           feeBreakdown: {
-            subtotal,
-            platformFee,
-            gst: organizerGst,
-            platformGst,
-            convenienceFee,
+            subtotal, // GST-inclusive seat total
+            platformFee, // WIE flat fee
+            convenienceFee, // internal: gateway fee WIE absorbs
             total: totalAmount,
           },
         },
@@ -822,6 +792,7 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const getBookedSeats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
@@ -1641,13 +1612,11 @@ export const markAsRead = async (req: Request, res: Response) => {
     }
 
     if (!ids && (!statuses || statuses.length === 0)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            "Require at least bookingId, bookingIds, or statuses to mark read",
-        });
+      return res.status(400).json({
+        success: false,
+        message:
+          "Require at least bookingId, bookingIds, or statuses to mark read",
+      });
     }
 
     const { count } = await BookingModel.updateReadStatus(userId, {

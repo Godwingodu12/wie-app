@@ -22,6 +22,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Ticket,
 } from "lucide-react";
 
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
@@ -348,6 +349,17 @@ function ProfileContent() {
                         <Settings size={16} />
                         <span>Settings</span>
                       </button>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          router.push("/bookings");
+                        }}
+                        className="w-full flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium hover:opacity-80 transition-opacity text-left"
+                        style={{ color: themeStyles.text }}
+                      >
+                        <Ticket size={16} />
+                        <span>Event History</span>
+                      </button>
                       <div className="h-px my-1" style={{ background: themeStyles.divider }} />
                       <button
                         onClick={handleLogout}
@@ -604,9 +616,9 @@ function ProfileContent() {
                   </div>
                   <div className="text-xs mt-1" style={{ color: themeStyles.textSecondary }}>Posts</div>
                 </button>
-                
+
                 <div className="h-10 w-[0.5px] border-l-[0.5px]" style={{ borderColor: themeStyles.divider }}></div>
-                
+
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
                   onClick={() => {

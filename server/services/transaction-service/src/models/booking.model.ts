@@ -34,9 +34,7 @@ export interface CreateBookingData {
     };
     groupName?: string;
   };
-  convenienceFee?: number; // ← was incorrectly string, fixed to number
-  organizerGst?: number;
-  platformGst?: number;
+  convenienceFee?: number;
   settlementMode?: string; // 'INSTANT' | 'DELAYED' | 'HIGH_RISK_ESCROW'
   refundPolicyId?: string; // 'DEFAULT' | 'STRICT' | 'FLEXIBLE' | 'NO_REFUND'
   financialState?: string; // 'CREATED' | 'PAID' | 'HELD' | 'SETTLED' | 'REFUNDED'
@@ -110,12 +108,6 @@ export class BookingModel {
         bookingStatus: data.bookingStatus || "PENDING",
         ...(data.convenienceFee !== undefined && {
           convenienceFee: data.convenienceFee,
-        }),
-        ...(data.organizerGst !== undefined && {
-          organizerGst: data.organizerGst,
-        }),
-        ...(data.platformGst !== undefined && {
-          platformGst: data.platformGst,
         }),
         ...(data.settlementMode !== undefined && {
           settlementMode: data.settlementMode,

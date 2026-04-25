@@ -171,8 +171,8 @@ const CreateTicketModal = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div
-        className={`rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col ${
-          darkMode ? "bg-[#2B2B2B]" : "bg-white"
+        className={`rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col transition-all duration-300 animate-in zoom-in-95 ${
+          darkMode ? "bg-[#1a1a1a]/95 border border-white/10" : "bg-white/95 border border-black/5"
         }`}
       >
         {/* Header */}
