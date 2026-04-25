@@ -889,6 +889,10 @@ const handleSubmit = async (e) => {
                             img={img}
                             isReordering={isReorderingImages}
                             onRemove={(id) => removeImageFromList(id, "event_images")}
+                            onPreview={(file) => {
+                              const url = file.preview || file.url || file;
+                              openViewer(url, file.mimeType || "image/jpeg", file.name || "Image");
+                            }}
                           />
                         ))}
                       </SortableContext>
@@ -931,13 +935,17 @@ const handleSubmit = async (e) => {
                   <SortableContext items={previews.event_videos || []} strategy={rectSortingStrategy}>
                     {previews.event_videos?.map((vid) => (
                       <SortablePhoto
-                      key={vid.id}
-                      img={vid}
-                      isReordering={isReorderingVideos}
-                      onRemove={(id) => removeImageFromList(id, 'event_videos')}
-                      targetField="event_videos"
-                      onPreview={(file) => setViewerFile(file)}
-                    />
+                        key={vid.id}
+                        id={vid.id}
+                        img={vid}
+                        isReordering={isReorderingVideos}
+                        onRemove={(id) => removeImageFromList(id, 'event_videos')}
+                        targetField="event_videos"
+                        onPreview={(file) => {
+                          const url = file.preview || file.url || file;
+                          openViewer(url, file.mimeType || "video/mp4", file.name || "Video");
+                        }}
+                      />
                     ))}
                   </SortableContext>
                   <input id="video_input" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
