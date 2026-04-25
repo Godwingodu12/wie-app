@@ -101,11 +101,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   if (variant === "VIEW" || variant === "SUCCESS") {
     return (
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-300 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 transition-all duration-300 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       >
         <div
-          className={`relative border rounded-3xl p-8 pt-6 w-full max-w-[420px] shadow-2xl flex flex-col items-center transition-all duration-500 transform ${
+          className={`relative border rounded-3xl p-5 sm:p-8 pt-6 w-[92vw] sm:w-full sm:max-w-[420px] shadow-2xl flex flex-col items-center transition-all duration-500 transform ${
             show ? "scale-100 translate-y-0" : "scale-95 translate-y-8"
           }`}
           style={{
@@ -119,7 +119,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* Universal Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-6 right-6 p-2 rounded-full transition-all hover:bg-white/10 active:scale-90 z-20 group"
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full transition-all hover:bg-white/10 active:scale-95 z-20 group"
           >
             <X className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
           </button>
@@ -140,10 +140,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             ticketType={currentSelectedTicket?.ticket_type || bookingData?.ticketType || bookingData?.ticket_type}
           />
 
-          <div className="flex gap-4 mt-10 w-full justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full justify-center items-center">
             <button
               onClick={onClose}
-              className="flex-1 max-w-[155px] h-[48px] rounded-full text-[13px] font-bold transition-all flex items-center justify-center border border-white/20 bg-white/5 text-white hover:bg-white/10 active:scale-95"
+              className="w-full sm:flex-1 sm:max-w-[155px] h-[44px] sm:h-[48px] rounded-full text-[13px] font-bold transition-all flex items-center justify-center border border-white/20 bg-white/5 text-white hover:bg-white/10 active:scale-95"
             >
               Cancel
             </button>
@@ -153,7 +153,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 onClose();
                 router.push('/events/nearby');
               }}
-              className="flex-1 max-w-[155px] h-[48px] rounded-full text-white text-[13px] font-bold shadow-lg transition-all flex items-center justify-center hover:brightness-110 active:scale-95"
+              className="w-full sm:flex-1 sm:max-w-[155px] h-[44px] sm:h-[48px] rounded-full text-white text-[13px] font-bold shadow-lg transition-all flex items-center justify-center hover:brightness-110 active:scale-95"
               style={{ background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)' }}
             >
               Back to event
@@ -166,11 +166,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className={`relative w-full max-w-[420px] rounded-3xl border shadow-2xl overflow-hidden flex flex-col transition-all duration-500 transform ${
+        className={`relative w-[95vw] sm:w-full sm:max-w-[420px] rounded-3xl border shadow-2xl overflow-hidden flex flex-col transition-all duration-500 transform ${
           show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-8'
         }`}
         style={{
@@ -185,7 +185,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         {/* Universal Close Button for BOOK variant */}
         <button
           onClick={onClose}
-          className={`absolute top-6 right-6 p-2 rounded-full transition-all active:scale-90 z-20 group ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+          className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full transition-all active:scale-95 z-20 group ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
         >
           <X className={`w-5 h-5 transition-colors ${isDark ? 'text-white/50 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-900'}`} />
         </button>
@@ -197,11 +197,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         </div>
 
         {/* Content Section */}
-        <div className="px-5 sm:px-8 pb-5 sm:pb-8 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div className="px-4 sm:px-8 pb-5 sm:pb-8 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar max-h-[80vh]">
           {/* Main Info Area: Side-by-Side Image & Text */}
           <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-stretch">
             {/* Left: Image */}
-            <div className={`w-full max-w-[280px] sm:max-w-none aspect-[4/3] sm:aspect-auto sm:w-[180px] sm:h-auto sm:min-h-[220px] rounded-2xl overflow-hidden shrink-0 shadow-lg border relative ${isDark ? 'border-white/5 bg-white/5' : 'border-black/5 bg-gray-100'}`}>
+            <div className={`w-full sm:max-w-none aspect-[16/9] sm:aspect-auto sm:w-[160px] sm:h-auto sm:min-h-[200px] rounded-2xl overflow-hidden shrink-0 shadow-lg border relative ${isDark ? 'border-white/5 bg-white/5' : 'border-black/5 bg-gray-100'}`}>
               {imageUrl ? (
                 <img src={imageUrl} alt={event.event_name} className="absolute inset-0 w-full h-full object-cover" />
               ) : (
@@ -212,7 +212,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
 
             {/* Right: Info & Controls */}
-            <div className="flex-1 w-full py-1 flex flex-col justify-between gap-5">
+            <div className="flex-1 w-full py-0 sm:py-1 flex flex-col justify-between gap-5 text-center sm:text-left">
 
               {/* Info Header */}
               <div className="space-y-4">
@@ -220,18 +220,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   {event.event_name}
                 </h3>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-lg bg-[#9575CD]/10 flex items-center justify-center shrink-0">
-                      <Calendar className="w-3.5 h-3.5 text-[#9575CD]" />
+                <div className="space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-center sm:justify-start gap-2.5">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#9575CD]/10 flex items-center justify-center shrink-0">
+                      <Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#9575CD]" />
                     </div>
-                    <span className={`text-[13px] font-medium ${isDark ? 'text-[#CBD5E1]' : 'text-gray-700'}`}>{dateTimeDisplay}</span>
+                    <span className={`text-[12px] sm:text-[13px] font-medium ${isDark ? 'text-[#CBD5E1]' : 'text-gray-700'}`}>{dateTimeDisplay}</span>
                   </div>
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-6 h-6 rounded-lg bg-[#9575CD]/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#9575CD]/80" />
+                  <div className="flex items-start justify-center sm:justify-start gap-2.5">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#9575CD]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[#9575CD]/80" />
                     </div>
-                    <span className={`text-[13px] font-medium line-clamp-2 italic pt-0.5 ${isDark ? 'text-[#94A3B8]' : 'text-gray-500'}`}>{event.location_name || event.location || 'Location TBA'}</span>
+                    <span className={`text-[12px] sm:text-[13px] font-medium line-clamp-2 italic pt-0.5 ${isDark ? 'text-[#94A3B8]' : 'text-gray-500'}`}>{event.location_name || event.location || 'Location TBA'}</span>
                   </div>
                 </div>
               </div>
@@ -240,9 +240,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {variant === "BOOK" && (
                 <div className="space-y-4">
                   {/* Ticket Type */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex flex-col items-center sm:items-start">
                     <label className={`text-[11px] font-bold uppercase tracking-widest px-1 ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>Ticket Type</label>
-                    <div className="relative">
+                    <div className="relative w-full">
                       <button
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         style={{ background: isDark ? '#0000001A' : '#ffffff' }}
@@ -283,25 +283,25 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     </div>
                   </div>
                    {/* Quantity */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex flex-col items-center sm:items-start">
                     <label className={`text-[11px] font-bold uppercase tracking-widest px-1 ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>Quantity</label>
-                    <div className="flex items-center gap-4 h-[48px]">
+                    <div className="flex items-center justify-center sm:justify-start gap-4 h-[48px]">
                       <button
                         onClick={() => setQuantity?.(Math.max(1, quantity - 1))}
                         style={{ background: isDark ? '#0000001A' : '#ffffff' }}
-                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-white/5 hover:bg-white/5' : 'text-gray-900 border-black/10 hover:bg-gray-50'}`}
+                        className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-white/5 hover:bg-white/5' : 'text-gray-900 border-black/10 hover:bg-gray-50'}`}
                         disabled={isBooking}
                       >
-                        <Minus className="w-5 h-5" />
+                        <Minus className="w-4 sm:w-5 h-4 sm:h-5" />
                       </button>
                       <span className={`text-[20px] font-black w-8 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>{quantity}</span>
                       <button
                         onClick={() => setQuantity?.(Math.min(50, quantity + 1))}
                         style={{ background: isDark ? '#0000001A' : '#ffffff' }}
-                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-white/5' : 'text-[#9575CD] border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-[#9575CD]/5'}`}
+                        className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-white/5' : 'text-[#9575CD] border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-[#9575CD]/5'}`}
                         disabled={isBooking}
                       >
-                        <Plus className="w-5 h-5" />
+                        <Plus className="w-4 sm:w-5 h-4 sm:h-5" />
                       </button>
                     </div>
                   </div>
@@ -330,7 +330,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             </div>
             <div className="text-center sm:text-right sm:pl-4">
-              <span className={`font-semibold text-[32px] sm:text-[32px] text-[28px] leading-none tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <span className={`font-semibold text-[24px] sm:text-[32px] leading-none tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {isFree ? 'FREE' : `₹${total}`}
               </span>
             </div>
@@ -338,18 +338,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 sm:px-8 pb-8 sm:pb-10 flex gap-3 justify-center items-center mt-auto w-full">
+        <div className="px-5 sm:px-8 pb-6 sm:pb-10 flex gap-3 justify-center items-center mt-auto w-full">
           <button
             onClick={onClose}
             style={{
-              height: '42px',
-              borderRadius: '21px',
+              height: '40px',
+              borderRadius: '20px',
               border: isDark ? '0.4px solid #9575CD' : '1px solid #9575CD',
               background: isDark ? "rgba(179, 184, 226, 0.1)" : "rgba(149, 117, 205, 0.05)",
               color: isDark ? "#FFFFFF" : "#1A1C2E",
-              opacity: 1
             }}
-            className="flex-1 max-w-[145px] text-[13px] font-bold transition-all flex items-center justify-center hover:brightness-110 active:scale-95"
+            className="flex-1 max-w-[145px] text-[12px] sm:text-[13px] font-bold transition-all flex items-center justify-center hover:brightness-110 active:scale-95"
           >
             Cancel
           </button>
@@ -358,11 +357,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             onClick={onInitiateBooking}
             disabled={isBooking || !selectedTicketType}
             style={{
-              height: '42px',
-              borderRadius: '21px',
+              height: '40px',
+              borderRadius: '20px',
               background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
             }}
-            className="flex-1 max-w-[145px] text-white text-[13px] font-bold shadow-lg shadow-purple-500/10 hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center"
+            className="flex-1 max-w-[145px] text-white text-[12px] sm:text-[13px] font-bold shadow-lg shadow-purple-500/10 hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center"
           >
             {isBooking ? 'Processing...' : 'Confirm booking'}
           </button>
