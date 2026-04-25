@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback } from "react";
 import InfoTooltip from "./InfoTooltip";
-import { FiTrash2, FiUpload, FiCheck, FiX } from "react-icons/fi";
+import { FiTrash2, FiUpload, FiCheck, FiX, FiEye } from "react-icons/fi";
 import Cropper from "react-easy-crop";
 
 const FileMediaInput = ({
@@ -19,7 +19,7 @@ const FileMediaInput = ({
   aspectRatio = 1, // Default to square (1:1)
 }) => {
   const fileInputRef = useRef(null);
-  
+
   // Cropper State
   const [imageToCrop, setImageToCrop] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -35,7 +35,7 @@ const FileMediaInput = ({
   const previewUrl = getPreviewUrl();
 
   // --- CROPPER HELPERS ---
-  
+
   const onInternalFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -104,7 +104,7 @@ const FileMediaInput = ({
         const syntheticEvent = { target: { files: [croppedFile] } };
         onFileChange(syntheticEvent, id);
         setImageToCrop(null);
-      }, "image/jpeg", 0.92); 
+      }, "image/jpeg", 0.92);
     } catch (e) {
       console.error("Crop error:", e);
     }
@@ -113,13 +113,10 @@ const FileMediaInput = ({
   return (
     <div className="w-full mb-6">
       {imageToCrop && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-4">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 animate-in fade-in">
           <div
-            className="relative w-full bg-[#1a1a1a] rounded-t-xl overflow-hidden"
-            style={{
-              maxWidth: aspectRatio >= 1 ? "860px" : "480px",
-              height: aspectRatio >= 1 ? "420px" : "600px",
-            }}
+            className={`relative w-full bg-[#1a1a1a]/90 backdrop-blur-xl rounded-t-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 border-x border-t border-white/10 ${aspectRatio >= 1 ? "max-w-xl sm:max-w-2xl" : "max-w-xs sm:max-w-sm"
+              } h-[35vh] sm:h-[45vh] md:h-[50vh]`}
           >
             <Cropper
               image={imageToCrop}
@@ -133,8 +130,8 @@ const FileMediaInput = ({
           </div>
 
           <div
-            className="w-full bg-[#2b2b2b] p-4 rounded-b-xl flex flex-col gap-3"
-            style={{ maxWidth: aspectRatio >= 1 ? "860px" : "480px" }}
+            className={`w-full bg-[#2b2b2b]/90 backdrop-blur-xl p-4 sm:p-5 rounded-b-2xl flex flex-col gap-4 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 border-x border-b border-white/10 ${aspectRatio >= 1 ? "max-w-xl sm:max-w-2xl" : "max-w-xs sm:max-w-sm"
+              }`}
           >
             {/* Unlock hint shown only when locked */}
             {lockAspect && (
@@ -211,35 +208,41 @@ const FileMediaInput = ({
       </label>
 
       <div
-        className={`relative flex items-center justify-between p-4 rounded-xl bg-transparent border-2 border-dashed border-gray-600 hover:border-indigo-500 transition-all ${
-          error ? "border-red-500" : ""
-        }`}
+        className={`relative flex items-center justify-between p-4 rounded-xl bg-transparent border-2 border-dashed border-gray-600 hover:border-indigo-500 transition-all ${error ? "border-red-500" : ""
+          }`}
       >
         {/* ... (Existing Content Logic - Left & Middle) ... */}
         {!preview ? (
           <div className="flex gap-12">
-          <div className="flex flex-col text-left">
-            <p className="text-sm text-gray-400">
-              Drag your file(s) or <span className="text-white font-semibold">browse</span>
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Only {acceptedFiles.replace(/\./g, "")} files allowed</p>
-            {resolution && <p className="text-xs text-gray-500 italic">Resolution: ({resolution})</p>}
-          </div>
-          <div className="flex flex-col text-center" >
-            <p className="text-sm text-gray-400"> Max Size</p>
-            {maxSizeMB && <p className="text-xs text-gray-500 ">{maxSizeMB} MB</p>}
-          </div>
+            <div className="flex flex-col text-left">
+              <p className="text-sm text-gray-400">
+                Drag your file(s) or <span className="text-white font-semibold">browse</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Only {acceptedFiles.replace(/\./g, "")} files allowed</p>
+              {resolution && <p className="text-xs text-gray-500 italic">Resolution: ({resolution})</p>}
+            </div>
+            <div className="flex flex-col text-center" >
+              <p className="text-sm text-gray-400"> Max Size</p>
+              {maxSizeMB && <p className="text-xs text-gray-500 ">{maxSizeMB} MB</p>}
+            </div>
           </div>
 
         ) : (
           <div className="flex items-center gap-4">
             {!isDocument && previewUrl && (
-              <img 
-                src={previewUrl} 
-                alt="preview" 
-                className="w-12 h-12 rounded object-cover border border-gray-600 cursor-pointer" 
-                onClick={onPreviewClick}
-              />
+              <div className="relative group w-12 h-12">
+                <img
+                  src={previewUrl}
+                  alt="preview"
+                  className="w-full h-full rounded object-cover border border-gray-600"
+                />
+                <div
+                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded cursor-pointer"
+                  onClick={onPreviewClick}
+                >
+                  <FiEye className="text-white w-5 h-5" />
+                </div>
+              </div>
             )}
             <div className="flex flex-col">
               <span className="text-sm text-white font-medium truncate max-w-[150px]">
