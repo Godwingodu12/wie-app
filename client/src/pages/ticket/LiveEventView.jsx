@@ -2337,17 +2337,37 @@ const AttendanceScannerModal = ({ theme, isDark, onClose, onScan, scanResult, sc
         {/* Last scan result */}
         <div style={{ padding: '12px 24px 16px' }}>
           {scanResult && (
-            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <CheckCircle style={{ width: 20, height: 20, color: '#10B981', flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p style={{ color: '#10B981', fontWeight: 600, fontSize: 14, margin: '0 0 2px' }}>✓ Attendance marked!</p>
-                <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 13, margin: '0 0 2px' }}>{scanResult.userName || scanResult.userId}</p>
-                <p style={{ color: isDark ? 'rgba(209,250,229,0.7)' : 'rgba(6,95,70,0.7)', fontSize: 11, margin: 0 }}>
-                  {scanResult.ticketType} · Qty {scanResult.quantity} · {scanResult.paymentMethod || 'N/A'}
+            <div style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 14, overflow: 'hidden' }}>
+              {/* Success header */}
+              <div style={{ background: 'rgba(16,185,129,0.18)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle style={{ width: 18, height: 18, color: '#10B981', flexShrink: 0 }} />
+                <p style={{ color: '#10B981', fontWeight: 700, fontSize: 13, margin: 0 }}>
+                  ✓ Attendance marked — #{(scanResult.transactionId || scanResult.bookingId || '').slice(-8).toUpperCase()}
                 </p>
-                <p style={{ color: isDark ? 'rgba(209,250,229,0.6)' : 'rgba(6,95,70,0.6)', fontSize: 10, margin: '2px 0 0' }}>
-                  {new Date(scanResult.scannedAt).toLocaleTimeString()}
-                </p>
+              </div>
+              {/* Detail rows — identical fields to the user's ticket view */}
+              <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {[
+                  { label: 'Holder',     value: scanResult.userName || scanResult.userId || '—' },
+                  { label: 'Ticket type',value: scanResult.ticketType || '—' },
+                  { label: 'Qty',        value: String(scanResult.quantity ?? 1) },
+                  { label: 'Payment',    value: scanResult.paymentMethod || '—' },
+                  { label: 'Scanned at', value: scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : '—' },
+                  { label: 'Txn ID',     value: (scanResult.transactionId || scanResult.bookingId || '—').slice(-12), mono: true },
+                ].map(({ label, value, mono }) => (
+                  <div key={label} style={{
+                    background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                    borderRadius: 8,
+                    padding: '6px 9px',
+                  }}>
+                    <p style={{ color: isDark ? 'rgba(209,250,229,0.45)' : 'rgba(6,95,70,0.5)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>
+                      {label}
+                    </p>
+                    <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 11, fontWeight: 600, margin: 0, fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>
+                      {value}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
