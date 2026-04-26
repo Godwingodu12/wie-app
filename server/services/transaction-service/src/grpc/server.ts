@@ -656,7 +656,6 @@ const verifyBookingQR = async (call: any, callback: any) => {
       return callback(null, { success: false, error: "qrData is required" });
     }
 
-    // Decode using the shared verifyQRCode utility — handles all three formats
     const { verifyQRCode } = await import("../utils/qrGenerator");
     const parsed = verifyQRCode(qrData);
 
@@ -682,21 +681,43 @@ const verifyBookingQR = async (call: any, callback: any) => {
       });
     }
 
+    const eventDet = (booking as any).eventDetails || {};
+    const userDet = (booking as any).userDetails || {};
+    const rawPaymentMethod =
+      (booking as any).paymentMethod || parsed.paymentMethod || "";
+
     callback(null, {
       success: true,
       error: "",
+      // IDs
       bookingId: String(booking.id),
       externalId: booking.bookingId || "",
       userId: booking.userId || "",
       ticketId: booking.ticketId || "",
+      // Ticket info
       ticketType: booking.ticketType || parsed.ticketType || "",
       quantity: booking.quantity || parsed.quantity || 1,
-      paymentMethod:
-        (booking as any).paymentMethod || parsed.paymentMethod || "",
+      paymentMethod: rawPaymentMethod,
       bookingStatus: booking.bookingStatus || "",
-      userName: (booking.userDetails as any)?.name || parsed.holderName || "",
-      userEmail: (booking.userDetails as any)?.email || "",
-      userPhone: (booking.userDetails as any)?.phone || "",
+      // Holder
+      userName: userDet.name || parsed.holderName || "",
+      userEmail: userDet.email || "",
+      userPhone: userDet.phone || userDet.contact || "",
+      // Event details — pulled from stored eventDetails (authoritative)
+      eventName: eventDet.eventName || parsed.eventName || "",
+      eventDate: eventDet.eventDate || parsed.eventDate || "",
+      eventTime: eventDet.eventTime || parsed.eventTime || "",
+      eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
+      venue: eventDet.venue || eventDet.location || parsed.venue || "",
+      // Financials
+      totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
+      subtotal: parseFloat((booking as any).subtotal?.toString() || "0"),
+      // Event image for scanner display
+      eventImage:
+        eventDet.event_portrait ||
+        eventDet.event_banner ||
+        eventDet.image ||
+        "",
     });
   } catch (err: any) {
     console.error("❌ [gRPC] verifyBookingQR error:", err.message);
