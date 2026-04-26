@@ -17,8 +17,6 @@ export interface QRCodeData {
   venue?: string;
 }
 
-// The canonical payload shape that gets encoded inside the QR image.
-// Both user ticket view and hoster scanner decode this same structure.
 export interface QRPayload {
   bookingId: string;
   userId: string;
@@ -27,12 +25,22 @@ export interface QRPayload {
   ticketType: string;
   quantity: number;
   holderName: string;
+  userEmail?: string;
+  userPhone?: string;
   eventDate: string;
   eventTime: string;
+  eventEndDate?: string;
   venue: string;
+  location?: string;
   paymentMethod: string;
+  subtotal?: number;
+  tax?: number;
+  platformFee?: number;
   totalAmount: number;
-  v: number; // schema version — increment if shape changes
+  eventImage?: string;
+  bookingStatus?: string;
+  groupId?: string;
+  v: number;
 }
 
 /**
@@ -57,6 +65,7 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
       venue: data.venue || data.location || "",
       paymentMethod: data.paymentMethod || "",
       totalAmount: Number(data.totalAmount) || 0,
+      subtotal: Number(data.pricePerTicket) * data.quantity || 0,
       v: 1,
     };
 
@@ -90,7 +99,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
 
   const trimmed = raw.trim();
 
-  // ── Format 1: base64 JSON (current) ──────────────────────────────────────
+  // ── Format 1: base64 JSON (current)
   try {
     const decoded = Buffer.from(trimmed, "base64").toString("utf-8");
     if (decoded.startsWith("{")) {
@@ -101,7 +110,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
     /* not base64 JSON */
   }
 
-  // ── Format 2: plain JSON (legacy) ────────────────────────────────────────
+  // ── Format 2: plain JSON (legacy)
   if (trimmed.startsWith("{")) {
     try {
       const obj = JSON.parse(trimmed);
