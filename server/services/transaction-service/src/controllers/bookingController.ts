@@ -881,8 +881,7 @@ export const getBookingById = async (req: Request, res: Response) => {
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
-
-    res.json({ success: true, data: { booking } });
+    res.status(200).json({ success: true, data: { booking } });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
