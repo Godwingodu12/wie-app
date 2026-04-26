@@ -112,13 +112,13 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       },
     });
 
-    // Generate QR and confirm immediately (no payment needed)
     const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
-      eventName: ticket.event_name,
+      eventName: ticket.event_name || "",
       location: ticket.location || ticket.venue || "",
+      venue: ticket.venue || ticket.location || "",
       eventDate: ticket.event_dates[0]?.start_date || "",
       eventTime: ticket.event_dates[0]?.start_time || "",
       quantity: booking.quantity,
@@ -126,6 +126,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       ticketType: booking.ticketType || "Free Entry",
       pricePerTicket: 0,
       totalAmount: 0,
+      paymentMethod: "free",
     });
 
     const confirmedBooking = await BookingModel.update(booking.id, {
@@ -461,23 +462,28 @@ export const verifyPayment = async (req: Request, res: Response) => {
       razorpayPaymentId,
     );
 
-    // Generate QR code
+    // Generate QR code — structured base64 payload (v1)
     const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
-      eventName: (booking.eventDetails as any).eventName,
+      eventName: (booking.eventDetails as any).eventName || "",
       location:
         (booking.eventDetails as any).location ||
         (booking.eventDetails as any).venue ||
         "",
-      eventDate: (booking.eventDetails as any).eventDate,
-      eventTime: (booking.eventDetails as any).eventTime,
+      venue:
+        (booking.eventDetails as any).venue ||
+        (booking.eventDetails as any).location ||
+        "",
+      eventDate: (booking.eventDetails as any).eventDate || "",
+      eventTime: (booking.eventDetails as any).eventTime || "",
       quantity: booking.quantity,
       userName: (booking.userDetails as any)?.name || "",
       ticketType: booking.ticketType || "",
       pricePerTicket: Number(booking.pricePerTicket),
       totalAmount: Number(booking.totalAmount),
+      paymentMethod: paymentDetails.method || "",
     });
 
     // Confirm booking
@@ -862,6 +868,7 @@ export const getUserBookings = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const getBookingById = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -881,7 +888,38 @@ export const getBookingById = async (req: Request, res: Response) => {
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
-    res.status(200).json({ success: true, data: { booking } });
+
+    // ── Decode the QR payload so the frontend renders structured ticket info ──
+    // We rebuild it directly from the booking record (authoritative source).
+    // This works for both new base64-JSON QRs and old text-format QRs.
+    const qrPayload = {
+      bookingId: booking.bookingId || String(booking.id),
+      userId: booking.userId,
+      ticketId: booking.ticketId,
+      eventName: (booking.eventDetails as any)?.eventName || "",
+      ticketType: booking.ticketType || "",
+      quantity: booking.quantity || 1,
+      holderName: (booking.userDetails as any)?.name || "",
+      eventDate: (booking.eventDetails as any)?.eventDate || "",
+      eventTime: (booking.eventDetails as any)?.eventTime || "",
+      venue:
+        (booking.eventDetails as any)?.venue ||
+        (booking.eventDetails as any)?.location ||
+        "",
+      paymentMethod: (booking as any).paymentMethod || "",
+      totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
+      v: 1,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        booking: {
+          ...booking,
+          qrPayload, // structured data the UI renders — same shape as QRPayload
+        },
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

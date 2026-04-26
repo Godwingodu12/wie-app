@@ -648,42 +648,29 @@ const getEventTransactionList = async (call: any, callback: any) => {
     });
   }
 };
+
 const verifyBookingQR = async (call: any, callback: any) => {
   try {
     const { qrData } = call.request;
     if (!qrData) {
+      return callback(null, { success: false, error: "qrData is required" });
+    }
+
+    // Decode using the shared verifyQRCode utility — handles all three formats
+    const { verifyQRCode } = await import("../utils/qrGenerator");
+    const parsed = verifyQRCode(qrData);
+
+    if (!parsed || !parsed.bookingId) {
       return callback(null, {
         success: false,
-        error: "qrData is required",
-        booking: null,
+        error: "Invalid or unrecognised QR code",
       });
     }
 
-    // QR payload format: bookingId:userId:ticketId (base64-encoded)
-    let decoded: string;
-    try {
-      decoded = Buffer.from(qrData, "base64").toString("utf-8");
-    } catch {
-      decoded = qrData;
-    }
-
-    const parts = decoded.split(":");
-    if (parts.length < 2) {
-      return callback(null, {
-        success: false,
-        error: "Invalid QR code format",
-        booking: null,
-      });
-    }
-
-    const [bookingId] = parts;
-
+    // Look up the booking by its external bookingId string
     const booking = await prisma.booking.findFirst({
       where: {
-        OR: [
-          { bookingId },
-          { id: bookingId },
-        ],
+        bookingId: parsed.bookingId,
         bookingStatus: { in: ["CONFIRMED", "PENDING"] },
       },
     });
@@ -692,7 +679,6 @@ const verifyBookingQR = async (call: any, callback: any) => {
       return callback(null, {
         success: false,
         error: "Booking not found or already cancelled",
-        booking: null,
       });
     }
 
@@ -703,17 +689,18 @@ const verifyBookingQR = async (call: any, callback: any) => {
       externalId: booking.bookingId || "",
       userId: booking.userId || "",
       ticketId: booking.ticketId || "",
-      ticketType: booking.ticketType || "",
-      quantity: booking.quantity || 1,
-      paymentMethod: booking.paymentMethod || "",
+      ticketType: booking.ticketType || parsed.ticketType || "",
+      quantity: booking.quantity || parsed.quantity || 1,
+      paymentMethod:
+        (booking as any).paymentMethod || parsed.paymentMethod || "",
       bookingStatus: booking.bookingStatus || "",
-      userName: (booking.userDetails as any)?.name || "",
+      userName: (booking.userDetails as any)?.name || parsed.holderName || "",
       userEmail: (booking.userDetails as any)?.email || "",
       userPhone: (booking.userDetails as any)?.phone || "",
     });
   } catch (err: any) {
     console.error("❌ [gRPC] verifyBookingQR error:", err.message);
-    callback(null, { success: false, error: err.message, booking: null });
+    callback(null, { success: false, error: err.message });
   }
 };
 

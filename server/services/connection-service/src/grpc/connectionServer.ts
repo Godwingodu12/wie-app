@@ -1,21 +1,18 @@
-import * as grpc from '@grpc/grpc-js';
-import * as protoLoader from '@grpc/proto-loader';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import ConnectionProfile from '../models/ConnectionProfile';
-import { EstablishedConnection } from '../models/EstablishedConnection';
-import matchingAlgorithm from '../utils/matching-algorithm';
-import mongoose from 'mongoose';
+import * as grpc from "@grpc/grpc-js";
+import * as protoLoader from "@grpc/proto-loader";
+import path from "path";
+import { fileURLToPath } from "url";
+import ConnectionProfile from "../models/ConnectionProfile";
+import { EstablishedConnection } from "../models/EstablishedConnection";
+import matchingAlgorithm from "../utils/matching-algorithm";
+import mongoose from "mongoose";
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Path to proto file
-const PROTO_PATH = path.join(
-  __dirname,
-  '../../../../protos/connection.proto'
-);
+const PROTO_PATH = path.join(__dirname, "../../../../protos/connection.proto");
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -25,25 +22,28 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   oneofs: true,
 });
 
-const connectionProto = grpc.loadPackageDefinition(packageDefinition).connection as any;
+const connectionProto = grpc.loadPackageDefinition(packageDefinition)
+  .connection as any;
 
 // gRPC Service Implementations
 const getConnectionProfile = async (call: any, callback: any) => {
   try {
     const { userId } = call.request;
 
-    const profile = await ConnectionProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
+    const profile = await ConnectionProfile.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+    });
 
     if (!profile) {
       callback(null, {
         error: true,
-        errorMessage: 'Connection profile not found',
+        errorMessage: "Connection profile not found",
       });
       return;
     }
 
     const primaryPhoto = profile.photos.find((p) => p.isPrimary);
-    
+
     callback(null, {
       profileId: profile._id.toString(),
       displayName: profile.displayName,
@@ -57,11 +57,11 @@ const getConnectionProfile = async (call: any, callback: any) => {
         longitude: profile.location.coordinates.coordinates[0],
       },
       photos: profile.photos.map((p) => p.url),
-      primaryPhotoUrl: primaryPhoto?.url || '', // ADD THIS LINE - Use the primaryPhoto
+      primaryPhotoUrl: primaryPhoto?.url || "", // ADD THIS LINE - Use the primaryPhoto
       status: profile.status,
       profileCompleteness: profile.profileCompleteness,
       error: false,
-      errorMessage: '',
+      errorMessage: "",
     });
   } catch (error: any) {
     callback(null, {
@@ -75,7 +75,12 @@ const getMatchSuggestions = async (call: any, callback: any) => {
   try {
     const { userId, purposeCode, limit } = call.request;
 
-    const matches = await matchingAlgorithm.findMatches(userId, purposeCode, {}, limit || 50);
+    const matches = await matchingAlgorithm.findMatches(
+      userId,
+      purposeCode,
+      {},
+      limit || 50,
+    );
 
     const suggestions = matches.map((match: any) => ({
       userId: match.userId.toString(),
@@ -109,8 +114,8 @@ const checkConnectionStatus = async (call: any, callback: any) => {
     if (!connection) {
       callback(null, {
         isConnected: false,
-        connectionId: '',
-        status: 'none',
+        connectionId: "",
+        status: "none",
       });
       return;
     }
@@ -136,7 +141,7 @@ const getUserConnections = async (call: any, callback: any) => {
       userIds: new mongoose.Types.ObjectId(userId),
     };
 
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       query.status = status;
     }
 
@@ -144,20 +149,21 @@ const getUserConnections = async (call: any, callback: any) => {
       .sort({ lastInteractionAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('connectionProfileIds');
+      .populate("connectionProfileIds");
 
     const total = await EstablishedConnection.countDocuments(query);
 
     const formattedConnections = connections.map((conn: any) => {
-      const otherUserId = conn.user1Id.toString() === userId ? conn.user2Id : conn.user1Id;
+      const otherUserId =
+        conn.user1Id.toString() === userId ? conn.user2Id : conn.user1Id;
       const otherProfile = conn.connectionProfileIds.find(
-        (p: any) => p.userId.toString() === otherUserId.toString()
+        (p: any) => p.userId.toString() === otherUserId.toString(),
       );
 
       return {
         connectionId: conn._id.toString(),
         userId: otherUserId.toString(),
-        displayName: otherProfile?.displayName || 'Unknown',
+        displayName: otherProfile?.displayName || "Unknown",
         status: conn.status,
         establishedAt: conn.establishedAt.toISOString(),
         messageCount: conn.messageCount,
@@ -180,7 +186,10 @@ const updateConnectionStatus = async (call: any, callback: any) => {
   try {
     const { connectionId, status } = call.request;
 
-    await EstablishedConnection.updateOne({ _id: connectionId }, { $set: { status } });
+    await EstablishedConnection.updateOne(
+      { _id: connectionId },
+      { $set: { status } },
+    );
 
     callback(null, { success: true });
   } catch (error: any) {
@@ -190,28 +199,30 @@ const updateConnectionStatus = async (call: any, callback: any) => {
     });
   }
 };
-
 // Start gRPC server
-export const startGRPCServer = (port: number): void => {
-  const server = new grpc.Server();
+export const startGRPCServer = (port: number): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const server = new grpc.Server();
 
-  server.addService(connectionProto.ConnectionService.service, {
-    GetConnectionProfile: getConnectionProfile,
-    GetMatchSuggestions: getMatchSuggestions,
-    CheckConnectionStatus: checkConnectionStatus,
-    GetUserConnections: getUserConnections,
-    UpdateConnectionStatus: updateConnectionStatus,
+    server.addService(connectionProto.ConnectionService.service, {
+      GetConnectionProfile: getConnectionProfile,
+      GetMatchSuggestions: getMatchSuggestions,
+      CheckConnectionStatus: checkConnectionStatus,
+      GetUserConnections: getUserConnections,
+      UpdateConnectionStatus: updateConnectionStatus,
+    });
+
+    server.bindAsync(
+      `0.0.0.0:${port}`,
+      grpc.ServerCredentials.createInsecure(),
+      (error, boundPort) => {
+        if (error) {
+          reject(error); // ← surfaces EADDRINUSE to the caller
+          return;
+        }
+        console.log(`🚀 Connection Service gRPC running on port ${boundPort}`);
+        resolve();
+      },
+    );
   });
-
-  server.bindAsync(
-    `0.0.0.0:${port}`,
-    grpc.ServerCredentials.createInsecure(),
-    (error, boundPort) => {
-      if (error) {
-        console.error('Failed to bind gRPC server:', error);
-        return;
-      }
-      console.log(`🚀 Connection Service gRPC running on port ${boundPort}`);
-    }
-  );
 };
