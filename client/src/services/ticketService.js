@@ -698,3 +698,18 @@ export const getEventTransactions = async (ticketId, { limit = 50, offset = 0, s
     throw error;
   }
 };
+
+export const initAttendance = (ticketId, subEventId = null) =>
+  api.post(`/attendance/${ticketId}/init`, { subEventId });
+
+export const scanAttendanceQR = (ticketId, qrData, subEventId = null) =>
+  api.post(`/attendance/${ticketId}/scan`, { qrData, subEventId });
+
+export const getAttendanceList = (ticketId, subEventId = null) =>
+  api.get(`/attendance/${ticketId}`, { params: subEventId ? { subEventId } : {} });
+
+export const downloadAttendance = (ticketId, format = 'excel', subEventId = null) => {
+  const params = new URLSearchParams({ format });
+  if (subEventId) params.append('subEventId', subEventId);
+  return api.get(`/attendance/${ticketId}/download?${params}`, { responseType: 'blob' });
+};
