@@ -8,6 +8,7 @@ import { startGrpcServer } from './grpc/server.js';
 import internalRoutes from './routes/internal.routes.js';
 import { startEventStatusScheduler, checkExpiredConfirmedEvents } from './jobs/eventStatusScheduler.js';
 import { startAutoDeleteCron } from "./services/ticket.service.js";
+import attendanceRoutes from './routes/attendance.routes.js';
 
 dotenv.config();
 const app = express();
@@ -23,6 +24,7 @@ app.get('/health', (req, res) => {
   });
 });
 app.use('/api/ticket', ticketRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/notification', notificationRoutes);
 app.use('/api/internal', internalRoutes);
 const PORT = process.env.PORT || 5003;
