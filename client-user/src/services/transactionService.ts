@@ -68,6 +68,23 @@ export interface VerifyPaymentRequest {
   razorpayPaymentId: string;
   razorpaySignature: string;
 }
+
+export interface QRPayload {
+  bookingId: string;
+  userId: string;
+  ticketId: string;
+  eventName: string;
+  ticketType: string;
+  quantity: number;
+  holderName: string;
+  eventDate: string;
+  eventTime: string;
+  venue: string;
+  paymentMethod: string;
+  totalAmount: number;
+  v: number;
+}
+
 export interface Booking {
   id: string;
   bookingId: string;
@@ -88,6 +105,7 @@ export interface Booking {
   userDetails: any;
   eventDetails: any;
   qrCode?: string;
+  qrPayload?: QRPayload | null;
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;
