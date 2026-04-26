@@ -7089,17 +7089,30 @@ export const markAttendance = async ({ ticketId, subEventId = null, qrData, scan
     'attendees.bookingId': qrResult.externalId || qrResult.bookingId,
   });
   if (existing) throw new Error('This ticket has already been scanned');
+  // Decode the QR payload to enrich the attendance record with full ticket details
+  let decodedPayload = null;
+  try {
+    const raw = Buffer.from(qrData, 'base64').toString('utf-8');
+    if (raw.startsWith('{')) decodedPayload = JSON.parse(raw);
+  } catch { /* legacy QR — fall back to gRPC fields */ }
 
   const attendeeRecord = {
     bookingId:     qrResult.externalId || qrResult.bookingId,
     userId:        qrResult.userId,
-    userName:      qrResult.userName,
+    userName:      qrResult.userName   || decodedPayload?.holderName  || '',
     userEmail:     qrResult.userEmail,
     userPhone:     qrResult.userPhone,
-    ticketType:    qrResult.ticketType,
-    quantity:      qrResult.quantity || 1,
-    paymentMethod: qrResult.paymentMethod,
-    transactionId: qrResult.bookingId,
+    ticketType:    qrResult.ticketType || decodedPayload?.ticketType  || '',
+    quantity:      qrResult.quantity   ?? decodedPayload?.quantity    ?? 1,
+    paymentMethod: qrResult.paymentMethod || decodedPayload?.paymentMethod || '',
+    transactionId: qrResult.externalId || qrResult.bookingId,
+    // Full ticket detail fields from QR payload
+    eventName:     decodedPayload?.eventName  || '',
+    eventDate:     decodedPayload?.eventDate  || '',
+    eventTime:     decodedPayload?.eventTime  || '',
+    venue:         decodedPayload?.venue      || '',
+    totalAmount:   decodedPayload?.totalAmount ?? 0,
+    holderName:    decodedPayload?.holderName || qrResult.userName || '',
     scannedAt:     new Date(),
     scannedBy,
     status:        'present',

@@ -2337,37 +2337,111 @@ const AttendanceScannerModal = ({ theme, isDark, onClose, onScan, scanResult, sc
         {/* Last scan result */}
         <div style={{ padding: '12px 24px 16px' }}>
           {scanResult && (
-            <div style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 14, overflow: 'hidden' }}>
-              {/* Success header */}
-              <div style={{ background: 'rgba(16,185,129,0.18)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CheckCircle style={{ width: 18, height: 18, color: '#10B981', flexShrink: 0 }} />
-                <p style={{ color: '#10B981', fontWeight: 700, fontSize: 13, margin: 0 }}>
-                  ✓ Attendance marked — #{(scanResult.transactionId || scanResult.bookingId || '').slice(-8).toUpperCase()}
-                </p>
+            <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: 14, overflow: 'hidden' }}>
+
+              {/* ── Success header strip ── */}
+              <div style={{ background: 'rgba(16,185,129,0.20)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle style={{ width: 17, height: 17, color: '#10B981', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>
+                    ✓ Attendance marked
+                  </p>
+                  <p style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0, fontFamily: 'monospace' }}>
+                    #{(scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '').toUpperCase()}
+                  </p>
+                </div>
+                <div style={{ background: 'rgba(16,185,129,0.25)', borderRadius: 6, padding: '3px 8px' }}>
+                  <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>#{scanCount}</p>
+                </div>
               </div>
-              {/* Detail rows — identical fields to the user's ticket view */}
-              <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {[
-                  { label: 'Holder',     value: scanResult.userName || scanResult.userId || '—' },
-                  { label: 'Ticket type',value: scanResult.ticketType || '—' },
-                  { label: 'Qty',        value: String(scanResult.quantity ?? 1) },
-                  { label: 'Payment',    value: scanResult.paymentMethod || '—' },
-                  { label: 'Scanned at', value: scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : '—' },
-                  { label: 'Txn ID',     value: (scanResult.transactionId || scanResult.bookingId || '—').slice(-12), mono: true },
-                ].map(({ label, value, mono }) => (
-                  <div key={label} style={{
-                    background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                    borderRadius: 8,
-                    padding: '6px 9px',
-                  }}>
-                    <p style={{ color: isDark ? 'rgba(209,250,229,0.45)' : 'rgba(6,95,70,0.5)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>
-                      {label}
-                    </p>
-                    <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 11, fontWeight: 600, margin: 0, fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
+
+              {/* ── Ticket detail grid — matches user ticket view exactly ── */}
+              <div style={{ padding: '10px 12px 12px' }}>
+
+                {/* Row 1: Holder (full width) */}
+                <ScanDetailRow
+                  label="Ticket holder"
+                  value={scanResult.holderName || scanResult.userName || scanResult.userId || '—'}
+                  isDark={isDark}
+                  fullWidth
+                />
+
+                {/* Row 2: Event name (full width) */}
+                <ScanDetailRow
+                  label="Event"
+                  value={scanResult.eventName || '—'}
+                  isDark={isDark}
+                  fullWidth
+                />
+
+                {/* Row 3: Type + Qty side by side */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 5, marginBottom: 5 }}>
+                  <ScanDetailRow
+                    label="Type"
+                    value={scanResult.ticketType || '—'}
+                    isDark={isDark}
+                  />
+                  <ScanDetailRow
+                    label="Qty"
+                    value={String(scanResult.quantity ?? 1)}
+                    isDark={isDark}
+                  />
+                </div>
+
+                {/* Row 4: Date + Time side by side */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
+                  <ScanDetailRow
+                    label="Event date"
+                    value={scanResult.eventDate || '—'}
+                    isDark={isDark}
+                  />
+                  <ScanDetailRow
+                    label="Time"
+                    value={scanResult.eventTime || '—'}
+                    isDark={isDark}
+                  />
+                </div>
+
+                {/* Row 5: Venue (full width) */}
+                <ScanDetailRow
+                  label="Venue"
+                  value={scanResult.venue || '—'}
+                  isDark={isDark}
+                  fullWidth
+                />
+
+                {/* Row 6: Payment + Amount paid side by side */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
+                  <ScanDetailRow
+                    label="Payment"
+                    value={scanResult.paymentMethod || '—'}
+                    isDark={isDark}
+                  />
+                  <ScanDetailRow
+                    label="Amount paid"
+                    value={scanResult.totalAmount > 0 ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}` : (scanResult.totalAmount === 0 ? 'Free' : '—')}
+                    isDark={isDark}
+                    highlight
+                  />
+                </div>
+
+                {/* Row 7: Transaction ID (full width, monospace) */}
+                <ScanDetailRow
+                  label="Transaction ID"
+                  value={scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '—'}
+                  isDark={isDark}
+                  fullWidth
+                  mono
+                />
+
+                {/* Row 8: Scanned at timestamp */}
+                <ScanDetailRow
+                  label="Scanned at"
+                  value={scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  isDark={isDark}
+                  fullWidth
+                />
+
               </div>
             </div>
           )}
@@ -2465,4 +2539,40 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
     </div>
   );
 };
+// ── Shared scan detail row — used inside scanner modals for both main and sub-events ──
+function ScanDetailRow({ label, value, isDark, fullWidth = false, mono = false, highlight = false }) {
+  return (
+    <div style={{
+      background:   isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+      borderRadius: 8,
+      padding:      '6px 9px',
+      marginBottom: fullWidth ? 5 : 0,
+      width:        '100%',
+    }}>
+      <p style={{
+        color:         isDark ? 'rgba(209,250,229,0.40)' : 'rgba(6,95,70,0.45)',
+        fontSize:      9,
+        fontWeight:    700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        margin:        '0 0 2px',
+      }}>
+        {label}
+      </p>
+      <p style={{
+        color:       highlight
+                       ? '#10B981'
+                       : isDark ? '#d1fae5' : '#065f46',
+        fontSize:    11,
+        fontWeight:  highlight ? 700 : 600,
+        margin:      0,
+        fontFamily:  mono ? 'monospace' : 'inherit',
+        wordBreak:   'break-all',
+        lineHeight:  1.4,
+      }}>
+        {value}
+      </p>
+    </div>
+  );
+}
 export default LiveEventsPage;

@@ -358,143 +358,263 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
               {(isConfirmed || isEventCompleted(booking)) && booking.qrCode && (
                 <Card className="p-0 overflow-hidden border-indigo-500/20">
 
-                  {/* ── Ticket header strip ── */}
+                  {/* ── Header strip ── */}
                   <div
-                    className="px-6 py-4 flex items-center justify-between"
+                    className="px-5 py-4 flex items-center justify-between"
                     style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)' }}
                   >
                     <div>
-                      <p className="text-white font-bold text-base leading-tight">Entry Ticket</p>
-                      <p className="text-white/60 text-xs mt-0.5">
-                        #{bookingId.slice(-8).toUpperCase()}
+                      <p className="text-white font-bold text-sm leading-tight">Entry Ticket</p>
+                      <p className="text-white/55 text-[10px] mt-0.5 font-mono">
+                        #{(booking.qrPayload?.bookingId || bookingId).toUpperCase()}
                       </p>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border ${getStatusStyle(getDisplayStatus(booking))}`}>
+                    <div className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest border ${getStatusStyle(getDisplayStatus(booking))}`}>
                       {getDisplayStatus(booking)}
                     </div>
                   </div>
 
+                  {/* ── Event image banner ── */}
+                  {(booking.qrPayload?.eventImage || booking.eventDetails?.event_portrait || booking.eventDetails?.event_banner || booking.eventDetails?.image) && (
+                    <div className="w-full h-32 overflow-hidden">
+                      <img
+                        src={
+                          booking.qrPayload?.eventImage ||
+                          booking.eventDetails?.event_portrait ||
+                          booking.eventDetails?.event_banner ||
+                          booking.eventDetails?.image
+                        }
+                        alt={booking.qrPayload?.eventName || booking.eventDetails?.eventName || 'Event'}
+                        className="w-full h-full object-cover"
+                        style={{ objectPosition: 'center top' }}
+                      />
+                    </div>
+                  )}
+
                   {/* ── QR code ── */}
-                  <div className="p-6 pb-3 flex justify-center">
+                  <div className="pt-5 pb-2 flex justify-center">
                     <div className="relative group">
-                      <div className="absolute -inset-2 bg-gradient-to-tr from-[#8860D9] to-fuchsia-500 rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
-                      <div className="relative bg-white p-3 rounded-2xl border border-black/5 shadow-lg">
+                      <div className="absolute -inset-2 bg-gradient-to-tr from-[#8860D9] to-fuchsia-500 rounded-2xl blur-lg opacity-15 group-hover:opacity-35 transition-opacity" />
+                      <div className="relative bg-white p-2.5 rounded-2xl border border-black/5 shadow-md">
                         <img
                           src={booking.qrCode}
                           alt="Ticket QR Code"
-                          className="w-44 h-44 object-contain"
+                          className="w-40 h-40 object-contain"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* ── Scan instruction ── */}
-                  <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-4 ${isDark ? 'text-white/30' : 'text-black/30'}`}>
-                    Show this QR at the venue
+                  {/* ── Scan hint ── */}
+                  <p className={`text-center text-[9px] font-bold uppercase tracking-widest mb-3 ${isDark ? 'text-white/25' : 'text-black/25'}`}>
+                    Show this QR at the venue entrance
                   </p>
 
-                  {/* ── Dotted tear-line ── */}
-                  <div className={`mx-6 border-t-2 border-dashed ${isDark ? 'border-white/10' : 'border-black/10'} mb-4`} />
+                  {/* ── Tear line ── */}
+                  <div className={`mx-5 border-t-2 border-dashed ${isDark ? 'border-white/10' : 'border-black/8'} mb-4`} />
 
-                  {/* ── Rich booking detail rows (same data the hoster sees) ── */}
-                  <div className="px-6 pb-2 space-y-3">
+                  {/* ── Full ticket detail rows ── */}
+                  <div className="px-5 pb-3 space-y-2.5">
 
                     {/* Holder */}
                     <TicketRow
                       isDark={isDark}
                       label="Ticket holder"
-                      value={booking.qrPayload?.holderName || (booking as any).userDetails?.name || '—'}
+                      value={
+                        booking.qrPayload?.holderName ||
+                        (booking as any).userDetails?.name ||
+                        '—'
+                      }
                     />
 
-                    {/* Event */}
+                    {/* Event name */}
                     <TicketRow
                       isDark={isDark}
                       label="Event"
-                      value={booking.qrPayload?.eventName || booking.eventDetails?.eventName || '—'}
+                      value={
+                        booking.qrPayload?.eventName ||
+                        booking.eventDetails?.eventName ||
+                        '—'
+                      }
                     />
 
-                    {/* Ticket type + qty */}
-                    <div className="flex gap-3">
+                    {/* Type + Qty */}
+                    <div className="flex gap-2.5">
                       <TicketRow
                         isDark={isDark}
                         label="Type"
-                        value={booking.qrPayload?.ticketType || booking.ticketType || '—'}
+                        value={
+                          booking.qrPayload?.ticketType ||
+                          booking.ticketType ||
+                          '—'
+                        }
                         className="flex-1"
                       />
                       <TicketRow
                         isDark={isDark}
                         label="Qty"
                         value={String(booking.qrPayload?.quantity ?? booking.quantity ?? 1)}
-                        className="w-16 text-center"
+                        className="w-14 text-center"
                       />
                     </div>
 
                     {/* Date + Time */}
-                    <div className="flex gap-3">
+                    <div className="flex gap-2.5">
                       <TicketRow
                         isDark={isDark}
                         label="Date"
-                        value={booking.qrPayload?.eventDate || booking.eventDetails?.eventDate || '—'}
+                        value={
+                          booking.qrPayload?.eventDate ||
+                          booking.eventDetails?.eventDate ||
+                          '—'
+                        }
                         className="flex-1"
                       />
                       <TicketRow
                         isDark={isDark}
                         label="Time"
-                        value={booking.qrPayload?.eventTime || booking.eventDetails?.eventTime || '—'}
+                        value={
+                          booking.qrPayload?.eventTime ||
+                          booking.eventDetails?.eventTime ||
+                          '—'
+                        }
                         className="flex-1"
                       />
                     </div>
+
+                    {/* End date (if different from start) */}
+                    {booking.qrPayload?.eventEndDate &&
+                      booking.qrPayload.eventEndDate !== booking.qrPayload.eventDate && (
+                      <TicketRow
+                        isDark={isDark}
+                        label="Event ends"
+                        value={booking.qrPayload.eventEndDate}
+                      />
+                    )}
 
                     {/* Venue */}
                     <TicketRow
                       isDark={isDark}
                       label="Venue"
-                      value={booking.qrPayload?.venue || booking.eventDetails?.venue || '—'}
+                      value={
+                        booking.qrPayload?.venue ||
+                        booking.eventDetails?.venue ||
+                        booking.eventDetails?.location ||
+                        '—'
+                      }
                     />
 
-                    {/* Payment method + amount */}
-                    <div className="flex gap-3">
+                    {/* Payment + Amount */}
+                    <div className="flex gap-2.5">
                       <TicketRow
                         isDark={isDark}
                         label="Payment"
-                        value={booking.qrPayload?.paymentMethod || (booking as any).paymentMethod || '—'}
+                        value={
+                          booking.qrPayload?.paymentMethod ||
+                          (booking as any).paymentMethod ||
+                          '—'
+                        }
                         className="flex-1"
                       />
                       <TicketRow
                         isDark={isDark}
                         label="Amount paid"
-                        value={`₹${(booking.qrPayload?.totalAmount ?? booking.totalAmount ?? 0).toLocaleString()}`}
+                        value={`₹${(
+                          booking.qrPayload?.totalAmount ??
+                          booking.totalAmount ??
+                          0
+                        ).toLocaleString('en-IN')}`}
                         className="flex-1"
                         valueColor="text-emerald-400"
                       />
                     </div>
 
+                    {/* Price breakdown (subtotal / tax / platform fee) */}
+                    {(booking.qrPayload?.subtotal !== undefined || booking.subtotal) && (
+                      <div
+                        className={`px-3 py-2.5 rounded-xl text-[10px] space-y-1 ${isDark ? 'bg-white/5' : 'bg-black/4'}`}
+                      >
+                        <p
+                          className="font-bold uppercase tracking-widest mb-1.5"
+                          style={{ color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)', fontSize: 9 }}
+                        >
+                          Price breakdown
+                        </p>
+                        <div className="flex justify-between">
+                          <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+                            Subtotal ({booking.quantity} ticket{booking.quantity > 1 ? 's' : ''})
+                          </span>
+                          <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            ₹{(booking.qrPayload?.subtotal ?? booking.subtotal ?? 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+                            GST (18%)
+                          </span>
+                          <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            ₹{(booking.qrPayload?.tax ?? booking.tax ?? 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+                            Platform fee
+                          </span>
+                          <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            ₹{(booking.qrPayload?.platformFee ?? booking.platformFee ?? 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className={`flex justify-between pt-1 border-t ${isDark ? 'border-white/10' : 'border-black/10'}`}>
+                          <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Total paid</span>
+                          <span className="font-mono font-bold text-emerald-400">
+                            ₹{(booking.qrPayload?.totalAmount ?? booking.totalAmount ?? 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Transaction ID */}
                     <TicketRow
                       isDark={isDark}
                       label="Transaction ID"
-                      value={booking.qrPayload?.bookingId || bookingId}
+                      value={booking.qrPayload?.bookingId || booking.bookingId || bookingId}
                       mono
                     />
+
+                    {/* Contact (email / phone if available) */}
+                    {(booking.qrPayload?.userEmail || (booking as any).userDetails?.email) && (
+                      <TicketRow
+                        isDark={isDark}
+                        label="Email"
+                        value={
+                          booking.qrPayload?.userEmail ||
+                          (booking as any).userDetails?.email ||
+                          '—'
+                        }
+                      />
+                    )}
 
                   </div>
 
                   {/* ── Verified badge ── */}
-                  <div className="mx-6 mt-4 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="mx-5 mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                     <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Verified QR Ticket</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">
+                      Verified QR Ticket
+                    </span>
                   </div>
 
                   {/* ── Save button ── */}
-                  <div className="p-5 sm:p-6 pt-4">
+                  <div className="p-5 pt-4">
                     <Button
                       onClick={() => setShowSaveModal(true)}
-                      className="w-full h-14 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold text-base flex items-center justify-center gap-3 shadow-xl shadow-[#8860D9]/20 transition-all border-none"
+                      className="w-full h-13 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2.5 shadow-xl shadow-[#8860D9]/20 transition-all border-none"
                     >
-                      <Download className="w-5 h-5" />
+                      <Download className="w-4 h-4" />
                       Save Ticket
                     </Button>
                   </div>
+
                 </Card>
               )}
 

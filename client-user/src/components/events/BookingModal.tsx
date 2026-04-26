@@ -66,7 +66,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   // Normalize data from booking or props
   const bookingData = booking as any;
   const currentQuantity = bookingData?.quantity || quantity || (selectedSeats?.length || 0) || 1;
-  const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee ?? (isFreeEvent ? 0 : currentQuantity * 1);
+const FEE_PER_TICKET = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE ?? 5);
+const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee ?? (isFreeEvent ? 0 : currentQuantity * FEE_PER_TICKET);
   const currentTotal = propTotal !== undefined ? propTotal : (bookingData?.totalAmount ?? bookingData?.total_amount ?? bookingData?.total);
 
   const currentSelectedTicket = ticketTypes.find((t: any) => t._id === (selectedTicketType || bookingData?.ticketTypeId))

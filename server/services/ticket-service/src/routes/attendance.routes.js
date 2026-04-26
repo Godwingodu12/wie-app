@@ -26,13 +26,52 @@ router.post('/:ticketId/scan', async (req, res) => {
   try {
     const { qrData, subEventId } = req.body;
     if (!qrData) return res.status(400).json({ success: false, message: 'qrData is required' });
+
     const result = await markAttendance({
       ticketId:   req.params.ticketId,
       subEventId: subEventId || null,
       qrData,
       scannedBy:  req.user._id,
     });
-    res.status(200).json({ success: true, data: result });
+
+    // ── Decode the QR payload to return full ticket details alongside scan result ──
+    // The QR string is base64(JSON(QRPayload)) — decode it here so the hoster
+    // scanner and user view both receive the same structured data.
+    let qrPayload = null;
+    try {
+      const decoded = Buffer.from(qrData, 'base64').toString('utf-8');
+      if (decoded.startsWith('{')) {
+        const parsed = JSON.parse(decoded);
+        if (parsed.bookingId) qrPayload = parsed;
+      }
+    } catch {
+      // QR may be legacy format — qrPayload stays null, scannedAttendee has the data
+    }
+
+    // Merge qrPayload fields into scannedAttendee so the response is self-contained
+    const enrichedAttendee = {
+      ...result.scannedAttendee,
+      // Prefer qrPayload values (richer) over what was stored in attendance record
+      holderName:    qrPayload?.holderName    || result.scannedAttendee?.userName    || '',
+      eventName:     qrPayload?.eventName     || '',
+      ticketType:    qrPayload?.ticketType    || result.scannedAttendee?.ticketType  || '',
+      quantity:      qrPayload?.quantity      ?? result.scannedAttendee?.quantity    ?? 1,
+      eventDate:     qrPayload?.eventDate     || '',
+      eventTime:     qrPayload?.eventTime     || '',
+      venue:         qrPayload?.venue         || '',
+      paymentMethod: qrPayload?.paymentMethod || result.scannedAttendee?.paymentMethod || '',
+      totalAmount:   qrPayload?.totalAmount   ?? 0,
+      bookingRef:    qrPayload?.bookingId     || result.scannedAttendee?.bookingId   || '',
+      qrPayload,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...result,
+        scannedAttendee: enrichedAttendee,
+      },
+    });
   } catch (err) {
     const status = err.message.includes('already been scanned') ? 409 : 400;
     res.status(status).json({ success: false, message: err.message });

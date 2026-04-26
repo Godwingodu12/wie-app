@@ -2572,36 +2572,58 @@ const SubEventAttendanceScannerModal = ({
 
         {/* Last scan feedback */}
         <div style={{ padding: '12px 22px 16px' }}>
-          {scanResult && (
-              <div style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ background: 'rgba(16,185,129,0.18)', padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 7 }}>
+            {scanResult && (
+              <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: 12, overflow: 'hidden' }}>
+
+                {/* Header */}
+                <div style={{ background: 'rgba(16,185,129,0.20)', padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 7 }}>
                   <CheckCircle style={{ width: 16, height: 16, color: '#10B981', flexShrink: 0 }} />
-                  <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>
-                    ✓ Marked — #{(scanResult.transactionId || scanResult.bookingId || '').slice(-8).toUpperCase()}
-                  </p>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>✓ Attendance marked</p>
+                    <p style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0, fontFamily: 'monospace' }}>
+                      #{(scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '').toUpperCase()}
+                    </p>
+                  </div>
+                  <div style={{ background: 'rgba(16,185,129,0.25)', borderRadius: 6, padding: '3px 8px' }}>
+                    <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>#{scanCount}</p>
+                  </div>
                 </div>
-                <div style={{ padding: '9px 13px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-                  {[
-                    { label: 'Holder',      value: scanResult.userName || scanResult.userId || '—' },
-                    { label: 'Ticket type', value: scanResult.ticketType || '—' },
-                    { label: 'Qty',         value: String(scanResult.quantity ?? 1) },
-                    { label: 'Payment',     value: scanResult.paymentMethod || '—' },
-                    { label: 'Scanned at',  value: scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : '—' },
-                    { label: 'Txn ID',      value: (scanResult.transactionId || scanResult.bookingId || '—').slice(-12), mono: true },
-                  ].map(({ label, value, mono }) => (
-                    <div key={label} style={{
-                      background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                      borderRadius: 7,
-                      padding: '5px 8px',
-                    }}>
-                      <p style={{ color: isDark ? 'rgba(209,250,229,0.4)' : 'rgba(6,95,70,0.45)', fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>
-                        {label}
-                      </p>
-                      <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 11, fontWeight: 600, margin: 0, fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>
-                        {value}
-                      </p>
-                    </div>
-                  ))}
+
+                {/* Detail grid */}
+                <div style={{ padding: '9px 11px 11px' }}>
+
+                  <SubScanRow label="Ticket holder"  value={scanResult.holderName || scanResult.userName || '—'} isDark={isDark} fullWidth />
+                  <SubScanRow label="Event"          value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 5, marginBottom: 5 }}>
+                    <SubScanRow label="Type" value={scanResult.ticketType || '—'} isDark={isDark} />
+                    <SubScanRow label="Qty"  value={String(scanResult.quantity ?? 1)} isDark={isDark} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
+                    <SubScanRow label="Event date" value={scanResult.eventDate || '—'} isDark={isDark} />
+                    <SubScanRow label="Time"       value={scanResult.eventTime || '—'} isDark={isDark} />
+                  </div>
+
+                  <SubScanRow label="Venue" value={scanResult.venue || '—'} isDark={isDark} fullWidth />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
+                    <SubScanRow label="Payment"     value={scanResult.paymentMethod || '—'} isDark={isDark} />
+                    <SubScanRow
+                      label="Amount paid"
+                      value={scanResult.totalAmount > 0 ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}` : 'Free'}
+                      isDark={isDark}
+                      highlight
+                    />
+                  </div>
+
+                  <SubScanRow label="Transaction ID" value={scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '—'} isDark={isDark} fullWidth mono />
+                  <SubScanRow
+                    label="Scanned at"
+                    value={scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    isDark={isDark}
+                    fullWidth
+                  />
                 </div>
               </div>
             )}
@@ -2722,4 +2744,38 @@ const SubEventAttendanceListModal = ({
     </div>
   );
 };
+// ── Scan detail row for sub-event scanner modal ──
+function SubScanRow({ label, value, isDark, fullWidth = false, mono = false, highlight = false }) {
+  return (
+    <div style={{
+      background:   isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+      borderRadius: 7,
+      padding:      '5px 8px',
+      marginBottom: fullWidth ? 5 : 0,
+      width:        '100%',
+    }}>
+      <p style={{
+        color:         isDark ? 'rgba(209,250,229,0.38)' : 'rgba(6,95,70,0.42)',
+        fontSize:      8,
+        fontWeight:    700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        margin:        '0 0 2px',
+      }}>
+        {label}
+      </p>
+      <p style={{
+        color:      highlight ? '#10B981' : isDark ? '#d1fae5' : '#065f46',
+        fontSize:   11,
+        fontWeight: highlight ? 700 : 600,
+        margin:     0,
+        fontFamily: mono ? 'monospace' : 'inherit',
+        wordBreak:  'break-all',
+        lineHeight: 1.4,
+      }}>
+        {value}
+      </p>
+    </div>
+  );
+}
 export default LiveAddOnEventView;

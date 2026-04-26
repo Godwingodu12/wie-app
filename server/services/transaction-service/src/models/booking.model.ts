@@ -23,9 +23,12 @@ export interface CreateBookingData {
     eventName: string;
     eventDate: string;
     eventTime?: string;
+    eventEndDate?: string;
     venue?: string;
     location?: string;
     event_portrait?: string;
+    event_banner?: string;
+    image?: string;
     settlementBankDetails?: {
       bank_acc_holder: string;
       bank_acc_no: string;
