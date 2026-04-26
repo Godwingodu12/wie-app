@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 
-interface QRCodeData {
+export interface QRCodeData {
   bookingId: string;
   userId: string;
   ticketId: string;
@@ -13,31 +13,62 @@ interface QRCodeData {
   ticketType: string;
   pricePerTicket: number;
   totalAmount: number;
+  paymentMethod?: string;
+  venue?: string;
 }
 
+// The canonical payload shape that gets encoded inside the QR image.
+// Both user ticket view and hoster scanner decode this same structure.
+export interface QRPayload {
+  bookingId: string;
+  userId: string;
+  ticketId: string;
+  eventName: string;
+  ticketType: string;
+  quantity: number;
+  holderName: string;
+  eventDate: string;
+  eventTime: string;
+  venue: string;
+  paymentMethod: string;
+  totalAmount: number;
+  v: number; // schema version — increment if shape changes
+}
+
+/**
+ * Encode the booking data as a base64-encoded JSON string,
+ * then generate a QR image (data URL) from that string.
+ *
+ * The QR image is stored as-is; the encoded string inside it
+ * is what gets scanned and decoded on both the user and hoster sides.
+ */
 export const generateQRCode = async (data: QRCodeData): Promise<string> => {
   try {
-    const lines = [
-      `Event: ${data.eventName}`,
-      `Date & Time: ${data.eventDate} | ${data.eventTime}`,
-      `Quantity: ${data.quantity} Ticket(s) [${data.ticketType}]`,
-      `Location: ${data.location}`,
-      `Total Price: Rs.${data.totalAmount}`,
-      `Booked By: ${data.userName}`,
-    ];
+    const payload: QRPayload = {
+      bookingId: data.bookingId,
+      userId: data.userId,
+      ticketId: data.ticketId,
+      eventName: data.eventName,
+      ticketType: data.ticketType || "",
+      quantity: data.quantity,
+      holderName: data.userName || "",
+      eventDate: data.eventDate || "",
+      eventTime: data.eventTime || "",
+      venue: data.venue || data.location || "",
+      paymentMethod: data.paymentMethod || "",
+      totalAmount: Number(data.totalAmount) || 0,
+      v: 1,
+    };
 
-    const qrData = lines.join("\n");
+    // base64-encode so the QR string is URL-safe and compact
+    const qrString = Buffer.from(JSON.stringify(payload)).toString("base64");
 
-    // Generate QR code as Data URL
-    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+    const qrCodeDataURL = await QRCode.toDataURL(qrString, {
       errorCorrectionLevel: "H",
       type: "image/png",
       width: 400,
       margin: 2,
-      color: {
-        dark: "#000000",
-        light: "#FFFFFF",
-      },
+      color: { dark: "#000000", light: "#FFFFFF" },
     });
 
     return qrCodeDataURL;
@@ -47,31 +78,78 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
   }
 };
 
-export const verifyQRCode = (qrData: string): Partial<QRCodeData> | null => {
+/**
+ * Decode the raw string that a QR scanner returns.
+ * Handles three formats for backward compatibility:
+ *   1. base64-encoded JSON (new format — v1)
+ *   2. plain JSON string (legacy)
+ *   3. human-readable multiline text (old legacy)
+ */
+export const verifyQRCode = (raw: string): QRPayload | null => {
+  if (!raw || typeof raw !== "string") return null;
+
+  const trimmed = raw.trim();
+
+  // ── Format 1: base64 JSON (current) ──────────────────────────────────────
   try {
-    // Check for JSON format first (legacy support)
-    if (qrData.trim().startsWith("{")) {
-      const data = JSON.parse(qrData);
-      if (!data.bookingId) return null;
-      return data;
+    const decoded = Buffer.from(trimmed, "base64").toString("utf-8");
+    if (decoded.startsWith("{")) {
+      const obj = JSON.parse(decoded) as QRPayload;
+      if (obj.bookingId && obj.v) return obj;
     }
-
-    // Support for the new formatted string
-    const bookingIdMatch = qrData.match(/Booking ID:\s*([^\n\r]+)/i);
-    const eventNameMatch = qrData.match(/Event:\s*([^\n\r]+)/i);
-    const userNameMatch = qrData.match(/Booked By:\s*([^\n\r]+)/i);
-
-    if (bookingIdMatch) {
-      return {
-        bookingId: bookingIdMatch[1].trim(),
-        eventName: eventNameMatch ? eventNameMatch[1].trim() : undefined,
-        userName: userNameMatch ? userNameMatch[1].trim() : undefined,
-      } as any;
-    }
-
-    return null;
-  } catch (error) {
-    console.error("❌ Invalid QR code data:", error);
-    return null;
+  } catch {
+    /* not base64 JSON */
   }
+
+  // ── Format 2: plain JSON (legacy) ────────────────────────────────────────
+  if (trimmed.startsWith("{")) {
+    try {
+      const obj = JSON.parse(trimmed);
+      if (obj.bookingId) {
+        // Normalise legacy shape into QRPayload
+        return {
+          bookingId: obj.bookingId || "",
+          userId: obj.userId || "",
+          ticketId: obj.ticketId || "",
+          eventName: obj.eventName || "",
+          ticketType: obj.ticketType || "",
+          quantity: Number(obj.quantity) || 1,
+          holderName: obj.userName || obj.holderName || "",
+          eventDate: obj.eventDate || "",
+          eventTime: obj.eventTime || "",
+          venue: obj.venue || obj.location || "",
+          paymentMethod: obj.paymentMethod || "",
+          totalAmount: Number(obj.totalAmount) || 0,
+          v: 0, // mark as legacy
+        };
+      }
+    } catch {
+      /* not valid JSON */
+    }
+  }
+
+  // ── Format 3: multiline text (old legacy) ────────────────────────────────
+  const get = (label: string) => {
+    const m = trimmed.match(new RegExp(`${label}:\\s*([^\\n\\r]+)`, "i"));
+    return m ? m[1].trim() : "";
+  };
+  const bookingId = get("Booking ID");
+  if (bookingId) {
+    return {
+      bookingId,
+      userId: "",
+      ticketId: "",
+      eventName: get("Event"),
+      ticketType: get("Ticket Type") || get("Ticket"),
+      quantity: Number(get("Quantity")) || 1,
+      holderName: get("Booked By"),
+      eventDate: get("Date"),
+      eventTime: get("Time"),
+      venue: get("Location") || get("Venue"),
+      paymentMethod: get("Payment"),
+      totalAmount: Number(get("Total Price")?.replace(/[^\d.]/g, "")) || 0,
+      v: 0, // legacy
+    };
+  }
+  return null;
 };
