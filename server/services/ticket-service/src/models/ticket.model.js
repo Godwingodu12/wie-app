@@ -188,6 +188,7 @@ const subEventSchema = new mongoose.Schema({
     required: false
   },
   total_capacity: { type: String, required: false },
+  attendance_count: { type: Boolean, default: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   // Status
@@ -319,6 +320,7 @@ const ticketSchema = new mongoose.Schema({
   guests: [guestSchema], // This remains as array of objects
   POCS: [POCSchema],
   total_capacity: { type: String, required: false },
+  attendance_count: { type: Boolean, default: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   ticket_layout: { type: String, required: false },
