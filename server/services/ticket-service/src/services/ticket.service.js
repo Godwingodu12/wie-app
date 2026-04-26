@@ -2,6 +2,8 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
 import TicketAudit from '../models/ticketAudit.model.js';
+import Attendance from '../models/attendance.model.js';
+import { verifyBookingQR } from '../grpc/bookingClient.js';
 import fs from "fs";
 import cron from "node-cron";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
@@ -3007,6 +3009,7 @@ export const updateTicketAddOns = async (req, res) => {
         ? subEventData.gst_applicable
         : req.body.gst_applicable
     );
+
     // appliedGSTPct is always read from the env — never from the client
     const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
     const ageNum = Number(subEventData.min_age_allowed);
@@ -3810,6 +3813,9 @@ export const updateTicketAddOns = async (req, res) => {
         total_capacity: subEventData.total_capacity
           ? String(subEventData.total_capacity)
           : "",
+        attendance_count: Boolean(
+          subEventData.attendance_count === "true" || subEventData.attendance_count === true
+        ),
         booking_start_date: subEventData.booking_start_date
           ? String(subEventData.booking_start_date).trim()
           : "",
@@ -4425,6 +4431,9 @@ export const updateTicketAddOns = async (req, res) => {
       pet_friendly: Boolean(
         subEventData.pet_friendly === "true" || subEventData.pet_friendly === true
       ),
+      attendance_count: Boolean(
+        subEventData.attendance_count === "true" || subEventData.attendance_count === true
+      ),
       event_date_type: subEventData.event_date_type
         ? String(subEventData.event_date_type)
         : "",
@@ -4820,7 +4829,6 @@ export const updateTicketAddOns = async (req, res) => {
 
 export const updateTicketDetails = async (req, res) => {
   const ticketId = req.params.ticketId;
-  
   // Validate ticket ID format
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({
@@ -4880,6 +4888,7 @@ export const updateTicketDetails = async (req, res) => {
       payment_type,
       ticket_layout,
       total_capacity,
+      attendance_count,
       booking_start_date,
       booking_end_date,
       use_group_bank_account = "true",
@@ -4964,7 +4973,6 @@ export const updateTicketDetails = async (req, res) => {
         });
       }
     }
-
     // 5. Validate booking dates
     if (booking_start_date && String(booking_start_date).trim() !== "") {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -4975,7 +4983,6 @@ export const updateTicketDetails = async (req, res) => {
           expectedFormat: "YYYY-MM-DD",
         });
       }
-
       const startDate = new Date(booking_start_date);
       if (isNaN(startDate.getTime())) {
         return res.status(400).json({
@@ -5670,6 +5677,11 @@ export const updateTicketDetails = async (req, res) => {
     if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
       updateData.total_capacity = String(total_capacity);
     }
+    if(attendance_count === "true" || attendance_count === true){
+      updateData.attendance_count = true;
+    }else{
+      updateData.attendance_count = false;
+    }
     // Add booking dates if provided
     if (booking_start_date && String(booking_start_date).trim() !== "") {
       updateData.booking_start_date = String(booking_start_date);
@@ -5700,6 +5712,8 @@ export const updateTicketDetails = async (req, res) => {
       payment_type: payment_type,
       banking_method: use_group_bank_account === "true" ? "group_account" : "custom_account",
       banking_details_count: finalBankingDetails.length,
+      attendance_count: attendance_count,
+      total_capacity: total_capacity,
       ticket_types_count: processedTicketTypes.length,
       uploadedFiles: {
         ticket_layout: processedFiles.ticket_layout ? 1 : 0,
@@ -6700,6 +6714,7 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     max_age_allowed:      promotedSubEventObj.max_age_allowed,
     kids_friendly:        promotedSubEventObj.kids_friendly         ?? false,
     pet_friendly:         promotedSubEventObj.pet_friendly          ?? false,
+    attendance_count:     promotedSubEventObj.attendance_count      ?? false,
     payment_type:         promotedSubEventObj.payment_type          || ticket.payment_type,
     ticket_types:         promotedSubEventObj.ticket_types          || ticket.ticket_types   || [],
     seating_layout:       promotedSubEventObj.seating_layout        || ticket.seating_layout,
@@ -6967,6 +6982,7 @@ export const rehostMainEventV2 = async (cancelledTicket, userId) => {
     max_age_allowed:      cancelledTicket.max_age_allowed,
     kids_friendly:        cancelledTicket.kids_friendly         ?? false,
     pet_friendly:         cancelledTicket.pet_friendly          ?? false,
+    attendance_count:     cancelledTicket.attendance_count      ?? false,
     payment_type:         cancelledTicket.payment_type,
     ticket_types:         cancelledTicket.ticket_types          || [],
     seating_layout:       cancelledTicket.seating_layout,
@@ -7054,4 +7070,96 @@ export const rehostMainEventV2 = async (cancelledTicket, userId) => {
   );
   console.log(`✅ V${newTicket.version} ticket created: ${newTicket._id} (from cancelled ${cancelledTicket._id})`);
   return newTicket;
+};
+
+// Scan QR and mark attendance
+export const markAttendance = async ({ ticketId, subEventId = null, qrData, scannedBy }) => {
+  const qrResult = await verifyBookingQR(qrData);
+  if (!qrResult.success) {
+    throw new Error(qrResult.error || 'Invalid QR code');
+  }
+
+  const ticket = await Ticket.findById(ticketId);
+  if (!ticket) throw new Error('Event not found');
+
+  // Check if already scanned
+  const existing = await Attendance.findOne({
+    ticketId,
+    ...(subEventId ? { subEventId } : {}),
+    'attendees.bookingId': qrResult.externalId || qrResult.bookingId,
+  });
+  if (existing) throw new Error('This ticket has already been scanned');
+
+  const attendeeRecord = {
+    bookingId:     qrResult.externalId || qrResult.bookingId,
+    userId:        qrResult.userId,
+    userName:      qrResult.userName,
+    userEmail:     qrResult.userEmail,
+    userPhone:     qrResult.userPhone,
+    ticketType:    qrResult.ticketType,
+    quantity:      qrResult.quantity || 1,
+    paymentMethod: qrResult.paymentMethod,
+    transactionId: qrResult.bookingId,
+    scannedAt:     new Date(),
+    scannedBy,
+    status:        'present',
+    qrData,
+    subEventId:    subEventId || null,
+  };
+
+  const attendance = await Attendance.findOneAndUpdate(
+    { ticketId, subEventId: subEventId || null },
+    {
+      $push:       { attendees: attendeeRecord },
+      $inc:        { totalPresent: 1 },
+      $setOnInsert: {
+        eventName: subEventId
+          ? ticket.sub_events?.find(s => s._id.toString() === subEventId)?.event_name
+          : ticket.event_name,
+        totalBooked: 0,
+        startedAt:   new Date(),
+      },
+    },
+    { new: true, upsert: true }
+  );
+
+  return { attendance, scannedAttendee: attendeeRecord };
+};
+
+// Get attendance list
+export const getAttendance = async (ticketId, subEventId = null) => {
+  const attendance = await Attendance.findOne({
+    ticketId,
+    subEventId: subEventId || null,
+  });
+  return attendance;
+};
+
+// Initialize attendance session
+export const initAttendance = async (ticketId, subEventId = null) => {
+  const ticket = await Ticket.findById(ticketId);
+  if (!ticket) throw new Error('Event not found');
+
+  // Count total confirmed bookings (approximated via lifecycle_metrics)
+  const totalBooked = subEventId
+    ? (ticket.sub_events?.find(s => s._id.toString() === subEventId)?.totalBookings || 0)
+    : (ticket.totalBookings || 0);
+
+  const attendance = await Attendance.findOneAndUpdate(
+    { ticketId, subEventId: subEventId || null },
+    {
+      $setOnInsert: {
+        eventName:  subEventId
+          ? ticket.sub_events?.find(s => s._id.toString() === subEventId)?.event_name
+          : ticket.event_name,
+        totalBooked,
+        totalPresent: 0,
+        attendees:    [],
+        startedAt:    new Date(),
+        isCompleted:  false,
+      },
+    },
+    { new: true, upsert: true }
+  );
+  return attendance;
 };
