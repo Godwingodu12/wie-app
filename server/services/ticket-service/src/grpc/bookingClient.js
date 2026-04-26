@@ -172,3 +172,20 @@ export const getEventTransactionList = (ticketId, { limit = 50, offset = 0, stat
     );
   });
 };
+
+export const verifyBookingQR = (qrData) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.VerifyBookingQR(
+      { qrData: String(qrData) },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] verifyBookingQR error:', error.message);
+          resolve({ success: false, error: error.message });
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};
