@@ -667,7 +667,7 @@ if (uploadedFiles.event_images) {
       // Boolean fields
       kids_friendly: updateData.kids_friendly !== undefined ? Boolean(updateData.kids_friendly === 'true' || updateData.kids_friendly === true) : existingSubEvent.kids_friendly,
       pet_friendly: updateData.pet_friendly !== undefined ? Boolean(updateData.pet_friendly === 'true' || updateData.pet_friendly === true) : existingSubEvent.pet_friendly,
-      
+      attendance_count: updateData.attendance_count !== undefined ? Boolean(updateData.attendance_count === 'true' || updateData.attendance_count === true) : existingSubEvent.attendance_count,
       // Optional fields
       event_date_type: updateData.event_date_type || existingSubEvent.event_date_type,
       event_instagram_link: updateData.event_instagram_link || existingSubEvent.event_instagram_link,
@@ -3780,6 +3780,7 @@ export const rehostEvent = async (req, res) => {
         max_age_allowed:     currentPromotedMain.max_age_allowed,
         kids_friendly:       currentPromotedMain.kids_friendly       ?? false,
         pet_friendly:        currentPromotedMain.pet_friendly        ?? false,
+        attendance_count:    currentPromotedMain.attendance_count    ?? false,
         payment_type:        currentPromotedMain.payment_type,
         ticket_types:        currentPromotedMain.ticket_types        || [],
         banking_details:     currentPromotedMain.banking_details     || [],
@@ -3922,6 +3923,7 @@ export const rehostSubEvent = async (req, res) => {
       max_age_allowed:     oldObj.max_age_allowed,
       kids_friendly:       oldObj.kids_friendly       ?? false,
       pet_friendly:        oldObj.pet_friendly        ?? false,
+      attendance_count:    oldObj.attendance_count    ?? false,
       payment_type:        oldObj.payment_type,
       ticket_types:        oldObj.ticket_types        || [],
       banking_details:     oldObj.banking_details     || [],
