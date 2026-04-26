@@ -107,8 +107,13 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
         eventName: ticket.event_name,
         eventDate: ticket.event_dates[0]?.start_date || "",
         eventTime: ticket.event_dates[0]?.start_time || "",
+        eventEndDate:
+          ticket.event_dates[ticket.event_dates.length - 1]?.end_date || "",
         venue: ticket.venue || ticket.location || "",
-        location: ticket.location || "",
+        location: ticket.location || ticket.venue || "",
+        event_portrait: ticket.event_portrait || "",
+        event_banner: ticket.event_banner || "",
+        image: ticket.event_portrait || ticket.event_banner || "",
       },
     });
 
@@ -889,25 +894,46 @@ export const getBookingById = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
-    // ── Decode the QR payload so the frontend renders structured ticket info ──
-    // We rebuild it directly from the booking record (authoritative source).
-    // This works for both new base64-JSON QRs and old text-format QRs.
+    // ── Build qrPayload from booking record (authoritative source) ──────────
+    // Reading paymentMethod from both root and nested paymentTransaction
+    // because Prisma serialisation sometimes buries it.
+    const rawPaymentMethod =
+      (booking as any).paymentMethod ||
+      (booking as any).paymentTransaction?.method ||
+      (booking as any).PaymentTransaction?.method ||
+      "";
+
+    const eventDet = (booking as any).eventDetails || {};
+    const userDet = (booking as any).userDetails || {};
+
     const qrPayload = {
       bookingId: booking.bookingId || String(booking.id),
       userId: booking.userId,
       ticketId: booking.ticketId,
-      eventName: (booking.eventDetails as any)?.eventName || "",
+      eventName: eventDet.eventName || "",
       ticketType: booking.ticketType || "",
       quantity: booking.quantity || 1,
-      holderName: (booking.userDetails as any)?.name || "",
-      eventDate: (booking.eventDetails as any)?.eventDate || "",
-      eventTime: (booking.eventDetails as any)?.eventTime || "",
-      venue:
-        (booking.eventDetails as any)?.venue ||
-        (booking.eventDetails as any)?.location ||
-        "",
-      paymentMethod: (booking as any).paymentMethod || "",
+      holderName: userDet.name || "",
+      userEmail: userDet.email || "",
+      userPhone: userDet.phone || userDet.contact || "",
+      eventDate: eventDet.eventDate || eventDet.start_date || "",
+      eventTime: eventDet.eventTime || eventDet.start_time || "",
+      eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
+      venue: eventDet.venue || eventDet.location || "",
+      location: eventDet.location || eventDet.venue || "",
+      paymentMethod: rawPaymentMethod,
+      subtotal: parseFloat((booking as any).subtotal?.toString() || "0"),
+      tax: parseFloat((booking as any).tax?.toString() || "0"),
+      platformFee: parseFloat((booking as any).platformFee?.toString() || "0"),
       totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
+      // Event image — stored in eventDetails at booking creation time
+      eventImage:
+        eventDet.event_portrait ||
+        eventDet.event_banner ||
+        eventDet.image ||
+        "",
+      bookingStatus: booking.bookingStatus || "",
+      groupId: booking.groupId || "",
       v: 1,
     };
 
@@ -916,7 +942,7 @@ export const getBookingById = async (req: Request, res: Response) => {
       data: {
         booking: {
           ...booking,
-          qrPayload, // structured data the UI renders — same shape as QRPayload
+          qrPayload,
         },
       },
     });
