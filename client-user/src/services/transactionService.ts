@@ -49,6 +49,11 @@ export interface CreateBookingResponse {
       bookingId: string;
       totalAmount: number;
       currency: string;
+      userDetails?: {
+        name?: string;
+        email?: string;
+        phone?: string;
+      };
     };
     razorpayOrder: {
       id: string;

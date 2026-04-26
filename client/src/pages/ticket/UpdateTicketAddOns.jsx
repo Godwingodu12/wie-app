@@ -3739,8 +3739,13 @@ const UpdateTicketAddOns = () => {
                       onChange={() => handleToggleChange("pet_friendly")}
                       darkMode={darkMode}
                     />
+                    <ToggleSwitch
+                      label="Enable attendance marking for this event?"
+                      checked={formData.attendance_count}
+                      onChange={() => handleToggleChange('attendance_count')}
+                      darkMode={darkMode}
+                    />
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <FormInput
                       label="Instagram link (Optional)"

@@ -648,6 +648,75 @@ const getEventTransactionList = async (call: any, callback: any) => {
     });
   }
 };
+const verifyBookingQR = async (call: any, callback: any) => {
+  try {
+    const { qrData } = call.request;
+    if (!qrData) {
+      return callback(null, {
+        success: false,
+        error: "qrData is required",
+        booking: null,
+      });
+    }
+
+    // QR payload format: bookingId:userId:ticketId (base64-encoded)
+    let decoded: string;
+    try {
+      decoded = Buffer.from(qrData, "base64").toString("utf-8");
+    } catch {
+      decoded = qrData;
+    }
+
+    const parts = decoded.split(":");
+    if (parts.length < 2) {
+      return callback(null, {
+        success: false,
+        error: "Invalid QR code format",
+        booking: null,
+      });
+    }
+
+    const [bookingId] = parts;
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          { bookingId },
+          { id: bookingId },
+        ],
+        bookingStatus: { in: ["CONFIRMED", "PENDING"] },
+      },
+    });
+
+    if (!booking) {
+      return callback(null, {
+        success: false,
+        error: "Booking not found or already cancelled",
+        booking: null,
+      });
+    }
+
+    callback(null, {
+      success: true,
+      error: "",
+      bookingId: String(booking.id),
+      externalId: booking.bookingId || "",
+      userId: booking.userId || "",
+      ticketId: booking.ticketId || "",
+      ticketType: booking.ticketType || "",
+      quantity: booking.quantity || 1,
+      paymentMethod: booking.paymentMethod || "",
+      bookingStatus: booking.bookingStatus || "",
+      userName: (booking.userDetails as any)?.name || "",
+      userEmail: (booking.userDetails as any)?.email || "",
+      userPhone: (booking.userDetails as any)?.phone || "",
+    });
+  } catch (err: any) {
+    console.error("❌ [gRPC] verifyBookingQR error:", err.message);
+    callback(null, { success: false, error: err.message, booking: null });
+  }
+};
+
 export const startGrpcServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -666,6 +735,7 @@ export const startGrpcServer = (): Promise<void> => {
         CancelEventBookings: cancelEventBookings,
         GetEventFinancialSummary: getEventFinancialSummary,
         GetEventTransactionList: getEventTransactionList,
+        VerifyBookingQR: verifyBookingQR,
       });
 
       const port = process.env.BOOKING_GRPC_PORT || "50054";
@@ -690,7 +760,6 @@ export const startGrpcServer = (): Promise<void> => {
     }
   });
 };
-
 export const startRefundWorker = async (): Promise<void> => {
   const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost";
   const QUEUE_NAME = "wie.refund.jobs";

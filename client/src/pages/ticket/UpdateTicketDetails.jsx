@@ -61,6 +61,7 @@ const UpdateTicketDetails = () => {
   ]);
   const [totalCapacity, setTotalCapacity] = useState("");
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
+  const [attendanceCount, setAttendanceCount] = useState(false);
   const [seatingLayoutFile, setSeatingLayoutFile] = useState(null);
   const [seatingLayoutPreview, setSeatingLayoutPreview] = useState(null);
   const [generatedSeatingLayout, setGeneratedSeatingLayout] = useState(null);
@@ -164,6 +165,7 @@ const UpdateTicketDetails = () => {
           setPaymentType(
             savedDraft?.paymentType ?? ticketData.payment_type ?? "free"
           );
+          setAttendanceCount(savedDraft?.attendanceCount ?? ticketData?.attendance_count ?? false);
           setTotalCapacity(
             savedDraft?.totalCapacity ?? ticketData.total_capacity ?? ""
           );
@@ -477,7 +479,8 @@ const UpdateTicketDetails = () => {
       bookingEndDate,
       simpleTicketPrice,
       simpleTicketCapacity,
-      gstEnabled,          
+      gstEnabled,      
+      attendanceCount,    
     };
 
     localStorage.setItem(storageKey, JSON.stringify(draftData));
@@ -496,6 +499,7 @@ const UpdateTicketDetails = () => {
     initialLoading,
     storageKey,
     gstEnabled,
+    attendanceCount,
   ]);
   const handleBookingEndDateChange = (e) => {
     const newEndDate = e.target.value;
@@ -1085,9 +1089,9 @@ const UpdateTicketDetails = () => {
     apiFormData.append("gst_applicable", String(gstApplicable));
     apiFormData.append("total_capacity", totalCapacity || "0");
     apiFormData.append("use_group_bank_account", useGroupBankAccount);
+    apiFormData.append('attendance_count', attendanceCount);
     apiFormData.append("booking_start_date", bookingStartDate);
     apiFormData.append("booking_end_date", bookingEndDate);
-
     if (!useGroupBankAccount && bankingDetails.length > 0) {
       apiFormData.append("banking_details", JSON.stringify(bankingDetails));
     }
@@ -1886,6 +1890,23 @@ const UpdateTicketDetails = () => {
                     )}
                   </section>
                 )}
+                {/* Attendance Marking Toggle — show for all location types */}
+                <div className="flex items-center justify-between pt-4 pb-2">
+                  <div>
+                    <label className="font-medium text-gray-900 dark:text-white text-md">
+                      Enable attendance marking?
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      When enabled, you can scan attendees' QR codes to mark them present during the live event.
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={attendanceCount}
+                    onChange={() => setAttendanceCount(prev => !prev)}
+                    darkMode={darkMode}
+                  />
+                </div>
+                {/* ─── LOCATION TYPE ─── */}
                 {locationType === "offline" && (
                   <div className="flex items-center justify-between">
                     <label className="font-medium text-gray-900 dark:text-white text-md">

@@ -17,13 +17,14 @@ import {
   getGroupView,
   getTicketById,deleteSubEvent,  rehostSubEvent, goLiveSubEvent,
   getAddOnEventLiveView,cancelSubEvent, getCancellationReport,
-  getEventMetrics, getTicketAuditBySubEvent
+  getEventMetrics, getTicketAuditBySubEvent,  initAttendance,
+  scanAttendanceQR,getAttendanceList,downloadAttendance,getEventFinancialSummary,getEventTransactions,
 } from "../../services/ticketService";
 import {
   Radio,ArrowLeft,
   Lock,LayoutGrid,XCircle,Heart,Share2,Armchair,Users,MapPin,Landmark,Download,Bell,Ticket,
   TrendingUp,History,BarChart2,DollarSign,Tag,Clock,ChevronLeft,ChevronRight,ChevronDown,Hash,Ban,
-   FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap
+   FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap,UserCheck, QrCode, CheckCircle
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
@@ -97,6 +98,22 @@ const LiveAddOnEventView = () => {
   const [auditHistory, setAuditHistory]               = useState(null);
   const [auditLoading, setAuditLoading]               = useState(false);
   const [showAuditPanel, setShowAuditPanel]           = useState(false);
+  // ── Attendance State
+const [showAttendanceModal,    setShowAttendanceModal]    = useState(false);
+const [showAttendanceList,     setShowAttendanceList]     = useState(false);
+const [attendanceData,         setAttendanceData]         = useState(null);
+const [scanResult,             setScanResult]             = useState(null);
+const [scanCount,              setScanCount]              = useState(0);
+const [scanError,              setScanError]              = useState('');
+const [isInitingAttendance,    setIsInitingAttendance]    = useState(false);
+const [isDownloadingAtt,       setIsDownloadingAtt]       = useState(false);
+
+// ── Financial Summary State
+const [financialSummary,       setFinancialSummary]       = useState(null);
+const [loadingFinancial,       setLoadingFinancial]       = useState(false);
+const [showTransactionPanel,   setShowTransactionPanel]   = useState(false);
+const [transactionFilter,      setTransactionFilter]      = useState('all');
+
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -217,7 +234,19 @@ const LiveAddOnEventView = () => {
           }
         } catch (metricsErr) {
           console.warn("Failed to fetch event metrics:", metricsErr);
-          // Don't block the UI if metrics fail, just use defaults
+        }
+
+        // Fetch financial summary
+        try {
+          setLoadingFinancial(true);
+          const financialResponse = await getEventFinancialSummary(ticketId);
+          if (financialResponse?.data) {
+            setFinancialSummary(financialResponse.data);
+          }
+        } catch (finErr) {
+          console.warn('Failed to fetch financial summary:', finErr);
+        } finally {
+          setLoadingFinancial(false);
         }
       } catch (err) {
         console.error("Failed to fetch live event data:", err);
@@ -398,6 +427,71 @@ const handleCloseCancelModal = () => {
       toast.error("Could not load audit history.");
     } finally {
       setAuditLoading(false);
+    }
+  };
+  // ── Attendance Handlers ────────────────────────────────────────────────────
+  const handleOpenAttendanceScanner = async () => {
+    setIsInitingAttendance(true);
+    try {
+      await initAttendance(ticketId);
+      const res = await getAttendanceList(ticketId);
+      setAttendanceData(res?.data?.data || null);
+      setScanCount(res?.data?.data?.totalPresent || 0);
+      setScanResult(null);
+      setScanError('');
+      setShowAttendanceModal(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not open attendance scanner');
+    } finally {
+      setIsInitingAttendance(false);
+    }
+  };
+
+  const handleQRScanned = async (qrData) => {
+    setScanError('');
+    try {
+      const res = await scanAttendanceQR(ticketId, qrData);
+      const attendee = res?.data?.data?.scannedAttendee;
+      setScanResult(attendee);
+      setScanCount(prev => prev + 1);
+      setAttendanceData(prev =>
+        prev
+          ? { ...prev, totalPresent: (prev.totalPresent || 0) + 1, attendees: [...(prev.attendees || []), attendee] }
+          : prev
+      );
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Scan failed';
+      setScanError(msg);
+      setScanResult(null);
+    }
+  };
+
+  const handleViewAttendanceList = async () => {
+    try {
+      const res = await getAttendanceList(ticketId);
+      setAttendanceData(res?.data?.data || null);
+      setShowAttendanceList(true);
+    } catch (err) {
+      toast.error('Could not fetch attendance list');
+    }
+  };
+
+  const handleDownloadAttendanceFile = async (format = 'excel') => {
+    setIsDownloadingAtt(true);
+    try {
+      const res = await downloadAttendance(ticketId, format);
+      const url  = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', format === 'pdf' ? 'attendance.pdf' : 'attendance.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Download failed');
+    } finally {
+      setIsDownloadingAtt(false);
     }
   };
 // Computed values from API data
@@ -994,7 +1088,32 @@ useEffect(() => {
                     {isDownloading ? "Downloading..." : "Download Report"}
                   </button>
                 )}
+                {/* Attendance Scanner — only for live events with attendance_count enabled */}
+                {eventData?.attendance_count && eventData?.event_status === 'live' && (
+                  <button
+                    onClick={handleOpenAttendanceScanner}
+                    disabled={isInitingAttendance}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-teal-600 hover:bg-teal-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <QrCode size={16} />
+                    {isInitingAttendance ? 'Opening...' : 'Mark Attendance'}
+                  </button>
+                )}
 
+                {/* View Attendance List — shown when attendance_count is enabled */}
+                {eventData?.attendance_count && (
+                  <button
+                    onClick={handleViewAttendanceList}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-violet-600 hover:bg-violet-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <UserCheck size={16} />
+                    View Attendance
+                  </button>
+                )}
                 {/* Delete — always visible */}
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
@@ -1029,7 +1148,7 @@ useEffect(() => {
                 shadow={{ ...cardStyle, borderRadius: "20px" }}
                 icon={<Lock />}
                 title="TOTAL REVENUE"
-                value={`$${computedEventData?.totalRevenue || "0"}`}
+                value={`${computedEventData?.totalRevenue || "0"}`}
                 color={theme.subText}
               />
               <StatCard
@@ -1085,7 +1204,234 @@ useEffect(() => {
                 </div>
               </div>
             </div>
+            {/* ── Financial Summary Panel (only for paid sub-events) ── */}
+            {financialSummary && eventData?.payment_type !== 'free' && (
+              <div
+                className={`mb-8 p-6 rounded-3xl ${theme.cardBgDarker}`}
+                style={{ ...cardStyle, borderRadius: '24px' }}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold uppercase tracking-wider">
+                        Sub-Event Revenue & Payouts
+                      </h3>
+                      <p className={`text-xs ${theme.subText}`}>
+                        What you earn from ticket sales for this add-on event
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowTransactionPanel(!showTransactionPanel)}
+                    className="text-xs px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-2"
+                  >
+                    <Ticket size={14} />
+                    {showTransactionPanel ? 'Hide' : 'View'} Transactions
+                  </button>
+                </div>
 
+                {/* Revenue breakdown — 4 key numbers */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {[
+                    {
+                      label: 'Ticket Revenue',
+                      value: `₹${financialSummary.revenue?.totalRevenue?.toFixed(2) || '0.00'}`,
+                      note:  'Gross ticket sales (your share)',
+                      color: 'text-emerald-400',
+                      bg:    isDark ? 'bg-emerald-900/20' : 'bg-emerald-50',
+                    },
+                    {
+                      label: 'Refunds Issued',
+                      value: `₹${financialSummary.revenue?.totalRefunded?.toFixed(2) || '0.00'}`,
+                      note:  'Returned to attendees',
+                      color: 'text-red-400',
+                      bg:    isDark ? 'bg-red-900/20' : 'bg-red-50',
+                    },
+                    {
+                      label: 'Net Payout',
+                      value: `₹${financialSummary.revenue?.netHostPayout?.toFixed(2) || '0.00'}`,
+                      note:  'Revenue after refunds',
+                      color: 'text-blue-400',
+                      bg:    isDark ? 'bg-blue-900/20' : 'bg-blue-50',
+                    },
+                    {
+                      label: 'GST Collected',
+                      value: `₹${financialSummary.revenue?.totalTax?.toFixed(2) || '0.00'}`,
+                      note:  'Tax on ticket price',
+                      color: 'text-amber-400',
+                      bg:    isDark ? 'bg-amber-900/20' : 'bg-amber-50',
+                    },
+                  ].map((item, idx) => (
+                    <div key={idx} className={`p-4 rounded-2xl ${item.bg}`}>
+                      <p className={`text-xs uppercase font-semibold ${theme.subText} mb-1`}>
+                        {item.label}
+                      </p>
+                      <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                      <p className={`text-xs mt-1 ${theme.subText} opacity-70`}>{item.note}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* WIE fee transparency */}
+                <div className={`flex flex-wrap gap-4 p-4 rounded-2xl ${theme.bg} mb-6 border-l-4 border-indigo-500`}>
+                  <p className={`text-xs ${theme.subText} w-full font-semibold mb-1`}>
+                    WIE Platform Charges (deducted from user total, not from your payout)
+                  </p>
+                  <div className="flex gap-6 flex-wrap">
+                    <span className={`text-xs ${theme.subText}`}>
+                      Platform Fee:{' '}
+                      <span className={`font-bold ${theme.text}`}>
+                        ₹{financialSummary.revenue?.totalPlatformFee?.toFixed(2) || '0.00'}
+                      </span>
+                    </span>
+                    <span className={`text-xs ${theme.subText}`}>
+                      Gateway Fee (absorbed by WIE):{' '}
+                      <span className={`font-bold ${theme.text}`}>
+                        ₹{financialSummary.revenue?.totalConvenienceFee?.toFixed(2) || '0.00'}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Per ticket type breakdown */}
+                {financialSummary.byTicketType?.length > 0 && (
+                  <div className="mb-6">
+                    <p className={`text-xs uppercase font-semibold ${theme.subText} mb-3`}>
+                      Revenue by Ticket Type
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {financialSummary.byTicketType.map((t, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between p-3 rounded-xl ${theme.bg}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                            <span className={`text-sm font-medium ${theme.text}`}>
+                              {t.ticketType}
+                            </span>
+                            <span className={`text-xs ${theme.subText}`}>
+                              ({t.count} ticket{t.count !== 1 ? 's' : ''})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <span className="text-sm font-bold text-emerald-400">
+                              ₹{t.revenue?.toFixed(2)}
+                            </span>
+                            {t.refunded > 0 && (
+                              <span className="text-xs text-red-400">
+                                −₹{t.refunded?.toFixed(2)} refunded
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Transaction table (collapsible) */}
+                {showTransactionPanel && (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Transactions
+                      </p>
+                      <div className="flex gap-2">
+                        {['all', 'CONFIRMED', 'CANCELLED'].map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setTransactionFilter(f)}
+                            className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                              transactionFilter === f
+                                ? 'bg-indigo-600 text-white'
+                                : `${theme.bg} ${theme.subText} border ${isDark ? 'border-gray-600' : 'border-gray-300'}`
+                            }`}
+                          >
+                            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className={`${theme.bg}`}>
+                            {['Booking ID', 'Attendee', 'Type', 'Qty', 'Your Share', 'Total Paid', 'Method', 'Status', 'Refund', 'Date'].map((h) => (
+                              <th key={h} className={`text-left px-3 py-2 font-semibold ${theme.subText} whitespace-nowrap`}>
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(financialSummary.recentTransactions || [])
+                            .filter((t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter)
+                            .map((t, idx) => (
+                              <tr
+                                key={idx}
+                                className={`border-t ${theme.border} hover:opacity-80 transition-opacity`}
+                              >
+                                <td className={`px-3 py-2 font-mono ${theme.subText}`}>
+                                  {t.bookingId?.slice(-10) || '—'}
+                                </td>
+                                <td className={`px-3 py-2 ${theme.text}`}>{t.userName}</td>
+                                <td className={`px-3 py-2 ${theme.subText}`}>{t.ticketType}</td>
+                                <td className={`px-3 py-2 text-center ${theme.text}`}>{t.quantity}</td>
+                                <td className="px-3 py-2 text-emerald-400 font-semibold">
+                                  ₹{t.subtotal?.toFixed(2)}
+                                </td>
+                                <td className={`px-3 py-2 font-semibold ${theme.text}`}>
+                                  ₹{t.totalPaid?.toFixed(2)}
+                                </td>
+                                <td className={`px-3 py-2 ${theme.subText} uppercase`}>
+                                  {t.paymentMethod || '—'}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    t.bookingStatus === 'CONFIRMED'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : t.bookingStatus === 'CANCELLED'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : 'bg-gray-500/20 text-gray-400'
+                                  }`}>
+                                    {t.bookingStatus}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {t.refundAmount > 0 ? (
+                                    <span className="text-red-400">−₹{t.refundAmount?.toFixed(2)}</span>
+                                  ) : (
+                                    <span className={theme.subText}>—</span>
+                                  )}
+                                </td>
+                                <td className={`px-3 py-2 whitespace-nowrap ${theme.subText}`}>
+                                  {t.createdAt
+                                    ? new Date(t.createdAt).toLocaleDateString('en-IN', {
+                                        day: '2-digit', month: 'short', year: '2-digit',
+                                      })
+                                    : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                      {(financialSummary.recentTransactions || []).filter(
+                        (t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter
+                      ).length === 0 && (
+                        <div className={`text-center py-8 ${theme.subText}`}>
+                          No transactions found for this filter.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Main Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1">
               {/* Left Column: Total Booking of Add-On Events Chart */}
@@ -1651,17 +1997,35 @@ useEffect(() => {
                 </div>
                 {/* Footer Buttons moved below Hashtags */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FooterButton
-                  theme={theme}
-                  icon={<MapPin />}
-                  text="Event location"
-                  onClick={handleLocationClick}
-                />
-                  <FooterButton
-                    theme={theme}
-                    icon={<Download />}
-                    text="Download daily revenue report"
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FooterButton
+                      theme={theme}
+                      icon={<MapPin />}
+                      text="Event location"
+                      onClick={handleLocationClick}
+                    />
+                    <FooterButton
+                      theme={theme}
+                      icon={<Download />}
+                      text="Download daily revenue report"
+                    />
+                    {eventData?.attendance_count && eventData?.event_status === 'live' && (
+                      <FooterButton
+                        theme={theme}
+                        icon={<QrCode />}
+                        text={isInitingAttendance ? 'Opening...' : 'Mark Attendance'}
+                        onClick={handleOpenAttendanceScanner}
+                      />
+                    )}
+                    {eventData?.attendance_count && (
+                      <FooterButton
+                        theme={theme}
+                        icon={<UserCheck />}
+                        text="View Attendance List"
+                        onClick={handleViewAttendanceList}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1978,6 +2342,31 @@ useEffect(() => {
           </div>
         </div>
       )}
+      {/* QR Scanner Modal */}
+      {showAttendanceModal && (
+        <SubEventAttendanceScannerModal
+          theme={theme}
+          isDark={isDark}
+          onClose={() => { setShowAttendanceModal(false); setScanResult(null); setScanError(''); }}
+          onScan={handleQRScanned}
+          scanResult={scanResult}
+          scanError={scanError}
+          scanCount={scanCount}
+          eventName={eventData?.event_name}
+        />
+      )}
+
+      {/* Attendance List Modal */}
+      {showAttendanceList && (
+        <SubEventAttendanceListModal
+          theme={theme}
+          isDark={isDark}
+          onClose={() => setShowAttendanceList(false)}
+          attendanceData={attendanceData}
+          onDownload={handleDownloadAttendanceFile}
+          isDownloading={isDownloadingAtt}
+        />
+      )}
     </>
   );
 };
@@ -2095,4 +2484,224 @@ const FooterButton = ({ theme, icon, text, onClick }) => (
     <span>{text}</span>
   </button>
 );
+// Sub-Event QR Scanner Modal
+const SubEventAttendanceScannerModal = ({
+  theme, isDark, onClose, onScan, scanResult, scanError, scanCount, eventName,
+}) => {
+  const scannerRef = React.useRef(null);
+  const html5QrRef = React.useRef(null);
+  const [scanning,  setScanning]  = React.useState(false);
+  const [camError,  setCamError]  = React.useState('');
+
+  React.useEffect(() => {
+    let mounted = true;
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (!scannerRef.current || !mounted) return;
+        const scanner = new Html5Qrcode('qr-reader-subevent');
+        html5QrRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decoded) => { onScan(decoded); },
+          () => {}
+        );
+        if (mounted) setScanning(true);
+      } catch (err) {
+        console.warn('Camera error:', err);
+        if (mounted) setCamError('Camera unavailable. Please allow camera access.');
+      }
+    };
+    startScanner();
+    return () => {
+      mounted = false;
+      if (html5QrRef.current?.isScanning) {
+        html5QrRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div
+        className={`${theme.cardBg} rounded-3xl w-full max-w-md overflow-hidden`}
+        style={{ boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <QrCode style={{ width: 20, height: 20, color: '#fff' }} />
+            <div>
+              <p style={{ color: '#fff', fontWeight: 600, fontSize: 14, margin: 0 }}>Attendance Scanner</p>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, margin: 0 }}>{eventName}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <XCircle style={{ width: 15, height: 15, color: '#fff' }} />
+          </button>
+        </div>
+
+        {/* Counter */}
+        <div style={{ padding: '10px 22px 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ background: '#6549B8', borderRadius: 20, padding: '5px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <UserCheck style={{ width: 14, height: 14, color: '#fff' }} />
+            <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{scanCount} scanned</span>
+          </div>
+        </div>
+
+        {/* Camera */}
+        <div style={{ padding: '14px 22px 0' }}>
+          {camError ? (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '20px', textAlign: 'center' }}>
+              <p style={{ color: '#EF4444', fontSize: 13 }}>{camError}</p>
+            </div>
+          ) : (
+            <div style={{ borderRadius: 14, overflow: 'hidden', background: '#000' }}>
+              <div id="qr-reader-subevent" ref={scannerRef} style={{ width: '100%' }} />
+            </div>
+          )}
+          <p style={{ textAlign: 'center', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)', fontSize: 11, marginTop: 7, marginBottom: 0 }}>
+            Point camera at attendee's ticket QR code
+          </p>
+        </div>
+
+        {/* Last scan feedback */}
+        <div style={{ padding: '12px 22px 16px' }}>
+          {scanResult && (
+            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+              <CheckCircle style={{ width: 18, height: 18, color: '#10B981', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ color: '#10B981', fontWeight: 600, fontSize: 13, margin: '0 0 2px' }}>✓ Attendance marked!</p>
+                <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 12, margin: '0 0 2px' }}>{scanResult.userName || scanResult.userId}</p>
+                <p style={{ color: isDark ? 'rgba(209,250,229,0.65)' : 'rgba(6,95,70,0.65)', fontSize: 11, margin: 0 }}>
+                  {scanResult.ticketType} · Qty {scanResult.quantity} · {scanResult.paymentMethod || 'N/A'}
+                </p>
+                <p style={{ color: isDark ? 'rgba(209,250,229,0.5)' : 'rgba(6,95,70,0.5)', fontSize: 10, margin: '2px 0 0' }}>
+                  {scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : ''}
+                </p>
+              </div>
+            </div>
+          )}
+          {scanError && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 9 }}>
+              <XCircle style={{ width: 16, height: 16, color: '#EF4444', flexShrink: 0 }} />
+              <p style={{ color: '#EF4444', fontSize: 12, margin: 0 }}>{scanError}</p>
+            </div>
+          )}
+          {!scanResult && !scanError && !camError && (
+            <div style={{ textAlign: 'center', padding: '6px 0', color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)', fontSize: 12 }}>
+              Waiting for scan...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Sub-Event Attendance List Modal 
+const SubEventAttendanceListModal = ({
+  theme, isDark, onClose, attendanceData, onDownload, isDownloading,
+}) => {
+  const rows = attendanceData?.attendees || [];
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div
+        className={`${theme.cardBg} rounded-3xl w-full max-w-3xl`}
+        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)', padding: '18px 22px', borderRadius: '24px 24px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <UserCheck style={{ width: 20, height: 20, color: '#fff' }} />
+            <div>
+              <p style={{ color: '#fff', fontWeight: 600, fontSize: 14, margin: 0 }}>Attendance List</p>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, margin: 0 }}>{attendanceData?.eventName || 'Sub-event'}</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => onDownload('excel')}
+              disabled={isDownloading}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 9, padding: '6px 13px', cursor: 'pointer', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
+            >
+              <Download style={{ width: 13, height: 13 }} /> Excel
+            </button>
+            <button
+              onClick={() => onDownload('pdf')}
+              disabled={isDownloading}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 9, padding: '6px 13px', cursor: 'pointer', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
+            >
+              <Download style={{ width: 13, height: 13 }} /> PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <XCircle style={{ width: 15, height: 15, color: '#fff' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary strip */}
+        <div style={{ padding: '10px 22px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`, display: 'flex', gap: 24, flexShrink: 0 }}>
+          {[
+            { label: 'Total Booked', val: attendanceData?.totalBooked || 0,   color: '#6549B8' },
+            { label: 'Present',      val: attendanceData?.totalPresent || 0,  color: '#10B981' },
+            { label: 'Absent',       val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
+          ].map(({ label, val, color }) => (
+            <div key={label}>
+              <p style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 10, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
+              <p style={{ color, fontWeight: 700, fontSize: 18, margin: 0 }}>{val}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div style={{ overflowY: 'auto', padding: '0 8px 14px', flex: 1 }}>
+          {rows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' }}>
+              <UserCheck style={{ width: 36, height: 36, margin: '0 auto 10px', opacity: 0.25 }} />
+              <p style={{ fontSize: 13 }}>No attendees scanned yet</p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
+                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Transaction ID', 'Scanned At'].map((h) => (
+                    <th key={h} style={{ padding: '9px 12px', textAlign: 'left', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontWeight: 500, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((att, idx) => (
+                  <tr key={att.bookingId || idx} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)' }}>{idx + 1}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? '#fff' : '#111', fontWeight: 500 }}>{att.userName || att.userId}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)' }}>{att.ticketType || '—'}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)' }}>{att.quantity}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)' }}>{att.paymentMethod || '—'}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontFamily: 'monospace', fontSize: 11 }}>{(att.transactionId || att.bookingId || '—').slice(-12)}</td>
+                    <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 11 }}>
+                      {att.scannedAt ? new Date(att.scannedAt).toLocaleTimeString() : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 export default LiveAddOnEventView;

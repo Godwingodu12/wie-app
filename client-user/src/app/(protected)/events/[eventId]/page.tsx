@@ -373,18 +373,17 @@ export default function EventDetailPage() {
       });
 
       const { booking, razorpayOrder, razorpayKeyId } = bookingResponse.data;
-
-      // Initialize Razorpay payment
       const options = {
         key: razorpayKeyId,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        name: event?.event_name || "Event Booking",
-        description: `Booking for ${event?.event_name}`,
+        name: "WIE Events",
+        description: event?.event_name || "Event Booking",
+        image: event?.event_logo || event?.event_banner || "",
         order_id: razorpayOrder.id,
+
         handler: async function (response: any) {
           try {
-            // ✅ Verify payment using transaction service directly
             const verifyData = await verifyPayment({
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
@@ -395,21 +394,17 @@ export default function EventDetailPage() {
               setShowSuccessModal(true);
               setShowBookingModal(false);
 
-              // Refresh booking status for free events
               if (event?.payment_type === "free") {
                 setHasBooked(true);
                 setUserBooking(verifyData.data.booking);
               }
               loadEventStats();
 
-              // Optional: Navigate to booking details after a delay
               setTimeout(() => {
                 router.push(`/bookings/${verifyData.data.booking.id}`);
               }, 2000);
             } else {
-              setAlertMessage(
-                "Payment verification failed. Please contact support.",
-              );
+              setAlertMessage("Payment verification failed. Please contact support.");
             }
           } catch (error: any) {
             console.error("Payment verification error:", error);
@@ -418,22 +413,66 @@ export default function EventDetailPage() {
             setAlertMessage(errorMsg);
           }
         },
+
+        // ── Prefill: Razorpay needs a non-empty contact to mount the UPI VPA input ──
         prefill: {
-          name: "",
-          email: "",
-          contact: "",
+          name:    booking?.userDetails?.name    || "",
+          email:   booking?.userDetails?.email   || "",
+          contact: booking?.userDetails?.phone   || "9999999999", // fallback keeps UPI field alive
         },
+        // ── Explicitly enable all payment methods including UPI
+        method: {
+          upi:        true,
+          card:       true,
+          netbanking: true,
+          wallet:     true,
+          emi:        false,
+          paylater:   false,
+        },
+
+        // ── Config block: required for UPI VPA input to render in test mode ───────
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: "All Payment Methods",
+                instruments: [
+                  { method: "upi" },
+                  { method: "card" },
+                  { method: "netbanking" },
+                  { method: "wallet" },
+                ],
+              },
+            },
+            sequence: ["block.banks"],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
+
+        notes: {
+          bookingId: booking.bookingId,
+          eventName: event?.event_name || "",
+        },
+
         theme: {
-          color: "#5E5CE6",
+          color:       "#8860D9",
+          hide_topbar: false,
         },
+
         modal: {
+          backdropclose:    false,
+          escape:           false,
+          handleback:       true,
+          confirm_close:    true,
+          animation:        true,
           ondismiss: function () {
             setIsBooking(false);
             setShowBookingModal(false);
           },
         },
       };
-
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error: any) {

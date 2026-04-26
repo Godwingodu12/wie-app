@@ -17,7 +17,8 @@ import {
   getGroupView,
   getTicketById,cancelEvent, cancelSubEvent, getCancellationReport,rehostEvent,
   getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
-  getEventFinancialSummary, getEventTransactions
+  getEventFinancialSummary, getEventTransactions,initAttendance, scanAttendanceQR, 
+  getAttendanceList, downloadAttendance
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
@@ -38,7 +39,7 @@ import {
   Ticket,
   TrendingUp,
   ChevronLeft,
-  ChevronRight,
+  ChevronRight,QrCode, CheckCircle, UserCheck,
   ChevronDown, AlertTriangle, FileSpreadsheet, Ban,RefreshCw
 } from "lucide-react";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
@@ -94,307 +95,316 @@ const LiveEventsPage = () => {
   const [transactionFilter, setTransactionFilter]     = useState('all');
   const [loadingFinancial, setLoadingFinancial]       = useState(false);
   const [showTransactionPanel,setShowTransactionPanel]= useState(false);
-// Update the fetchEventData useEffect to also fetch initial growth stats
-useEffect(() => {
-  const fetchEventData = async () => {
-    if (!ticketId) {
-      setError("Event ID not found in URL parameters.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch ticket data using getTicketById (matches ConfirmEventView)
-      const ticketResponse = await getTicketById(ticketId);
-
-      // Extract event data - Handle multiple response structures (Robust extraction)
-      const data =
-        ticketResponse?.ticket ||
-        ticketResponse?.data?.ticket ||
-        ticketResponse?.data ||
-        ticketResponse;
-
-      if (!data) {
-        throw new Error("No event data received from server");
+  const [showAttendanceModal,   setShowAttendanceModal]   = useState(false);
+  const [showAttendanceList,    setShowAttendanceList]     = useState(false);
+  const [attendanceData,        setAttendanceData]         = useState(null);
+  const [scanResult,            setScanResult]             = useState(null);  // last scan
+  const [scanCount,             setScanCount]              = useState(0);
+  const [scanError,             setScanError]              = useState('');
+  const [isInitingAttendance,   setIsInitingAttendance]    = useState(false);
+  const [isDownloadingAtt,      setIsDownloadingAtt]       = useState(false);
+  const [activeSubEventIdForAtt,setActiveSubEventIdForAtt] = useState(null);
+  // Update the fetchEventData useEffect to also fetch initial growth stats
+  useEffect(() => {
+    const fetchEventData = async () => {
+      if (!ticketId) {
+        setError("Event ID not found in URL parameters.");
+        setLoading(false);
+        return;
       }
-
-      if (!data.event_name) {
-        throw new Error("Invalid event data structure");
-      }
-      setEventData(data);
 
       try {
-        // For rehosted events (confirmed + version > 1), metrics should start at zero
-        // Don't call getEventMetrics — use lifecycle_metrics from the ticket itself
-        const isRehostedFresh =
-          data.event_status === "confirmed" && (data.version ?? 1) > 1;
+        setLoading(true);
+        setError(null);
 
-        if (isRehostedFresh) {
-          // Use the reset lifecycle_metrics embedded in the ticket
+        // Fetch ticket data using getTicketById (matches ConfirmEventView)
+        const ticketResponse = await getTicketById(ticketId);
+
+        // Extract event data - Handle multiple response structures (Robust extraction)
+        const data =
+          ticketResponse?.ticket ||
+          ticketResponse?.data?.ticket ||
+          ticketResponse?.data ||
+          ticketResponse;
+
+        if (!data) {
+          throw new Error("No event data received from server");
+        }
+
+        if (!data.event_name) {
+          throw new Error("Invalid event data structure");
+        }
+        setEventData(data);
+
+        try {
+          // For rehosted events (confirmed + version > 1), metrics should start at zero
+          // Don't call getEventMetrics — use lifecycle_metrics from the ticket itself
+          const isRehostedFresh =
+            data.event_status === "confirmed" && (data.version ?? 1) > 1;
+
+          if (isRehostedFresh) {
+            // Use the reset lifecycle_metrics embedded in the ticket
+            setMetrics({
+              totalRevenue:       data.lifecycle_metrics?.revenue            ?? 0,
+              totalTicketsSold:   data.lifecycle_metrics?.totalBookings      ?? 0,
+              totalLikes:         data.lifecycle_metrics?.like               ?? 0,
+              totalShare:         data.lifecycle_metrics?.share              ?? 0,
+              total_cancellation: data.lifecycle_metrics?.total_cancellation ?? 0,
+            });
+          } else {
+            const metricsResponse = await getEventMetrics(ticketId);
+            if (metricsResponse?.data) {
+              setMetrics(metricsResponse.data);
+            }
+          }
+        } catch (metricsErr) {
+          console.warn("Failed to fetch event metrics:", metricsErr);
           setMetrics({
-            totalRevenue:       data.lifecycle_metrics?.revenue            ?? 0,
-            totalTicketsSold:   data.lifecycle_metrics?.totalBookings      ?? 0,
-            totalLikes:         data.lifecycle_metrics?.like               ?? 0,
-            totalShare:         data.lifecycle_metrics?.share              ?? 0,
-            total_cancellation: data.lifecycle_metrics?.total_cancellation ?? 0,
+            totalRevenue:       0,
+            totalTicketsSold:   0,
+            totalLikes:         0,
+            totalShare:         0,
+            total_cancellation: 0,
           });
-        } else {
+        }
+        // Fetch group data if groupId exists
+        if (data.groupId) {
+          try {
+            const groupResponse = await getGroupView(ticketId);
+            const fetchedGroupData =
+              groupResponse?.data?.group ||
+              groupResponse?.group ||
+              groupResponse?.data ||
+              groupResponse;
+            setGroupData(fetchedGroupData);
+            setGroupName(fetchedGroupData.name || "Unknown Group");
+          } catch (groupErr) {
+            console.warn("Failed to fetch group data:", groupErr);
+          }
+        }
+        
+        try {
           const metricsResponse = await getEventMetrics(ticketId);
           if (metricsResponse?.data) {
             setMetrics(metricsResponse.data);
           }
+        } catch (metricsErr) {
+          console.warn("Failed to fetch event metrics:", metricsErr);
+          setMetrics({
+            totalRevenue: 0,
+            totalBooking: 0,
+            totalLikes: 0,
+            totalShare: 0,
+            total_cancellation: 0,
+          });
         }
-      } catch (metricsErr) {
-        console.warn("Failed to fetch event metrics:", metricsErr);
-        setMetrics({
-          totalRevenue:       0,
-          totalTicketsSold:   0,
-          totalLikes:         0,
-          totalShare:         0,
-          total_cancellation: 0,
-        });
-      }
-      // Fetch group data if groupId exists
-      if (data.groupId) {
+
+        // Fetch initial growth stats (yesterday vs day before)
         try {
-          const groupResponse = await getGroupView(ticketId);
-          const fetchedGroupData =
-            groupResponse?.data?.group ||
-            groupResponse?.group ||
-            groupResponse?.data ||
-            groupResponse;
-          setGroupData(fetchedGroupData);
-          setGroupName(fetchedGroupData.name || "Unknown Group");
-        } catch (groupErr) {
-          console.warn("Failed to fetch group data:", groupErr);
-        }
-      }
-      
-      try {
-        const metricsResponse = await getEventMetrics(ticketId);
-        if (metricsResponse?.data) {
-          setMetrics(metricsResponse.data);
-        }
-      } catch (metricsErr) {
-        console.warn("Failed to fetch event metrics:", metricsErr);
-        setMetrics({
-          totalRevenue: 0,
-          totalBooking: 0,
-          totalLikes: 0,
-          totalShare: 0,
-          total_cancellation: 0,
-        });
-      }
-
-      // Fetch initial growth stats (yesterday vs day before)
-      try {
-        const yesterday = new Date();
-         try {
-          setLoadingFinancial(true);
-          const financialResponse = await getEventFinancialSummary(ticketId);
-          if (financialResponse?.data) {
-            setFinancialSummary(financialResponse.data);
+          const yesterday = new Date();
+          try {
+            setLoadingFinancial(true);
+            const financialResponse = await getEventFinancialSummary(ticketId);
+            if (financialResponse?.data) {
+              setFinancialSummary(financialResponse.data);
+            }
+          } catch (finErr) {
+            console.warn('Failed to fetch financial summary:', finErr);
+          } finally {
+            setLoadingFinancial(false);
           }
-        } catch (finErr) {
-          console.warn('Failed to fetch financial summary:', finErr);
-        } finally {
-          setLoadingFinancial(false);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayFormatted = yesterday.toISOString().split('T')[0];
+          
+          const initialGrowthResponse = await getEventGrowthStats(
+            ticketId, 
+            yesterdayFormatted, 
+            'daily'
+          );
+          if (initialGrowthResponse?.data) {
+            setGrowthStats(initialGrowthResponse.data);
+          }
+        } catch (growthErr) {
+          console.warn("Failed to fetch initial growth stats:", growthErr);
         }
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayFormatted = yesterday.toISOString().split('T')[0];
-        
-        const initialGrowthResponse = await getEventGrowthStats(
-          ticketId, 
-          yesterdayFormatted, 
-          'daily'
-        );
-        if (initialGrowthResponse?.data) {
-          setGrowthStats(initialGrowthResponse.data);
-        }
-      } catch (growthErr) {
-        console.warn("Failed to fetch initial growth stats:", growthErr);
+
+      } catch (err) {
+        console.error("Failed to fetch live event data:", err);
+        const errorMessage =
+          err?.response?.data?.message ||
+          err.message ||
+          "Failed to load event details.";
+        toast.error(errorMessage);
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventData();
+  }, [ticketId]);
+    const groupId = eventData?.group_id || eventData?.groupId;
+  // Replace the existing useEffect for date-based stats
+  useEffect(() => {
+    const fetchDateBasedStats = async () => {
+      if (!eventData || !ticketId) return;
+
+      // Don't fetch date-specific stats on initial load
+      // Only fetch when user explicitly selects a date
+      const isInitialLoad = currentDate.toDateString() === new Date().toDateString();
+      
+      if (isInitialLoad) {
+        // On initial load, just use the metrics from getEventMetrics
+        return;
       }
 
-    } catch (err) {
-      console.error("Failed to fetch live event data:", err);
-      const errorMessage =
-        err?.response?.data?.message ||
-        err.message ||
-        "Failed to load event details.";
-      toast.error(errorMessage);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+      const formattedDate = currentDate.toISOString().split('T')[0];
+
+      try {
+        // Fetch stats for selected date
+        const statsResponse = await getEventStatsByDate(ticketId, formattedDate);
+        if (statsResponse?.data) {
+          setSelectedDateStats(statsResponse.data);
+          setDateError(null);
+        }
+
+        // Fetch growth stats
+        const growthResponse = await getEventGrowthStats(ticketId, formattedDate, 'daily');
+        if (growthResponse?.data) {
+          setGrowthStats(growthResponse.data);
+        }
+
+        // Fetch monthly chart data
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+        const chartResponse = await getEventMonthlyChart(ticketId, year, month);
+        if (chartResponse?.data) {
+          setMonthlyChartData(chartResponse.data.chartData || []);
+        }
+
+      } catch (error) {
+        console.error("Error fetching date-based stats:", error);
+        if (error.response?.status === 400 && error.response?.data?.message) {
+          setDateError(error.response.data.message);
+          toast.error(error.response.data.message);
+          // Clear date-specific stats but keep showing total stats
+          setSelectedDateStats(null);
+          setGrowthStats(null);
+          setMonthlyChartData([]);
+        }
+      }
+    };
+
+    // Only fetch if we have eventData
+    if (eventData) {
+      fetchDateBasedStats();
     }
+  }, [currentDate, ticketId, eventData]);
+  // Add a button to reset to total view
+  const handleResetToTotalView = () => {
+    setCurrentDate(new Date());
+    setSelectedDateStats(null);
+    setGrowthStats(null);
+    setMonthlyChartData([]);
+    setDateError(null);
   };
-
-  fetchEventData();
-}, [ticketId]);
-  const groupId = eventData?.group_id || eventData?.groupId;
-// Replace the existing useEffect for date-based stats
-useEffect(() => {
-  const fetchDateBasedStats = async () => {
-    if (!eventData || !ticketId) return;
-
-    // Don't fetch date-specific stats on initial load
-    // Only fetch when user explicitly selects a date
-    const isInitialLoad = currentDate.toDateString() === new Date().toDateString();
-    
-    if (isInitialLoad) {
-      // On initial load, just use the metrics from getEventMetrics
+  const handleCancelEvent = async () => {
+    if (!cancelReason.trim()) {
+      setCancelReasonError("Please provide a cancellation reason.");
       return;
     }
-
-    const formattedDate = currentDate.toISOString().split('T')[0];
-
+    if (cancelReason.trim().length < 10) {
+      setCancelReasonError("Reason must be at least 10 characters.");
+      return;
+    }
     try {
-      // Fetch stats for selected date
-      const statsResponse = await getEventStatsByDate(ticketId, formattedDate);
-      if (statsResponse?.data) {
-        setSelectedDateStats(statsResponse.data);
-        setDateError(null);
-      }
+      setIsCancelling(true);
+      setCancelReasonError("");
+      const response = await cancelEvent(ticketId, cancelReason.trim());
+      if (response.success) {
+        setCancelSuccess(true);
+        setShowDownloadReport(true);
 
-      // Fetch growth stats
-      const growthResponse = await getEventGrowthStats(ticketId, formattedDate, 'daily');
-      if (growthResponse?.data) {
-        setGrowthStats(growthResponse.data);
-      }
+        const promotion = response.data?.promotion;
 
-      // Fetch monthly chart data
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
-      const chartResponse = await getEventMonthlyChart(ticketId, year, month);
-      if (chartResponse?.data) {
-        setMonthlyChartData(chartResponse.data.chartData || []);
-      }
+        setCancellationSummary({
+          eventName:          eventData?.event_name,
+          totalBookings:      response.data?.affectedBookings || 0,
+          refundPercentage:   response.data?.refundPolicy?.refundPercentage ?? 100,
+          cancellationTier:   response.data?.refundPolicy?.cancellationTier,
+          isPaid:             eventData?.payment_type === "paid",
+          reason:             cancelReason.trim(),
+          promoted:           promotion?.promoted || false,
+          newMainTicketId:    promotion?.newMainTicketId || null,
+        });
 
-    } catch (error) {
-      console.error("Error fetching date-based stats:", error);
-      if (error.response?.status === 400 && error.response?.data?.message) {
-        setDateError(error.response.data.message);
-        toast.error(error.response.data.message);
-        // Clear date-specific stats but keep showing total stats
-        setSelectedDateStats(null);
-        setGrowthStats(null);
-        setMonthlyChartData([]);
+        setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
+        toast.success(
+          promotion?.promoted
+            ? "Event cancelled. First sub-event promoted to main event. Attendees notified."
+            : "Event cancelled. All attendees have been notified."
+        );
       }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to cancel event.";
+      toast.error(msg);
+      setCancelReasonError(msg);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
-  // Only fetch if we have eventData
-  if (eventData) {
-    fetchDateBasedStats();
-  }
-}, [currentDate, ticketId, eventData]);
-// Add a button to reset to total view
-const handleResetToTotalView = () => {
-  setCurrentDate(new Date());
-  setSelectedDateStats(null);
-  setGrowthStats(null);
-  setMonthlyChartData([]);
-  setDateError(null);
-};
-const handleCancelEvent = async () => {
-  if (!cancelReason.trim()) {
-    setCancelReasonError("Please provide a cancellation reason.");
-    return;
-  }
-  if (cancelReason.trim().length < 10) {
-    setCancelReasonError("Reason must be at least 10 characters.");
-    return;
-  }
-  try {
-    setIsCancelling(true);
-    setCancelReasonError("");
-    const response = await cancelEvent(ticketId, cancelReason.trim());
-    if (response.success) {
-      setCancelSuccess(true);
-      setShowDownloadReport(true);
-
-      const promotion = response.data?.promotion;
-
-      setCancellationSummary({
-        eventName:          eventData?.event_name,
-        totalBookings:      response.data?.affectedBookings || 0,
-        refundPercentage:   response.data?.refundPolicy?.refundPercentage ?? 100,
-        cancellationTier:   response.data?.refundPolicy?.cancellationTier,
-        isPaid:             eventData?.payment_type === "paid",
-        reason:             cancelReason.trim(),
-        promoted:           promotion?.promoted || false,
-        newMainTicketId:    promotion?.newMainTicketId || null,
-      });
-
-      setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
-      toast.success(
-        promotion?.promoted
-          ? "Event cancelled. First sub-event promoted to main event. Attendees notified."
-          : "Event cancelled. All attendees have been notified."
-      );
+  const handleCloseCancelModal = () => {
+    if (cancelSuccess) {
+      setShowCancelModal(false);
+    } else {
+      setShowCancelModal(false);
+      setCancelReason("");
+      setCancelReasonError("");
     }
-  } catch (err) {
-    const msg = err?.response?.data?.message || err.message || "Failed to cancel event.";
-    toast.error(msg);
-    setCancelReasonError(msg);
-  } finally {
-    setIsCancelling(false);
-  }
-};
+  };
 
-const handleCloseCancelModal = () => {
-  if (cancelSuccess) {
-    setShowCancelModal(false);
-  } else {
-    setShowCancelModal(false);
-    setCancelReason("");
-    setCancelReasonError("");
-  }
-};
+  const handleDownloadReport = async () => {
+    try {
+      setIsDownloading(true);
+      setDownloadError("");
+      await getCancellationReport(ticketId);
+      toast.success("Report downloaded successfully!");
+    } catch (err) {
+      const msg = err?.message || "Failed to download report. Please try again.";
+      setDownloadError(msg);
+      toast.error(msg);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
-const handleDownloadReport = async () => {
-  try {
-    setIsDownloading(true);
-    setDownloadError("");
-    await getCancellationReport(ticketId);
-    toast.success("Report downloaded successfully!");
-  } catch (err) {
-    const msg = err?.message || "Failed to download report. Please try again.";
-    setDownloadError(msg);
-    toast.error(msg);
-  } finally {
-    setIsDownloading(false);
-  }
-};
+  const handleRehost = async (rehostAs) => {
+    try {
+      setIsRehosting(true);
+      const response = await rehostEvent(ticketId, rehostAs);
+      if (response.success) {
+        setShowRehostModal(false);
+        toast.success("Event re-hosted successfully! Loading new event...");
 
-const handleRehost = async (rehostAs) => {
-  try {
-    setIsRehosting(true);
-    const response = await rehostEvent(ticketId, rehostAs);
-    if (response.success) {
-      setShowRehostModal(false);
-      toast.success("Event re-hosted successfully! Loading new event...");
+        // The backend always returns newTicketId for the fresh V2 ticket
+        const newTicketId = response.data?.newTicketId;
 
-      // The backend always returns newTicketId for the fresh V2 ticket
-      const newTicketId = response.data?.newTicketId;
-
-      if (newTicketId) {
-        // Navigate to the new ticket — this triggers a full fresh data load
-        navigate(`/ticket/live-event-view/${newTicketId}`, { replace: true });
-      } else {
-        // Fallback: reload current page to force fresh fetch
-        window.location.reload();
+        if (newTicketId) {
+          // Navigate to the new ticket — this triggers a full fresh data load
+          navigate(`/ticket/live-event-view/${newTicketId}`, { replace: true });
+        } else {
+          // Fallback: reload current page to force fresh fetch
+          window.location.reload();
+        }
       }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to re-host event.";
+      toast.error(msg);
+    } finally {
+      setIsRehosting(false);
     }
-  } catch (err) {
-    const msg = err?.response?.data?.message || err.message || "Failed to re-host event.";
-    toast.error(msg);
-  } finally {
-    setIsRehosting(false);
-  }
-};
+  };
 
   const computedEventData = eventData
     ? {
@@ -443,21 +453,21 @@ const handleRehost = async (rehostAs) => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-// Remove the static chartData definition and replace with this:
-const chartData = React.useMemo(() => {
-  if (monthlyChartData && monthlyChartData.length > 0) {
-    // User selected a specific date, show monthly chart
-    return monthlyChartData.map(item => ({
-      month: `Day ${item.day}`,
-      value: item.revenue / 1000, // Convert to k
-      bookingCount: item.bookingCount,
-      height: Math.max(20, Math.min(160, (item.bookingCount || 1) * 15)) // Dynamic height in pixels
-    }));
-  }
-  
-  // Show default message - no static data
-  return [];
-}, [monthlyChartData]);
+  // Remove the static chartData definition and replace with this:
+  const chartData = React.useMemo(() => {
+    if (monthlyChartData && monthlyChartData.length > 0) {
+      // User selected a specific date, show monthly chart
+      return monthlyChartData.map(item => ({
+        month: `Day ${item.day}`,
+        value: item.revenue / 1000, // Convert to k
+        bookingCount: item.bookingCount,
+        height: Math.max(20, Math.min(160, (item.bookingCount || 1) * 15)) // Dynamic height in pixels
+      }));
+    }
+    
+    // Show default message - no static data
+    return [];
+  }, [monthlyChartData]);
   const generateCalendarDays = () => {
     const dayOfWeek = currentDate.getDay();
     const startOfWeek = new Date(currentDate);
@@ -528,38 +538,38 @@ const chartData = React.useMemo(() => {
     return allEvents;
   }, [eventData]);
   // Google Maps API initialization
-useEffect(() => {
-  const callbackName = "initLiveEventMapCallback";
-  const scriptId = "google-maps-live-event-script";
+  useEffect(() => {
+    const callbackName = "initLiveEventMapCallback";
+    const scriptId = "google-maps-live-event-script";
 
-  if (window.google && window.google.maps) {
-    setIsApiReady(true);
-    return;
-  }
-
-  if (!window[callbackName]) {
-    window[callbackName] = () => {
+    if (window.google && window.google.maps) {
       setIsApiReady(true);
-    };
-  }
+      return;
+    }
 
-  const existingScript = document.getElementById(scriptId);
-  if (existingScript) {
-    setIsApiReady(true);
-    return;
-  }
+    if (!window[callbackName]) {
+      window[callbackName] = () => {
+        setIsApiReady(true);
+      };
+    }
 
-  const script = document.createElement("script");
-  script.id = scriptId;
-  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-}, []);
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript) {
+      setIsApiReady(true);
+      return;
+    }
 
-// Add state for API ready
-const [isApiReady, setIsApiReady] = useState(false);
+    const script = document.createElement("script");
+    script.id = scriptId;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, []);
+
+  // Add state for API ready
+  const [isApiReady, setIsApiReady] = useState(false);
 
   const ticketTypes = eventData?.ticket_types || [];
 
@@ -773,34 +783,109 @@ const [isApiReady, setIsApiReady] = useState(false);
       </div>
     );
   }
-// Replace the existing formattedDate and formattedEndDate logic with this:
-const formattedDate = eventData?.event_dates?.[0]?.start_date
-  ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  : "N/A";
+  // Replace the existing formattedDate and formattedEndDate logic with this:
+  const formattedDate = eventData?.event_dates?.[0]?.start_date
+    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "N/A";
 
-const formattedEndDate = eventData?.event_dates?.[0]?.end_date
-  ? new Date(eventData.event_dates[0].end_date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  : null;
+  const formattedEndDate = eventData?.event_dates?.[0]?.end_date
+    ? new Date(eventData.event_dates[0].end_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
-// Check if dates are the same
-const isSameDate = eventData?.event_dates?.[0]?.start_date && 
-                   eventData?.event_dates?.[0]?.end_date &&
-                   new Date(eventData.event_dates[0].start_date).toDateString() === 
-                   new Date(eventData.event_dates[0].end_date).toDateString();
+  // Check if dates are the same
+  const isSameDate = eventData?.event_dates?.[0]?.start_date && 
+                    eventData?.event_dates?.[0]?.end_date &&
+                    new Date(eventData.event_dates[0].start_date).toDateString() === 
+                    new Date(eventData.event_dates[0].end_date).toDateString();
 
-const displayDate = isSameDate 
-  ? formattedDate 
-  : (formattedDate !== "N/A" && formattedEndDate 
-      ? `${formattedDate} - ${formattedEndDate}` 
-      : formattedDate);
+  const displayDate = isSameDate 
+    ? formattedDate 
+    : (formattedDate !== "N/A" && formattedEndDate 
+        ? `${formattedDate} - ${formattedEndDate}` 
+        : formattedDate);
+
+  const handleOpenAttendanceScanner = async (subEventId = null) => {
+    setIsInitingAttendance(true);
+    try {
+      await initAttendance(eventData._id || ticketId, subEventId);
+      const res = await getAttendanceList(eventData._id || ticketId, subEventId);
+      setAttendanceData(res?.data?.data || null);
+      setScanCount(res?.data?.data?.totalPresent || 0);
+      setActiveSubEventIdForAtt(subEventId);
+      setScanResult(null);
+      setScanError('');
+      setShowAttendanceModal(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not open attendance scanner');
+    } finally {
+      setIsInitingAttendance(false);
+    }
+  };
+
+  const handleQRScanned = async (qrData) => {
+    setScanError('');
+    try {
+      const res = await scanAttendanceQR(
+        eventData._id || ticketId,
+        qrData,
+        activeSubEventIdForAtt
+      );
+      const attendee = res?.data?.data?.scannedAttendee;
+      setScanResult(attendee);
+      setScanCount(prev => prev + 1);
+      setAttendanceData(prev =>
+        prev
+          ? { ...prev, totalPresent: (prev.totalPresent || 0) + 1, attendees: [...(prev.attendees || []), attendee] }
+          : prev
+      );
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Scan failed';
+      setScanError(msg);
+      setScanResult(null);
+    }
+  };
+
+  const handleViewAttendanceList = async (subEventId = null) => {
+    try {
+      const res = await getAttendanceList(eventData._id || ticketId, subEventId);
+      setAttendanceData(res?.data?.data || null);
+      setActiveSubEventIdForAtt(subEventId);
+      setShowAttendanceList(true);
+    } catch (err) {
+      toast.error('Could not fetch attendance list');
+    }
+  };
+
+  const handleDownloadAttendance = async (format = 'excel') => {
+    setIsDownloadingAtt(true);
+    try {
+      const res = await downloadAttendance(
+        eventData._id || ticketId,
+        format,
+        activeSubEventIdForAtt
+      );
+      const url  = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', format === 'pdf' ? 'attendance.pdf' : 'attendance.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Download failed');
+    } finally {
+      setIsDownloadingAtt(false);
+    }
+  };
 
   return (
     <>
@@ -1761,6 +1846,22 @@ const displayDate = isSameDate
                   toast.success("Download feature coming soon!");
                 }}
               />
+              {eventData?.attendance_count && eventData?.event_status === 'live' && (
+                <FooterButton
+                  theme={theme}
+                  icon={<UserCheck />}
+                  text="Mark attendance"
+                  onClick={() => handleOpenAttendanceScanner(null)}
+                />
+              )}
+              {eventData?.attendance_count && (
+                <FooterButton
+                  theme={theme}
+                  icon={<QrCode />}
+                  text="View attendance list"
+                  onClick={() => handleViewAttendanceList(null)}
+                />
+              )}
             </div>
             {/* Version History Panel — shows when event has been rehosted */}
             {eventData?.version > 1 && (
@@ -1933,6 +2034,28 @@ const displayDate = isSameDate
           isRehosting={isRehosting}
           onConfirm={handleRehost}
           onClose={() => setShowRehostModal(false)}
+        />
+      )}
+      {showAttendanceModal && (
+        <AttendanceScannerModal
+          theme={theme}
+          isDark={isDark}
+          onClose={() => { setShowAttendanceModal(false); setScanResult(null); setScanError(''); }}
+          onScan={handleQRScanned}
+          scanResult={scanResult}
+          scanError={scanError}
+          scanCount={scanCount}
+          eventName={eventData?.event_name}
+        />
+      )}
+      {showAttendanceList && (
+        <AttendanceListModal
+          theme={theme}
+          isDark={isDark}
+          onClose={() => setShowAttendanceList(false)}
+          attendanceData={attendanceData}
+          onDownload={handleDownloadAttendance}
+          isDownloading={isDownloadingAtt}
         />
       )}
     </>
@@ -2122,4 +2245,204 @@ const DetailRow = ({ label, value, theme }) => (
     <div className={`text-base font-semibold ${theme.text}`}>{value}</div>
   </div>
 );
+// QR Scanner Modal
+const AttendanceScannerModal = ({ theme, isDark, onClose, onScan, scanResult, scanError, scanCount, eventName }) => {
+  const scannerRef = React.useRef(null);
+  const html5QrRef = React.useRef(null);
+  const [scanning, setScanning] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    const startScanner = async () => {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      if (!scannerRef.current || !mounted) return;
+      const scanner = new Html5Qrcode('qr-reader-attendance');
+      html5QrRef.current = scanner;
+      try {
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 260, height: 260 } },
+          (decoded) => { onScan(decoded); },
+          () => {}
+        );
+        if (mounted) setScanning(true);
+      } catch (err) {
+        console.warn('Camera start error:', err);
+      }
+    };
+    startScanner();
+    return () => {
+      mounted = false;
+      if (html5QrRef.current?.isScanning) {
+        html5QrRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className={`${theme.cardBg} rounded-3xl w-full max-w-md overflow-hidden`} style={{ boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <QrCode style={{ width: 22, height: 22, color: '#fff' }} />
+            <div>
+              <p style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0 }}>Attendance Scanner</p>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{eventName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <XC style={{ width: 16, height: 16, color: '#fff' }} />
+          </button>
+        </div>
+
+        {/* Counter pill */}
+        <div style={{ padding: '12px 24px 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ background: '#6549B8', borderRadius: 20, padding: '6px 20px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <UserCheck style={{ width: 16, height: 16, color: '#fff' }} />
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{scanCount} scanned</span>
+          </div>
+        </div>
+
+        {/* Camera viewfinder */}
+        <div style={{ padding: '16px 24px 0' }}>
+          <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: '#000' }}>
+            <div id="qr-reader-attendance" ref={scannerRef} style={{ width: '100%' }} />
+            {/* Corner markers */}
+            {['top-left','top-right','bottom-left','bottom-right'].map(pos => {
+              const isTop    = pos.includes('top');
+              const isLeft   = pos.includes('left');
+              return (
+                <div key={pos} style={{
+                  position: 'absolute',
+                  [isTop ? 'top' : 'bottom']:   '50%',
+                  [isLeft ? 'left' : 'right']:  '50%',
+                  transform: `translate(${isLeft ? '-130px' : '100px'}, ${isTop ? '-130px' : '100px'})`,
+                  width: 24, height: 24,
+                  borderTop:    isTop    ? '3px solid #6549B8' : 'none',
+                  borderBottom: !isTop   ? '3px solid #6549B8' : 'none',
+                  borderLeft:   isLeft   ? '3px solid #6549B8' : 'none',
+                  borderRight:  !isLeft  ? '3px solid #6549B8' : 'none',
+                  borderRadius: isTop && isLeft ? '4px 0 0 0' : isTop ? '0 4px 0 0' : isLeft ? '0 0 0 4px' : '0 0 4px 0',
+                  pointerEvents: 'none',
+                }}/>
+              );
+            })}
+          </div>
+          <p style={{ textAlign: 'center', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)', fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+            Point the camera at attendee's ticket QR code
+          </p>
+        </div>
+
+        {/* Last scan result */}
+        <div style={{ padding: '12px 24px 16px' }}>
+          {scanResult && (
+            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <CheckCircle style={{ width: 20, height: 20, color: '#10B981', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ color: '#10B981', fontWeight: 600, fontSize: 14, margin: '0 0 2px' }}>✓ Attendance marked!</p>
+                <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 13, margin: '0 0 2px' }}>{scanResult.userName || scanResult.userId}</p>
+                <p style={{ color: isDark ? 'rgba(209,250,229,0.7)' : 'rgba(6,95,70,0.7)', fontSize: 11, margin: 0 }}>
+                  {scanResult.ticketType} · Qty {scanResult.quantity} · {scanResult.paymentMethod || 'N/A'}
+                </p>
+                <p style={{ color: isDark ? 'rgba(209,250,229,0.6)' : 'rgba(6,95,70,0.6)', fontSize: 10, margin: '2px 0 0' }}>
+                  {new Date(scanResult.scannedAt).toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          )}
+          {scanError && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <XC style={{ width: 18, height: 18, color: '#EF4444', flexShrink: 0 }} />
+              <p style={{ color: '#EF4444', fontSize: 13, margin: 0 }}>{scanError}</p>
+            </div>
+          )}
+          {!scanResult && !scanError && (
+            <div style={{ textAlign: 'center', padding: '8px 0', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', fontSize: 13 }}>
+              Waiting for scan...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Attendance List Modal 
+const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownload, isDownloading }) => {
+  const rows = attendanceData?.attendees || [];
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className={`${theme.cardBg} rounded-3xl w-full max-w-3xl`} style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)', padding: '20px 24px', borderRadius: '24px 24px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <UserCheck style={{ width: 22, height: 22, color: '#fff' }} />
+            <div>
+              <p style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0 }}>Attendance List</p>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{attendanceData?.eventName || 'Event'}</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => onDownload('excel')} disabled={isDownloading} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download style={{ width: 14, height: 14 }} /> Excel
+            </button>
+            <button onClick={() => onDownload('pdf')} disabled={isDownloading} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download style={{ width: 14, height: 14 }} /> PDF
+            </button>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <XC style={{ width: 16, height: 16, color: '#fff' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary strip */}
+        <div style={{ padding: '12px 24px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, display: 'flex', gap: 24, flexShrink: 0 }}>
+          {[
+            { label: 'Total Booked', val: attendanceData?.totalBooked || 0, color: '#6549B8' },
+            { label: 'Present',      val: attendanceData?.totalPresent || 0, color: '#10B981' },
+            { label: 'Absent',       val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
+          ].map(({ label, val, color }) => (
+            <div key={label}>
+              <p style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
+              <p style={{ color, fontWeight: 700, fontSize: 20, margin: 0 }}>{val}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div style={{ overflowY: 'auto', padding: '0 8px 16px', flex: 1 }}>
+          {rows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+              <UserCheck style={{ width: 40, height: 40, margin: '0 auto 12px', opacity: 0.3 }} />
+              <p style={{ fontSize: 14 }}>No attendees scanned yet</p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}>
+                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Scanned At'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((att, idx) => (
+                  <tr key={att.bookingId || idx} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)'}` }}>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? '#fff' : '#111', fontWeight: 500 }}>{att.userName || att.userId}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.ticketType || '-'}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.quantity}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.paymentMethod || '-'}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontSize: 12 }}>{att.scannedAt ? new Date(att.scannedAt).toLocaleTimeString() : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 export default LiveEventsPage;

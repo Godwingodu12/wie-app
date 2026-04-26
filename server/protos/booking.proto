@@ -11,6 +11,31 @@ service BookingService {
   rpc CancelEventBookings(CancelEventBookingsRequest) returns (CancelEventBookingsResponse);
   rpc GetEventFinancialSummary(EventFinancialSummaryRequest) returns (EventFinancialSummaryResponse);
   rpc GetEventTransactionList(EventTransactionListRequest) returns (EventTransactionListResponse);
+  rpc VerifyBookingQR(VerifyBookingQRRequest) returns (VerifyBookingQRResponse);
+}
+
+message VerifyBookingQRRequest {
+  string qrData = 1;
+}
+
+message Booking {
+  string bookingId       = 1;
+  string externalId      = 2;
+  string userId          = 3;
+  string ticketId        = 4;
+  string ticketType      = 5;
+  int32  quantity        = 6;
+  string paymentMethod   = 7;
+  string bookingStatus   = 8;
+  string userName        = 9;
+  string userEmail       = 10;
+  string userPhone       = 11;
+}
+
+message VerifyBookingQRResponse {
+  bool   success      = 1;
+  string error        = 2;
+  Booking booking     = 3;
 }
 
 message EventFinancialSummaryRequest {
