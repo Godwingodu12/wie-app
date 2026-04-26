@@ -316,7 +316,9 @@ export const getFluxFeed = async (): Promise<FeedFluxGroup[]> => {
  * Call this immediately after User A follows User B
  * so User B's fluxes appear in User A's feed without waiting for cache TTL.
  */
-export const invalidateFluxFeedCache = async (ownerId: string): Promise<void> => {
+export const invalidateFluxFeedCache = async (
+  ownerId: string,
+): Promise<void> => {
   await mediaApi.post("/flux/invalidate-feed", { ownerId });
 };
 /**
@@ -1023,27 +1025,29 @@ export const getFluxVisibility = async (
   return res.data.data;
 };
 
-export const getFluxOwnerSettings = async (fluxId: string): Promise<{
-  allowReplies:        "everyone" | "mutual" | "off";
-  allowReactions:      boolean;
+export const getFluxOwnerSettings = async (
+  fluxId: string,
+): Promise<{
+  allowReplies: "everyone" | "mutual" | "off";
+  allowReactions: boolean;
   allowMessageReplies: boolean;
-  allowShareToStory:   boolean;
+  allowShareToStory: boolean;
   allowShareAsMessage: boolean;
-  allowExternalShare:  boolean;
-  screenshotAlert:     boolean;
-  saveToDevice:        boolean;
+  allowExternalShare: boolean;
+  screenshotAlert: boolean;
+  saveToDevice: boolean;
 }> => {
   const res = await mediaApi.get<{
     success: boolean;
     data: {
-      allowReplies:        "everyone" | "mutual" | "off";
-      allowReactions:      boolean;
+      allowReplies: "everyone" | "mutual" | "off";
+      allowReactions: boolean;
       allowMessageReplies: boolean;
-      allowShareToStory:   boolean;
+      allowShareToStory: boolean;
       allowShareAsMessage: boolean;
-      allowExternalShare:  boolean;
-      screenshotAlert:     boolean;
-      saveToDevice:        boolean;
+      allowExternalShare: boolean;
+      screenshotAlert: boolean;
+      saveToDevice: boolean;
     };
   }>(`/flux/${fluxId}/owner-settings`);
   return res.data.data;
@@ -1058,6 +1062,49 @@ export const getScreenshotBlockSetting = async (): Promise<{
     success: boolean;
     data: { screenshotAlert: boolean };
   }>("/flux/settings/screenshot-block");
+  return res.data.data;
+};
+// Diary Settings
+export interface DiarySettings {
+  defaultVisibility: "public" | "followers" | "close_friends" | "only_me";
+  interactions: {
+    allowReplies: boolean;
+    allowReactions: boolean;
+    allowSharing: boolean;
+    allowShareAsMessage: boolean;
+  };
+  autoHighlight: {
+    enabled: boolean;
+    basedOnTags: boolean;
+    basedOnLocation: boolean;
+    aiSuggestions: boolean;
+  };
+  organization: {
+    displayMode: "grid" | "scroll";
+    defaultSortOrder: "newest" | "oldest" | "custom";
+    enableGrouping: boolean;
+  };
+  coverStyle: "minimal" | "story_preview" | "custom_theme";
+  lifecycle: {
+    keepForever: boolean;
+    autoExpireAfterDays: number | null;
+    archiveInsteadOfDelete: boolean;
+  };
+  analyticsEnabled: boolean;
+}
+
+export const getDiarySettings = async (): Promise<DiarySettings> => {
+  const res = await mediaApi.get<ApiResponse<DiarySettings>>("/diary/settings");
+  return res.data.data;
+};
+
+export const updateDiarySettings = async (
+  settings: Partial<DiarySettings>,
+): Promise<DiarySettings> => {
+  const res = await mediaApi.patch<ApiResponse<DiarySettings>>(
+    "/diary/settings",
+    settings,
+  );
   return res.data.data;
 };
 export default mediaApi;
