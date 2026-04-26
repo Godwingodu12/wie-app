@@ -2573,20 +2573,38 @@ const SubEventAttendanceScannerModal = ({
         {/* Last scan feedback */}
         <div style={{ padding: '12px 22px 16px' }}>
           {scanResult && (
-            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-              <CheckCircle style={{ width: 18, height: 18, color: '#10B981', flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p style={{ color: '#10B981', fontWeight: 600, fontSize: 13, margin: '0 0 2px' }}>✓ Attendance marked!</p>
-                <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 12, margin: '0 0 2px' }}>{scanResult.userName || scanResult.userId}</p>
-                <p style={{ color: isDark ? 'rgba(209,250,229,0.65)' : 'rgba(6,95,70,0.65)', fontSize: 11, margin: 0 }}>
-                  {scanResult.ticketType} · Qty {scanResult.quantity} · {scanResult.paymentMethod || 'N/A'}
-                </p>
-                <p style={{ color: isDark ? 'rgba(209,250,229,0.5)' : 'rgba(6,95,70,0.5)', fontSize: 10, margin: '2px 0 0' }}>
-                  {scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : ''}
-                </p>
+              <div style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ background: 'rgba(16,185,129,0.18)', padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <CheckCircle style={{ width: 16, height: 16, color: '#10B981', flexShrink: 0 }} />
+                  <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>
+                    ✓ Marked — #{(scanResult.transactionId || scanResult.bookingId || '').slice(-8).toUpperCase()}
+                  </p>
+                </div>
+                <div style={{ padding: '9px 13px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                  {[
+                    { label: 'Holder',      value: scanResult.userName || scanResult.userId || '—' },
+                    { label: 'Ticket type', value: scanResult.ticketType || '—' },
+                    { label: 'Qty',         value: String(scanResult.quantity ?? 1) },
+                    { label: 'Payment',     value: scanResult.paymentMethod || '—' },
+                    { label: 'Scanned at',  value: scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleTimeString() : '—' },
+                    { label: 'Txn ID',      value: (scanResult.transactionId || scanResult.bookingId || '—').slice(-12), mono: true },
+                  ].map(({ label, value, mono }) => (
+                    <div key={label} style={{
+                      background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                      borderRadius: 7,
+                      padding: '5px 8px',
+                    }}>
+                      <p style={{ color: isDark ? 'rgba(209,250,229,0.4)' : 'rgba(6,95,70,0.45)', fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>
+                        {label}
+                      </p>
+                      <p style={{ color: isDark ? '#d1fae5' : '#065f46', fontSize: 11, fontWeight: 600, margin: 0, fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
           {scanError && (
             <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 9 }}>
               <XCircle style={{ width: 16, height: 16, color: '#EF4444', flexShrink: 0 }} />
