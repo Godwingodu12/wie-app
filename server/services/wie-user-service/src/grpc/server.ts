@@ -304,39 +304,9 @@ export const startGrpcServer = (port: number = 50053) => {
     GetAccountPrivacy: getAccountPrivacy,
   });
 
-  const privateKey = process.env.GRPC_SERVER_PRIVATE_KEY;
-  const certChain = process.env.GRPC_SERVER_CERT_CHAIN;
-  const isProduction = process.env.NODE_ENV === "production";
-  let credentials: grpc.ServerCredentials;
-
-  if (privateKey && certChain) {
-    // SSL/TLS — used in production or when certs are explicitly provided
-    console.log("✅ gRPC server starting with SSL/TLS enabled.");
-    credentials = grpc.ServerCredentials.createSsl(
-      null,
-      [
-        {
-          private_key: Buffer.from(privateKey),
-          cert_chain: Buffer.from(certChain),
-        },
-      ],
-      false,
-    );
-  } else if (isProduction) {
-    throw new Error(
-      "gRPC server cannot start: GRPC_SERVER_PRIVATE_KEY and GRPC_SERVER_CERT_CHAIN must be provided in production.",
-    );
-  } else {
-    console.warn(
-      "⚠️  gRPC server starting WITHOUT SSL (insecure). Set GRPC_SERVER_PRIVATE_KEY and GRPC_SERVER_CERT_CHAIN for production.",
-    );
-    credentials = grpc.ServerCredentials.createInsecure();
-  }
-
   server.bindAsync(
     `0.0.0.0:${port}`,
-    credentials,
-
+    grpc.ServerCredentials.createInsecure(),
     (error, boundPort) => {
       if (error) {
         console.error("❌ Failed to bind gRPC server:", error);
