@@ -1,6 +1,4 @@
 import express from 'express';
-import bodyParser from 'body-parser';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import http from 'http';
 import { connectDB } from './config/database.js';
@@ -12,14 +10,15 @@ import wieChatRoutes from './routes/wiechat.routes.js';
 import blockRoutes from './routes/block.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import { startChatGrpcServer } from './grpc/server.js';
+import { JWT_SECRET } from './config/jwt.config.js';
+import dotenv from 'dotenv';
 dotenv.config();
-
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5004;
 
 const allowedOrigins = [
-  process.env.CORS_ORIGIN      || 'http://localhost:5173',
+  process.env.CORS_ORIGIN || 'http://localhost:5173',
   process.env.USER_CORS_ORIGIN || 'http://localhost:3000'
 ];
 
@@ -36,8 +35,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // ── Health check
 app.get('/health', (req, res) => {
@@ -48,9 +45,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ── Routes
-app.use('/api/chat',       chatRoutes);
-app.use('/api/wie-chat',   wieChatRoutes);
+//Routes
+app.use('/api/chat', chatRoutes);
+app.use('/api/wie-chat', wieChatRoutes);
 app.use('/api/chat-block', blockRoutes);
 app.use('/api/chat-report', reportRoutes);
 startChatGrpcServer(process.env.GRPC || 50056);
@@ -104,7 +101,7 @@ const startServer = async () => {
   }
 };
 
-process.on('SIGINT',  async () => { console.log('\n🛑 Shutting down gracefully...'); process.exit(0); });
+process.on('SIGINT', async () => { console.log('\n🛑 Shutting down gracefully...'); process.exit(0); });
 process.on('SIGTERM', async () => { console.log('\n🛑 Shutting down gracefully...'); process.exit(0); });
 
 startServer();
