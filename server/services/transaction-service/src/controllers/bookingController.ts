@@ -282,10 +282,14 @@ export const createBooking = async (req: Request, res: Response) => {
         eventName: ticket.event_name,
         eventDate: ticket.event_dates[0]?.start_date || "",
         eventTime: ticket.event_dates[0]?.start_time || "",
+        eventEndDate: ticket.event_dates[0]?.end_date || "",
         venue: ticket.venue || ticket.location || "",
         location: ticket.location || "",
         settlementBankDetails,
         groupName: group.name || "",
+        event_portrait: ticket.event_portrait || "",
+        event_banner: ticket.event_banner || "",
+        image: ticket.event_portrait || ticket.event_banner || "",
       },
       convenienceFee,
       settlementMode: "DELAYED",
@@ -860,10 +864,53 @@ export const getUserBookings = async (req: Request, res: Response) => {
       skip: parseInt(skip as string),
     });
 
-    res.json({
+    // Build qrPayload for each booking (mirrors getBookingById logic)
+    const enrichedBookings = result.bookings.map((booking: any) => {
+      const eventDet = booking.eventDetails || {};
+      const userDet = booking.userDetails || {};
+      const rawPaymentMethod =
+        booking.paymentMethod ||
+        booking.paymentTransaction?.method ||
+        booking.PaymentTransaction?.method ||
+        "";
+
+      const qrPayload = {
+        bookingId: booking.bookingId || String(booking.id),
+        userId: booking.userId,
+        ticketId: booking.ticketId,
+        eventName: eventDet.eventName || "",
+        ticketType: booking.ticketType || "",
+        quantity: booking.quantity || 1,
+        holderName: userDet.name || "",
+        userEmail: userDet.email || "",
+        userPhone: userDet.phone || userDet.contact || "",
+        eventDate: eventDet.eventDate || eventDet.start_date || "",
+        eventTime: eventDet.eventTime || eventDet.start_time || "",
+        eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
+        venue: eventDet.venue || eventDet.location || "",
+        location: eventDet.location || eventDet.venue || "",
+        paymentMethod: rawPaymentMethod,
+        subtotal: parseFloat(booking.subtotal?.toString() || "0"),
+        tax: parseFloat(booking.tax?.toString() || "0"),
+        platformFee: parseFloat(booking.platformFee?.toString() || "0"),
+        totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
+        eventImage:
+          eventDet.event_portrait ||
+          eventDet.event_banner ||
+          eventDet.image ||
+          "",
+        bookingStatus: booking.bookingStatus || "",
+        groupId: booking.groupId || "",
+        v: 1,
+      };
+
+      return { ...booking, qrPayload };
+    });
+
+    res.status(200).json({
       success: true,
       data: {
-        bookings: result.bookings,
+        bookings: enrichedBookings,
         total: result.total,
         limit: parseInt(limit as string),
         skip: parseInt(skip as string),
