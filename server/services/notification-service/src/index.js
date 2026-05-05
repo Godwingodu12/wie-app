@@ -13,7 +13,7 @@ import { startEventRehostConsumer, startRefundSuccessConsumer } from './consumer
 dotenv.config();
 
 // Validate required environment variables
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'RABBITMQ_URL'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
@@ -21,6 +21,9 @@ if (missingEnvVars.length > 0) {
   console.error('💡 Please check your .env file');
   process.exit(1);
 }
+
+// Store validated JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const app = express();
 const server = http.createServer(app);
@@ -64,11 +67,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging middleware (development only)
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    next();
-  });
-}
+
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -185,7 +184,7 @@ const startServer = async () => {
     await connectDB();
     
     // Initialize Socket.IO
-    initializeSocket(server);
+    initializeSocket(server, JWT_SECRET);
     
     // Start Express server
     server.listen(PORT, () => {
