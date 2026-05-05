@@ -1,8 +1,8 @@
 export const formatDate = (date: string | Date): string => {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+  return new Date(date).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 };
 
@@ -23,14 +23,26 @@ export const validatePhone = (phone: string): boolean => {
 
 export const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + '...';
+  return text.slice(0, maxLength) + "...";
 };
 
 export const getInitials = (name: string): string => {
   return name
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
     .slice(0, 2);
+};
+
+export const getEventImage = (
+  eventDetails?: Record<string, any> | null,
+  qrPayload?: Record<string, any> | null,
+): string => {
+  return (
+    qrPayload?.eventImage ||
+    eventDetails?.event_portrait ||
+    eventDetails?.event_banner ||
+    eventDetails?.image
+  );
 };
