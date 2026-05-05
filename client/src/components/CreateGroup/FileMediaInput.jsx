@@ -70,11 +70,15 @@ const FileMediaInput = ({
       // 1:1       → logo/square
       let outputWidth, outputHeight;
 
-      if (Math.abs(aspectRatio - 1920 / 720) < 0.1) {
-        // Banner: 1920×720
+      if (Math.abs(aspectRatio - 16 / 9) < 0.1) {
+        // Banner: 1920×1080
+        outputWidth = 1920;
+        outputHeight = 1080;
+      } else if (Math.abs(aspectRatio - 1920 / 720) < 0.1) {
+        // Legacy Banner: 1920×720
         outputWidth = 1920;
         outputHeight = 720;
-      } else if (Math.abs(aspectRatio - 1080 / 1350) < 0.1) {
+      } else if (Math.abs(aspectRatio - 1080 / 1350) < 0.1 || Math.abs(aspectRatio - 3 / 4) < 0.1) {
         // Portrait: 1080×1350
         outputWidth = 1080;
         outputHeight = 1350;
@@ -230,11 +234,19 @@ const FileMediaInput = ({
         ) : (
           <div className="flex items-center gap-4">
             {!isDocument && previewUrl && (
-              <div className="relative group w-12 h-12">
+              <div 
+                className={`relative group rounded border border-gray-600 overflow-hidden bg-black/20 ${
+                  aspectRatio ? "" : "w-12 h-12"
+                }`}
+                style={aspectRatio ? { 
+                  width: aspectRatio > 1 ? "120px" : "64px",
+                  aspectRatio: `${aspectRatio}`
+                } : {}}
+              >
                 <img
                   src={previewUrl}
                   alt="preview"
-                  className="w-full h-full rounded object-cover border border-gray-600"
+                  className="w-full h-full object-contain"
                 />
                 <div
                   className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded cursor-pointer"

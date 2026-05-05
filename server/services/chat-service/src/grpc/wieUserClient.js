@@ -63,17 +63,17 @@ const sanitizeUser = (user) => {
 export const getUserPrivacySettings = async (userId, retries = 2) => {
   const cacheKey = `privacy:${userId}`;
   const cached = userCache.get(cacheKey);
-  
+
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.GetUserPrivacySettings({ userId }, (error, response) => {
           if (error) {
@@ -88,11 +88,11 @@ export const getUserPrivacySettings = async (userId, retries = 2) => {
         data: response,
         timestamp: Date.now()
       });
-      
+
       return response;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -105,18 +105,18 @@ export const getUserPrivacySettings = async (userId, retries = 2) => {
 export const getOnlineStatus = async (userId, retries = 2) => {
   const cacheKey = `onlinestatus:${userId}`;
   const cached = userCache.get(cacheKey);
-  
+
   // Very short cache for online status (5 seconds)
   if (cached && Date.now() - cached.timestamp < 5000) {
     return cached.data;
   }
 
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.GetOnlineStatus({ userId }, (error, response) => {
           if (error) {
@@ -136,11 +136,11 @@ export const getOnlineStatus = async (userId, retries = 2) => {
         data: statusData,
         timestamp: Date.now()
       });
-      
+
       return statusData;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -152,18 +152,18 @@ export const getOnlineStatus = async (userId, retries = 2) => {
 export const getWieUserById = async (userId, retries = 2) => {
   const cacheKey = `wieuser:${userId}`;
   const cached = userCache.get(cacheKey);
-  
+
   // Use shorter cache for more up-to-date status (10 seconds)
   if (cached && Date.now() - cached.timestamp < 10000) {
     return cached.data;
   }
 
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.GetWieUser({ userId }, (error, response) => {
           if (error) {
@@ -186,7 +186,7 @@ export const getWieUserById = async (userId, retries = 2) => {
       throw new Error('No user data received');
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -199,21 +199,21 @@ export const getWieUserById = async (userId, retries = 2) => {
 export const getWieUsersByIds = async (userIds, retries = 2) => {
   if (!userIds || userIds.length === 0) {
     return [];
-  }  
+  }
   const cacheKey = `wieusers:${userIds.sort().join(',')}`;
   const cached = userCache.get(cacheKey);
-  
+
   // Use shorter cache for more up-to-date status (10 seconds)
   if (cached && Date.now() - cached.timestamp < 10000) {
     return cached.data;
   }
-  
+
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.GetUsersByIds({ userIds }, (error, response) => {
           if (error) {
@@ -223,18 +223,18 @@ export const getWieUsersByIds = async (userIds, retries = 2) => {
           }
         });
       });
-      
+
       const mappedUsers = response.map(user => sanitizeUser(user));
 
       userCache.set(cacheKey, {
         data: mappedUsers,
         timestamp: Date.now()
       });
-      
+
       return mappedUsers;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -244,12 +244,12 @@ export const getWieUsersByIds = async (userIds, retries = 2) => {
   throw lastError;
 };
 
-export const searchWieUsers = async (query, excludeUserId, limit = 50, retries = 2) => {  
+export const searchWieUsers = async (query, excludeUserId, limit = 50, retries = 2) => {
   let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.SearchUsers({ query, excludeUserId, limit }, (error, response) => {
           if (error) {
@@ -258,14 +258,14 @@ export const searchWieUsers = async (query, excludeUserId, limit = 50, retries =
             resolve(response.users || []);
           }
         });
-      });      
-      
+      });
+
       const mappedUsers = response.map(user => sanitizeUser(user));
-      
+
       return mappedUsers;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -275,13 +275,13 @@ export const searchWieUsers = async (query, excludeUserId, limit = 50, retries =
   throw lastError;
 };
 
-export const updateUserOnlineStatus = async (userId, isOnline, retries = 2) => {  
+export const updateUserOnlineStatus = async (userId, isOnline, retries = 2) => {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
         client.UpdateOnlineStatus({ userId, isOnline }, (error, response) => {
           if (error) {
@@ -291,11 +291,11 @@ export const updateUserOnlineStatus = async (userId, isOnline, retries = 2) => {
           }
         });
       });
-      
+
       return response.success;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -309,17 +309,21 @@ export const checkIfUserBlockedViaGrpc = async (userId1, userId2, retries = 2) =
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
-        // This would call the block service via gRPC if you move it to user-service
-        // For now, keep blocks in chat-service
-        resolve({ isBlocked: false, blockedBy: 'none' });
+        client.CheckIfUserBlocked({ userId1, userId2 }, (error, response) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(response);
+          }
+        });
       });
-      
+
       return response;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -331,20 +335,25 @@ export const checkIfUserBlockedViaGrpc = async (userId1, userId2, retries = 2) =
 
 export const getBlockedUserIdsViaGrpc = async (userId, retries = 2) => {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
+
       const response = await new Promise((resolve, reject) => {
-        // This would call the block service
-        resolve({ blockedUserIds: [] });
+        client.GetBlockedUserIds({ userId }, (error, response) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(response);
+          }
+        });
       });
-      
+
       return response.blockedUserIds;
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < retries) {
         const delay = 500 * attempt;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -356,8 +365,10 @@ export const getBlockedUserIdsViaGrpc = async (userId, retries = 2) => {
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of userCache.entries()) {
+    // Each cache type has its own TTL baked into the read guard;
+    // evict anything older than the longest TTL (10s) to keep memory clean.
     if (now - value.timestamp > CACHE_TTL) {
       userCache.delete(key);
     }
   }
-}, CACHE_TTL);
+}, 5000); 

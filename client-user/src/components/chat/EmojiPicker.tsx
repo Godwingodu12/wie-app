@@ -226,12 +226,33 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
 
   // Filter emojis based on search
   const filteredCategories = searchQuery
-    ? EMOJI_CATEGORIES.map(category => ({
-        ...category,
-        emojis: category.emojis.filter(emoji =>
-          emoji.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      })).filter(category => category.emojis.length > 0)
+    ? (() => {
+        const lowerCaseSearchQuery = searchQuery.toLowerCase();
+
+        const isSubsequence = (text: string, query: string): boolean => {
+          let i = 0; // pointer for text
+          let j = 0; // pointer for query
+          while (i < text.length && j < query.length) {
+            if (text[i] === query[j]) {
+              j++;
+            }
+            i++;
+          }
+          return j === query.length;
+        };
+
+        return EMOJI_CATEGORIES.map(category => {
+          const lowerCaseCategoryName = category.name.toLowerCase();
+          const filteredEmojis = category.emojis.filter(emoji => {
+            return isSubsequence(lowerCaseCategoryName, lowerCaseSearchQuery) ||
+                   isSubsequence(emoji.toLowerCase(), lowerCaseSearchQuery);
+          });
+          return {
+            ...category,
+            emojis: filteredEmojis,
+          };
+        }).filter(category => category.emojis.length > 0);
+      })()
     : EMOJI_CATEGORIES;
 
   const positionClasses = position === 'top'

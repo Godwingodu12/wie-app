@@ -9,7 +9,6 @@ import ticketRoutes from "./routes/ticket.routes";
 import otpService from "./reposetory/otp";
 import { startGrpcServer } from "./grpc/server";
 import { cleanupStaleOnlineUsers } from "./services/wie-user.service";
-
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 5005;
 const GRPC_PORT = Number(process.env.GRPC_PORT) || 50053;
@@ -21,12 +20,39 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+const developmentOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+];
+
+// Determine the effective CORS origins
+let effectiveCorsOrigins: string[] | boolean;
+
+const configuredCorsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").filter(Boolean)
+  : []; // If CORS_ORIGIN is not set, or empty, start with an empty array
+
+if (process.env.NODE_ENV === "production") {
+  if (configuredCorsOrigins.length > 0) {
+    effectiveCorsOrigins = configuredCorsOrigins;
+  } else {
+    // In production, if CORS_ORIGIN is not explicitly set or is empty, disallow all origins
+    console.warn(
+      "⚠️  CORS_ORIGIN is not set or is empty in production. Disallowing all cross-origin requests.",
+    );
+    effectiveCorsOrigins = false; // Disallow all origins
+  }
+} else {
+  // In development or other environments, use configured origins or development defaults
+  effectiveCorsOrigins =
+    configuredCorsOrigins.length > 0
+      ? configuredCorsOrigins
+      : developmentOrigins;
+}
+
 const corsOptions = {
-  origin: [
-    process.env.CORS_ORIGIN || "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-  ],
+  origin: effectiveCorsOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: [
@@ -69,9 +95,7 @@ const startCleanupInterval = () => {
     try {
       await cleanupStaleOnlineUsers();
     } catch (error) {
-      // Don't log connection errors here — they're already logged by Prisma
-      const isConnErr = (error as any)?.code?.startsWith?.("P1");
-      if (!isConnErr) console.error("❌ Cleanup error:", error);
+      console.error("❌ Cleanup error:", error);
     }
   }, 30000);
 };
@@ -124,7 +148,16 @@ async function startServer() {
     });
 
     // Graceful shutdown
+    let isShuttingDown = false;
+    let listenersRegistered = false;
     const shutdown = async (signal: string) => {
+      if (isShuttingDown) {
+        console.log(
+          `⚠️ Shutdown already in progress. Ignoring signal: ${signal}`,
+        );
+        return;
+      }
+      isShuttingDown = true;
       console.log(`\n${signal} received. Starting graceful shutdown...`);
 
       try {
@@ -152,7 +185,6 @@ async function startServer() {
           process.exit(0);
         });
 
-        // Force exit after 10 seconds if graceful shutdown hangs
         setTimeout(() => {
           console.error("⚠️ Forceful shutdown after timeout");
           process.exit(1);
@@ -163,8 +195,11 @@ async function startServer() {
       }
     };
 
-    process.on("SIGINT", () => shutdown("SIGINT"));
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    if (!listenersRegistered) {
+      process.on("SIGINT", () => shutdown("SIGINT"));
+      process.on("SIGTERM", () => shutdown("SIGTERM"));
+      listenersRegistered = true;
+    }
 
     // Handle unhandled errors
     process.on("unhandledRejection", (reason, promise) => {
@@ -175,9 +210,6 @@ async function startServer() {
       console.error("Uncaught Exception:", err);
       shutdown("UNCAUGHT_EXCEPTION");
     });
-
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);

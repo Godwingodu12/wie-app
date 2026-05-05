@@ -809,14 +809,15 @@ const handleSubmit = async (e) => {
                 <FileMediaInput
                   id="event_banner"
                   label="Event Banner* (Desktop)"
-                  aspectRatio={1920 / 720}
+                  aspectRatio={16 / 9}
                   onFileChange={handleSingleFileChange}
                   onRemove={removeSingleFile}
                   preview={previews.event_banner}
                   error={errors.event_banner}
                   acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
                   maxSizeMB={1.5}
-                  info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, GIF, or WEBP format."
+                  resolution="1920px by 1080px"
+                  info="Required. 16:9 ratio (1920x1080) recommended for desktop view. JPG, JPEG, PNG, GIF, or WEBP format."
                   onPreviewClick={() => {
                               if (previews.event_banner) {
                                  const fileData = previews.event_banner;
@@ -832,15 +833,15 @@ const handleSubmit = async (e) => {
                 <FileMediaInput
   id="event_portrait"
   label="Portrait image (for mobile app)"
-  aspectRatio={3 / 4} // 900x1200 is 3:4
-  resolution="400px by 400px"
+  aspectRatio={1080 / 1350} 
+  resolution="1080px by 1350px"
   onFileChange={handleSingleFileChange}
   onRemove={removeSingleFile}
   preview={previews.event_portrait}
   error={errors.event_portrait}
   acceptedFiles=".jpg,.jpeg,.png,.webp"
   maxSizeMB={1.5}
-  info="Resolution: (900px by 1200px). Recommended for mobile app views."
+  info="Resolution: (1080px by 1350px). Recommended for mobile app views (4:5 ratio)."
   onPreviewClick={() => {
     if (previews.event_portrait) {
       const url = previews.event_portrait.data || previews.event_portrait.url || previews.event_portrait;
@@ -853,7 +854,7 @@ const handleSubmit = async (e) => {
                 <div className="flex justify-between items-center mb-4 pb-2">
                   <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     Image galleries
-                    <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
+                    <InfoTooltip note="Max 10 images. Max Size: 1.5MB. Resolution: (1080px by 1350px). Recommended for mobile app views (4:5 ratio)." />
                   </label>
                 </div>
                 <div className="rounded-xl border border-dashed border-gray-600 p-3">
@@ -888,6 +889,7 @@ const handleSubmit = async (e) => {
                             id={img.id}
                             img={img}
                             isReordering={isReorderingImages}
+                            aspectRatio={4 / 5}
                             onRemove={(id) => removeImageFromList(id, "event_images")}
                             onPreview={(file) => {
                               const url = file.preview || file.url || file;
@@ -939,6 +941,7 @@ const handleSubmit = async (e) => {
                         id={vid.id}
                         img={vid}
                         isReordering={isReorderingVideos}
+                        aspectRatio={9 / 16}
                         onRemove={(id) => removeImageFromList(id, 'event_videos')}
                         targetField="event_videos"
                         onPreview={(file) => {

@@ -1,5 +1,5 @@
-import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
+import "./config/env"; // Load and validate environment variables
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -14,7 +14,8 @@ import logger from "./utils/logger";
 import redisCache from "./utils/redis.cache";
 import { metricsMiddleware, metricsEndpoint } from "./utils/metrics";
 import { generalLimiter } from "./middleware/rateLimiter.middleware";
-dotenv.config();
+
+// ── dotenv.config() REMOVED — env loading is handled by ./config/env above ──
 
 const app: Express = express();
 const PORT = process.env.PORT || 5012;
@@ -46,12 +47,11 @@ const connectDB = async (): Promise<void> => {
 
   await mongoose.connect(uri, {
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 10000, // 10s — enough for Atlas cold start
+    serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
     family: 4,
   });
 
-  // Log immediately after connect() resolves — not inside event
   console.log(`✅ MongoDB Connected — db: ${mongoose.connection.name}`);
 
   mongoose.connection.on("error", (err) =>
@@ -109,7 +109,7 @@ const startServer = async (): Promise<void> => {
       console.log(`🚀 Connection Service HTTP  → http://localhost:${PORT}`);
     });
 
-    await startGRPCServer(Number(GRPC_PORT)); // ← awaited now; throws on EADDRINUSE
+    await startGRPCServer(Number(GRPC_PORT));
     console.log(`🚀 Connection Service gRPC  → port ${GRPC_PORT}`);
   } catch (error: any) {
     console.error("❌ SERVER FAILED TO START:", error.message);

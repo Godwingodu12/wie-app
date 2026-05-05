@@ -8,6 +8,7 @@ const SortablePhoto = ({
   isReordering,
   targetField,
   onPreview,
+  aspectRatio = 1,
 }) => {
   const {
     attributes,
@@ -34,10 +35,15 @@ const SortablePhoto = ({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        aspectRatio: aspectRatio !== 1 ? `${aspectRatio}` : undefined,
+      }}
       {...attributes}
       {...listeners}
-      className="group relative aspect-square rounded-lg overflow-hidden border border-gray-700 bg-black"
+      className={`group relative rounded-lg overflow-hidden border border-gray-700 bg-black ${
+        aspectRatio === 1 ? "aspect-square" : ""
+      }`}
       onClick={() => !isReordering && onPreview?.(img)}
     >
       {/* IMAGE PREVIEW */}
@@ -46,7 +52,7 @@ const SortablePhoto = ({
           <img
             src={img.preview}
             alt="preview"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
           {!isReordering && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

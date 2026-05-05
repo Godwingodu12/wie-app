@@ -29,13 +29,14 @@ const getClient = () => {
 };
 
 const userCache = new Map();
+const followersCache = new Map();
 const CACHE_TTL = 60000;
 
 export const getUserFromAuthServiceGrpc = async (payload, retries = 2) => {
   const cacheKey = payload.userId ? `user:${payload.userId}` : null;
   
   if (cacheKey) {
-    const cached = userCache.get(cacheKey);
+    const cached = followersCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }
@@ -107,7 +108,7 @@ export const getFollowersFromAuthServiceGrpc = async (userId, retries = 2) => {
         });
       });
       if (followers) {
-        userCache.set(cacheKey, {
+        followersCache.set(cacheKey, {
           data: followers,
           timestamp: Date.now()
         });
@@ -131,6 +132,11 @@ setInterval(() => {
   for (const [key, value] of userCache.entries()) {
     if (now - value.timestamp > CACHE_TTL) {
       userCache.delete(key);
+    }
+  }
+  for (const [key, value] of followersCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      followersCache.delete(key);
     }
   }
 }, CACHE_TTL);

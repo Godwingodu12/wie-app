@@ -1142,25 +1142,50 @@ function LocationMessage({ msg, isSender, isDark, themeStyles }: any) {
           : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
       }}
     >
-      {/* Map preview */}
+    {/* Map preview — fully local SVG, no external requests */}
       <div
         className="relative flex items-center justify-center"
         style={{ height: '90px', backgroundColor: isDark ? '#1a2035' : '#dbeafe', overflow: 'hidden' }}
       >
-        <img
-          src={`https://staticmap.openstreetmap.de/staticmap.php?center=${loc.latitude},${loc.longitude}&zoom=15&size=300x90&maptype=mapnik&markers=${loc.latitude},${loc.longitude},red`}
-          alt="map"
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-        />
+        {/* SVG fake map tile — zero network calls */}
+        <svg
+          width="100%"
+          height="90"
+          viewBox="0 0 230 90"
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ position: 'absolute', top: 0, left: 0 }}
+        >
+          {/* Background */}
+          <rect width="230" height="90" fill={isDark ? '#1a2035' : '#d1e8d1'} />
+
+          {/* Grid lines */}
+          {[23, 46, 69, 92, 115, 138, 161, 184, 207].map(x => (
+            <line key={`v${x}`} x1={x} y1="0" x2={x} y2="90" stroke={isDark ? '#2a3550' : '#b8d8b8'} strokeWidth="0.8" />
+          ))}
+          {[18, 36, 54, 72].map(y => (
+            <line key={`h${y}`} x1="0" y1={y} x2="230" y2={y} stroke={isDark ? '#2a3550' : '#b8d8b8'} strokeWidth="0.8" />
+          ))}
+
+          {/* Fake roads */}
+          <path d="M0 45 Q57 38 115 45 Q172 52 230 45" stroke={isDark ? '#3a4a6a' : '#ffffff'} strokeWidth="4" fill="none" />
+          <path d="M0 45 Q57 38 115 45 Q172 52 230 45" stroke={isDark ? '#4a5a7a' : '#f0f0f0'} strokeWidth="2" fill="none" strokeDasharray="none" />
+          <path d="M80 0 Q95 45 90 90" stroke={isDark ? '#3a4a6a' : '#ffffff'} strokeWidth="3" fill="none" />
+          <path d="M150 0 Q160 45 155 90" stroke={isDark ? '#3a4a6a' : '#ffffff'} strokeWidth="2" fill="none" />
+
+          {/* Park / block fills */}
+          <rect x="10" y="5" width="55" height="28" rx="3" fill={isDark ? '#1e3a2a' : '#c8e6c9'} opacity="0.7" />
+          <rect x="160" y="55" width="55" height="28" rx="3" fill={isDark ? '#1e3a2a' : '#c8e6c9'} opacity="0.7" />
+          <rect x="100" y="55" width="40" height="22" rx="3" fill={isDark ? '#2a2a3a' : '#e3e3e3'} opacity="0.6" />
+        </svg>
+
+        {/* Pin icon centred on top of the SVG */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {isLive && !expired
-            ? <Navigation size={26} style={{ color: '#34D399', filter: 'drop-shadow(0 0 4px rgba(52,211,153,0.7))' }} />
-            : <MapPin size={26} style={{ color: '#5494FF', filter: 'drop-shadow(0 0 4px rgba(84,148,255,0.6))' }} />
+            ? <Navigation size={26} style={{ color: '#34D399', filter: 'drop-shadow(0 0 4px rgba(52,211,153,0.7))', position: 'relative', zIndex: 2 }} />
+            : <MapPin size={26} style={{ color: '#5494FF', filter: 'drop-shadow(0 0 4px rgba(84,148,255,0.6))', position: 'relative', zIndex: 2 }} />
           }
         </div>
       </div>
-
       {/* Label */}
       <div className="px-3 py-2">
         {isLive && !expired ? (
@@ -1782,7 +1807,7 @@ function EventMessage({
     </div>
   );
 }
-// ─── Caption Sheet for Doc / Audio ────────────────────────────────────────────
+// ─── Caption Sheet for Doc / Audio 
 export function CaptionSheet({
   file,
   isDark,
