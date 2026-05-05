@@ -4347,6 +4347,12 @@ const UpdateTicketAddOns = () => {
                       preview={previews.event_banner}
                       onFileChange={handleMediaFileChange}
                       onRemove={removeSingleFile}
+                      onPreviewClick={() => {
+                        const file = previews.event_banner;
+                        if (!file) return;
+                        const url = typeof file === "string" ? file : file.data || file.url;
+                        if (url) openViewer(url, file.mimeType || "image/jpeg", file.name || "Event Banner");
+                      }}
                       darkMode={darkMode}
                       acceptedFiles=".jpg,.jpeg,.png,.webp"
                       maxSizeMB={1.5}
@@ -4362,6 +4368,12 @@ const UpdateTicketAddOns = () => {
                       preview={previews.event_portrait}
                       onFileChange={handleMediaFileChange}
                       onRemove={removeSingleFile}
+                      onPreviewClick={() => {
+                        const file = previews.event_portrait;
+                        if (!file) return;
+                        const url = typeof file === "string" ? file : file.data || file.url;
+                        if (url) openViewer(url, file.mimeType || "image/jpeg", file.name || "Portrait Image");
+                      }}
                       darkMode={darkMode}
                       acceptedFiles=".jpg,.jpeg,.png,.webp"
                       maxSizeMB={1.5}
@@ -4403,10 +4415,11 @@ const UpdateTicketAddOns = () => {
                             strategy={rectSortingStrategy}
                           >
                             {previews.event_images?.map((img) => (
-                              <SortablePhoto
+                               <SortablePhoto
                                 key={img.id}
                                 img={img}
                                 isReordering={isReorderingImages}
+                                aspectRatio={4 / 5}
                                 onRemove={(id) => removeImageFromList(id, 'event_images')}
                                 targetField="event_images"
                                 onPreview={(file) => {
@@ -4466,10 +4479,11 @@ const UpdateTicketAddOns = () => {
                             strategy={rectSortingStrategy}
                           >
                             {previews.event_videos?.map((vid) => (
-                              <SortablePhoto
+                               <SortablePhoto
                                 key={vid.id}
                                 img={vid}
                                 isReordering={isReorderingVideos}
+                                aspectRatio={9 / 16}
                                 onRemove={(id) => removeImageFromList(id, 'event_videos')}
                                 targetField="event_videos"
                                 onPreview={(file) => {
@@ -5461,6 +5475,15 @@ const UpdateTicketAddOns = () => {
           </main>
         </div>
       </div>
+      {fullScreenViewer && (
+        <FullScreenViewer
+          fileUrl={fullScreenViewer.url}
+          fileType={fullScreenViewer.mimeType}
+          fileName={fullScreenViewer.name}
+          onClose={closeViewer}
+          darkMode={darkMode}
+        />
+      )}
     </>
   );
 };
