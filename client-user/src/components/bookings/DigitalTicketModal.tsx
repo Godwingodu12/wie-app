@@ -5,6 +5,7 @@ import { toPng } from 'html-to-image';
 import { Loader2, Download, MapPin, Calendar, User, Ticket, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@/components/home/ThemeContext';
 import RippleButton from '@/components/ui/Ripple';
+import { getEventImage } from '@/utils/helpers';
 
 interface DigitalTicketModalProps {
   show: boolean;
@@ -33,26 +34,88 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${encodeURIComponent(qrData)}`;
 
+  const getBase64Image = async (url: string): Promise<string> => {
+    try {
+      const response = await fetch(url, { mode: 'cors' });
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn("Failed to fetch image for dataURL conversion, falling back to original URL", e);
+      return url;
+    }
+  };
+
   const handleDownload = async () => {
+    if (isDownloading) return;
+
     try {
       setIsDownloading(true);
       const targetElement = ticketRef.current;
       if (!targetElement) return;
 
-      // Temporarily remove shadow/border to prevent grey corner artifacts in export
-      const origShadow = targetElement.style.boxShadow;
-      const origBorder = targetElement.style.border;
+      // 1. Pre-load all images as data URLs to avoid CORS "tainted canvas" errors
+      const images = Array.from(targetElement.querySelectorAll('img'));
+      const originalSrcs = new Map<HTMLImageElement, string>();
+
+      // Wait for all images to be converted to data URLs
+      await Promise.all(images.map(async (img) => {
+        if (img.src && !img.src.startsWith('data:')) {
+          // Check if image is already loaded
+          if (!img.complete) {
+            await new Promise((resolve) => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            });
+          }
+
+          originalSrcs.set(img, img.src);
+          const dataUrl = await getBase64Image(img.src);
+
+          // Only update if we got a valid data URL
+          if (dataUrl.startsWith('data:')) {
+            img.src = dataUrl;
+            // Wait for this specific image to re-load as data URL
+            await new Promise((resolve) => {
+              const check = () => {
+                if (img.complete) resolve(null);
+                else setTimeout(check, 50);
+              };
+              check();
+            });
+          }
+        }
+      }));
+
+      // Final wait for any pending layout shifts
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Temporarily remove shadow/border to prevent artifacts
+      const originalStyle = targetElement.style.cssText;
       targetElement.style.boxShadow = 'none';
       targetElement.style.border = 'none';
+      targetElement.style.borderRadius = '32px';
 
       const dataUrl = await toPng(targetElement, {
-        pixelRatio: 3,
-        cacheBust: true,
+        pixelRatio: 2,
+        cacheBust: false,
+        backgroundColor: isDark ? '#121418' : '#ffffff',
+        style: {
+          margin: '0',
+          padding: '0',
+          transform: 'scale(1)',
+        }
       });
 
-      // Restore original styles
-      targetElement.style.boxShadow = origShadow;
-      targetElement.style.border = origBorder;
+      // Restore original styles and sources
+      targetElement.style.cssText = originalStyle;
+      originalSrcs.forEach((src, img) => {
+        img.src = src;
+      });
 
       const link = document.createElement('a');
       link.href = dataUrl;
@@ -62,6 +125,7 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
       document.body.removeChild(link);
     } catch (error) {
       console.error('Download failed:', error);
+      alert("Failed to save ticket due to browser security restrictions. Please take a screenshot of this page instead.");
     } finally {
       setIsDownloading(false);
     }
@@ -88,13 +152,14 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
         >
           {/* Header Section */}
           <div className={`p-6 sm:p-8 flex items-start flex-row border-b ${borderColor} ${isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]'}`}>
-            
+
             <div className="w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-lg bg-white/5 mr-5 sm:mr-7 ticket-img-container">
               <img
-                src={booking.eventDetails?.event_portrait || booking.eventDetails?.event_banner || booking.eventDetails?.image || '/placeholder.png'}
+                src={getEventImage(booking.eventDetails, booking.qrPayload)}
                 alt={booking.eventDetails?.eventName}
                 className="w-full h-full object-cover"
                 crossOrigin="anonymous"
+                loading="eager"
               />
             </div>
 
@@ -121,7 +186,7 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
 
           <div className="p-6 sm:px-8 sm:py-8">
             <div className="grid grid-cols-2 gap-y-8 gap-x-6">
-              
+
               <div className="flex flex-col">
                 <div className="text-[11px] font-bold uppercase tracking-widest text-[#8860D9] flex flex-row items-center mb-2 pb-0.5 overflow-visible">
                   <Calendar className="w-3.5 h-3.5 mr-2" />
@@ -211,11 +276,11 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
             variant="primary"
             onClick={handleDownload}
             disabled={isDownloading}
-            className="flex-1 !h-14 !rounded-2xl font-semibold"
+            className="flex-1 !h-14 !rounded-2xl font-bold bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] shadow-lg shadow-[#8860D9]/20 border-none"
           >
             <div className="flex items-center justify-center flex-row">
-              {isDownloading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Download className="w-5 h-5 mr-2" />}
-              <span>{isDownloading ? 'Saving...' : 'Save Ticket'}</span>
+              {isDownloading ? <Loader2 className="w-5 h-5 animate-spin mr-2.5" /> : <Download className="w-5 h-5 mr-2.5" />}
+              <span>{isDownloading ? 'SAVING...' : 'SAVE TICKET'}</span>
             </div>
           </RippleButton>
         </div>

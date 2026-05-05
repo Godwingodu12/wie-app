@@ -30,6 +30,7 @@ import CalendarIcon from '@/assets/Event/CalenderIcon.svg';
 import LocationIcon from '@/assets/Event/LocationIcon.svg';
 import DigitalTicketModal from '@/components/bookings/DigitalTicketModal';
 import BookingDetailSkeleton from '@/components/skeletons/BookingDetailSkeleton';
+import { getEventImage } from '@/utils/helpers';
 
 const LAYOUT = {
   SIDEBAR_EXPANDED_WIDTH: '281px',
@@ -111,7 +112,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
         style={{ background: isDark ? LAYOUT.BACKGROUND_DARK : themeStyles.background, color: themeStyles.text }}
       >
         <SideBar />
-        <div 
+        <div
           className="flex-1 transition-all duration-300 relative z-10"
           style={{ marginLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH) }}
         >
@@ -216,7 +217,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                   <div className="flex flex-col sm:flex-row gap-6 mb-8 items-center sm:items-start text-center sm:text-left">
                     <div className="w-36 h-48 sm:w-40 sm:h-56 rounded-xl overflow-hidden shrink-0 border border-white/10 shadow-2xl bg-white/5 transition-transform hover:scale-[1.02] duration-300">
                       <img
-                        src={booking.eventDetails.event_portrait || booking.eventDetails.event_banner || booking.eventDetails.image || '/placeholder.png'}
+                        src={getEventImage(booking.eventDetails, booking.qrPayload)}
                         alt={booking.eventDetails.eventName}
                         className="w-full h-full object-cover"
                       />
@@ -378,12 +379,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                   {(booking.qrPayload?.eventImage || booking.eventDetails?.event_portrait || booking.eventDetails?.event_banner || booking.eventDetails?.image) && (
                     <div className="w-full h-32 overflow-hidden">
                       <img
-                        src={
-                          booking.qrPayload?.eventImage ||
-                          booking.eventDetails?.event_portrait ||
-                          booking.eventDetails?.event_banner ||
-                          booking.eventDetails?.image
-                        }
+                        src={getEventImage(booking.eventDetails, booking.qrPayload)}
                         alt={booking.qrPayload?.eventName || booking.eventDetails?.eventName || 'Event'}
                         className="w-full h-full object-cover"
                         style={{ objectPosition: 'center top' }}
@@ -528,7 +524,6 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                         valueColor="text-emerald-400"
                       />
                     </div>
-
                     {/* Price breakdown (subtotal / tax / platform fee) */}
                     {(booking.qrPayload?.subtotal !== undefined || booking.subtotal) && (
                       <div
@@ -608,9 +603,9 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                   <div className="p-5 pt-4">
                     <Button
                       onClick={() => setShowSaveModal(true)}
-                      className="w-full h-13 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2.5 shadow-xl shadow-[#8860D9]/20 transition-all border-none"
+                      className="w-full h-12 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3.5 shadow-xl shadow-[#8860D9]/25 transition-all active:scale-[0.98] border-none"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                       Save Ticket
                     </Button>
                   </div>

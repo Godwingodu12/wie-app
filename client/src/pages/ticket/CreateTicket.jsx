@@ -40,8 +40,8 @@ const eventCategories = {
   "Entertainment & Performing Arts": ["Comedy Shows", "Magic Shows", "Circus Performances", "Stand up Comedy", "Improv Shows", "Drama Plays", "Musical Theatre", "Dance Performances", "Ballet Shows", "Street Performances", "Puppet Shows", "Mime Acts", "Talent Shows", "Reality Show Auditions", "Award Ceremonies", "Live Game Shows", "Variety Shows", "Flash Mob", "Stunt Shows", "Illusion Shows", "Drag Shows", "Burlesque Shows", "Carnival Performances", "Theme Park Shows", "Interactive Theatre", "Monologue Performances", "Storytelling Performances", "Cultural Stage Shows", "Broadway style Productions"],
   Dance: ["Recitals & Showcases", "Competitions & Galas", "Social Dance", "Dance Workshops", "Themed Dances", "Classical Dance", "Contemporary Dance", "Street & Urban Dance", "Bollywood & Tollywood Dance", "Folk & Traditional Dance", "K-pop Dance", "Ballet Performances", "Hip-Hop Battles", "Salsa & Bachata Nights", "Zumba Sessions", "Dance Marathons", "Flash Mob", "Dance Reality Show Auditions", "Choreography Showcases", "Intercollegiate Dance Fests", "Couples Dance Competitions", "Freestyle Dance Battles", "Latin Dance Festivals", "Ballroom Dance Competitions", "Breakdance", "Dance Fitness Events", "Garba & Dandiya Nights", "Fusion Dance Shows", "Dance Retreats", "International Dance Festivals", "Dance Film Screenings"],
   "Sports, Fitness, & Adventure": ["Sporting Competitions", "Marathons & Races", "Fitness Workshops", "Adventure Sports", "Camping & Hiking", "Turf Booking", "Wrestling", "Esports", "Cycling Events", "Triathlons", "Swimming Meets", "Football", "Cricket", "Badminton", "Basketball", "Volleyball Matches", "Table Tennis", "Kabaddi", "Athletics Meets", "Gymnastics Competitions", "Bodybuilding Championships", "CrossFit Competitions", "Yoga Retreats", "Meditation Camps", "Rock Climbing Events", "Trekking Expeditions", "Mountain Biking", "Surfing Competitions", "Skateboarding Events", "Self-Defense Workshops", "Martial Arts Tournaments", "Boxing Matches", "MMA Fights", "Car & Bike Rallies", "Motorsport Racing", "Obstacle Course Races", "Adventure Bootcamps", "Outdoor Survival Camps", "Fishing Tournaments", "Horse Riding"],
-  "Motorsport Racing": ["Formula Racing", "Stock Car Racing", "Touring Car Championships", "Motorcycle Grand Prix", "Superbike Racing", "Motocross Events", "Mud racing","Endurance Racing", "Drag Racing", "Street Circuit Racing", "Rally Racing", "Rallycross Events", "Karting Championships", "Go-Kart Races", "Drift Competitions", "Time Attack Events", "Hill Climb Races", "Off-Road Racing", "Desert Rally", "Autocross Events", "Track Day Events", "Time Trial Races", "Electric Vehicle Racing", "Vintage Car Racing", "Truck Racing", "Speedway Racing", "Ice Racing", "Demolition Derby", "Burnout Competitions", "Motorsport Exhibitions", "Custom Car Shows", "Auto Expos", "Motorcycle Stunt Shows", "Supercar Meetups", "4x4 Off-Road Challenges", "ATV Racing", "Jet Ski Racing", "Boat Racing", "Drone Racing League Events", "Sim Racing Tournaments"],
-  "Education & Learning": ["Workshop","Seminar","Technological learning", "Conferences & Summits", "Academic Competitions & MUNs", "Career Fairs & Counseling", "Public Lectures", "Bootcamps", "Certification Programs", "College Fests", "Webinars", "Startup Competitions", "Quiz Sessions", "Hackathons", "Coding Competitions", "Research Paper Presentations", "Science Fairs", "Robotics Competitions", "Debate Competitions", "Group Discussions", "Language Learning Sessions", "Skill Development Programs", "Teacher Training Programs", "Leadership Workshops", "Entrepreneurship Workshops", "Industry Networking Events", "Internship Drives", "Educational Expos", "Study Abroad Fairs", "Alumni Meetups", "Innovation Challenges", "Case Study Competitions", "Design Thinking Workshops", "Data Science Workshops", "AI & ML Bootcamps", "Financial Literacy Workshops", "Exam Preparation Sessions", "Scholarship Awareness Programs"],
+  "Motorsport Racing": ["Formula Racing", "Stock Car Racing", "Touring Car Championships", "Motorcycle Grand Prix", "Superbike Racing", "Motocross Events", "Mud racing", "Endurance Racing", "Drag Racing", "Street Circuit Racing", "Rally Racing", "Rallycross Events", "Karting Championships", "Go-Kart Races", "Drift Competitions", "Time Attack Events", "Hill Climb Races", "Off-Road Racing", "Desert Rally", "Autocross Events", "Track Day Events", "Time Trial Races", "Electric Vehicle Racing", "Vintage Car Racing", "Truck Racing", "Speedway Racing", "Ice Racing", "Demolition Derby", "Burnout Competitions", "Motorsport Exhibitions", "Custom Car Shows", "Auto Expos", "Motorcycle Stunt Shows", "Supercar Meetups", "4x4 Off-Road Challenges", "ATV Racing", "Jet Ski Racing", "Boat Racing", "Drone Racing League Events", "Sim Racing Tournaments"],
+  "Education & Learning": ["Workshop", "Seminar", "Technological learning", "Conferences & Summits", "Academic Competitions & MUNs", "Career Fairs & Counseling", "Public Lectures", "Bootcamps", "Certification Programs", "College Fests", "Webinars", "Startup Competitions", "Quiz Sessions", "Hackathons", "Coding Competitions", "Research Paper Presentations", "Science Fairs", "Robotics Competitions", "Debate Competitions", "Group Discussions", "Language Learning Sessions", "Skill Development Programs", "Teacher Training Programs", "Leadership Workshops", "Entrepreneurship Workshops", "Industry Networking Events", "Internship Drives", "Educational Expos", "Study Abroad Fairs", "Alumni Meetups", "Innovation Challenges", "Case Study Competitions", "Design Thinking Workshops", "Data Science Workshops", "AI & ML Bootcamps", "Financial Literacy Workshops", "Exam Preparation Sessions", "Scholarship Awareness Programs"],
   "Business & Innovation": ["Tech Expos", "Hackathons", "Product Launches", "Robotics Competitions", "Startup Events", "Trade Shows", "Networking Events", "Business Conferences", "Entrepreneurship Summits", "Investor Pitch Nights", "Venture Capital Meetups", "Angel Investor Forums", "Industry Panel Discussions", "Corporate Meetups", "B2B Meetings", "B2C Expos", "Innovation Showcases", "Startup Demo Days", "Incubator & Accelerator Programs", "Business Workshops", "Leadership Summits", "Marketing Conferences", "Sales Bootcamps", "E-commerce Expos", "FinTech Conferences", "AI & Tech Conferences", "Blockchain Summits", "SaaS Conferences", "Manufacturing Expos", "Franchise Exhibitions", "Business Award Ceremonies", "Corporate Training Programs", "Strategic Planning Workshops", "Business Networking Breakfasts", "Women in Business Events", "Young Entrepreneur Meetups"],
   "Food, Lifestyle, & Wellness": ["Food Festivals", "Wine Tastings", "Cooking Classes", "Yoga & Spiritual Retreats", "Mindfulness Workshops", "Fashion Shows", "Street Food Carnivals", "Baking Workshops", "Barista Workshops", "Cocktail Making Classes", "Beer Festivals", "Organic Food Markets", "Farmers Markets", "Vegan & Plant-Based Expos", "Health & Wellness Expos", "Meditation Sessions", "Sound Healing Sessions", "Ayurveda Workshops", "Nutrition Seminars", "Diet & Weight Loss Programs", "Fitness Retreats", "Spa & Detox Retreats", "Beauty & Skincare Workshops", "Makeup Masterclasses", "Personal Styling Sessions", "Sustainable Living Workshops", "Zero-Waste Lifestyle Events", "Home & Living Expos", "Interior Design Exhibitions", "Pet Wellness Events", "Holistic Healing Fairs", "Self-Care Workshops", "Mental Health Awareness Events", "Tea & Coffee Festivals", "Luxury Lifestyle Exhibitions"],
   "Film, Media, & Gaming": ["Film Festivals & Screenings", "Animation Showcases", "Board Game Nights", "Cosplay Conventions", "Movie Premieres", "Short Film Competitions", "Documentary Screenings", "Film Festivals", "Web Series Launches", "Fan Meetups", "Celebrity Meet & Greets", "Comic Cons", "Gaming Tournaments", "Esports Championships", "LAN Parties", "Game Launch Events", "Game Development Conferences", "VR & AR Experience Events", "Streaming & Content Creator Meetups", "Podcast Live Shows", "Photography Exhibitions", "Media & Journalism Conferences", "Film Making Workshops", "Script Writing Workshops", "Dubbing & Voice Acting Workshops", "Trailer Launch Events", "Red Carpet Events", "Movie Marathons", "Retro Film Nights", "Arcade Gaming Events", "Tabletop RPG Sessions", "Speedrunning Competitions", "Digital Art Showcases"],
@@ -60,7 +60,7 @@ const languageOptions = [
   "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
   "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
   "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
-  "Arabic", "Persian (Farsi)", "Hebrew","Swahili", "Zulu", "Afrikaans","Other"
+  "Arabic", "Persian (Farsi)", "Hebrew", "Swahili", "Zulu", "Afrikaans", "Other"
 ].map((lang) => ({ value: lang, label: lang }));
 
 const seatingOptions = [
@@ -315,38 +315,38 @@ const CreateTicket = () => {
       };
       const event_dates = ticketData.event_dates
         ? ticketData.event_dates.map((d) => {
-            // Helper to convert 24h to 12h format
-            const convertTo12HourFormat = (time24) => {
-              if (!time24) return { time: "", ampm: "" };
-              const [hours, minutes] = time24.split(":");
-              let hour = parseInt(hours, 10);
-              const ampm = hour >= 12 ? "PM" : "AM";
-              if (hour === 0) hour = 12;
-              else if (hour > 12) hour -= 12;
-              return {
-                time: `${hour.toString().padStart(2, "0")}:${minutes}`,
-                ampm,
-              };
-            };
-
-            const startTimeObj = convertTo12HourFormat(d.start_time);
-            const endTimeObj = convertTo12HourFormat(d.end_time);
-
+          // Helper to convert 24h to 12h format
+          const convertTo12HourFormat = (time24) => {
+            if (!time24) return { time: "", ampm: "" };
+            const [hours, minutes] = time24.split(":");
+            let hour = parseInt(hours, 10);
+            const ampm = hour >= 12 ? "PM" : "AM";
+            if (hour === 0) hour = 12;
+            else if (hour > 12) hour -= 12;
             return {
-              date: formatDateForInput(d.start_date),
-              endDate: formatDateForInput(d.end_date),
-              startTime: startTimeObj.time,
-              startAmPm: startTimeObj.ampm,
-              endTime: endTimeObj.time,
-              endAmPm: endTimeObj.ampm,
-              // Add online/recorded specific fields
-              eventLink: d.event_link || "",
-              videoName: d.video_name || "",
-              verificationCode: d.verification_event_code || "",
-              videoFile: d.video_file_path || null,
-              previewImage: d.preview_image_path || null,
+              time: `${hour.toString().padStart(2, "0")}:${minutes}`,
+              ampm,
             };
-          })
+          };
+
+          const startTimeObj = convertTo12HourFormat(d.start_time);
+          const endTimeObj = convertTo12HourFormat(d.end_time);
+
+          return {
+            date: formatDateForInput(d.start_date),
+            endDate: formatDateForInput(d.end_date),
+            startTime: startTimeObj.time,
+            startAmPm: startTimeObj.ampm,
+            endTime: endTimeObj.time,
+            endAmPm: endTimeObj.ampm,
+            // Add online/recorded specific fields
+            eventLink: d.event_link || "",
+            videoName: d.video_name || "",
+            verificationCode: d.verification_event_code || "",
+            videoFile: d.video_file_path || null,
+            previewImage: d.preview_image_path || null,
+          };
+        })
         : [];
       let eventLanguage = "";
       if (Array.isArray(ticketData.event_language)) {
@@ -379,34 +379,34 @@ const CreateTicket = () => {
         // Parse gate opening time into separate fields
         gate_open_hour: ticketData.gate_open_time
           ? (() => {
-              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-              let hour = time.getHours();
-              return hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-            })()
+            const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+            let hour = time.getHours();
+            return hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+          })()
           : "",
         gate_open_minute: ticketData.gate_open_time
           ? (() => {
-              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-              return time.getMinutes().toString().padStart(2, "0");
-            })()
+            const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+            return time.getMinutes().toString().padStart(2, "0");
+          })()
           : "",
         gate_open_ampm: ticketData.gate_open_time
           ? (() => {
-              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-              return time.getHours() >= 12 ? "PM" : "AM";
-            })()
+            const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+            return time.getHours() >= 12 ? "PM" : "AM";
+          })()
           : "",
         guests: ticketData.guests
           ? ticketData.guests.map((g) => ({
-              id: g._id || g.id || Date.now() + Math.random(),
-              name: g.guest_name || g.name || "",
-              guest_name: g.guest_name || g.name || "",
-              link: g.guest_link || g.link || "",
-              guest_link: g.guest_link || g.link || "",
-              image: getImageUrl(g.guest_profile) || g.guest_profile || g.image,
-              guest_profile: g.guest_profile || g.image,
-              rawFile: null, // Existing images don't have rawFile
-            }))
+            id: g._id || g.id || Date.now() + Math.random(),
+            name: g.guest_name || g.name || "",
+            guest_name: g.guest_name || g.name || "",
+            link: g.guest_link || g.link || "",
+            guest_link: g.guest_link || g.link || "",
+            image: getImageUrl(g.guest_profile) || g.guest_profile || g.image,
+            guest_profile: g.guest_profile || g.image,
+            rawFile: null, // Existing images don't have rawFile
+          }))
           : [],
         event_rules: ticketData.event_rules || { type: "text", content: "" },
         prohibited_items: ticketData.prohibited_items || [],
@@ -620,11 +620,11 @@ const CreateTicket = () => {
         // Use form data coordinates if available, otherwise use initial location
         const initialCenter =
           formData.exact_map_location.latitude &&
-          formData.exact_map_location.longitude
+            formData.exact_map_location.longitude
             ? {
-                lat: parseFloat(formData.exact_map_location.latitude),
-                lng: parseFloat(formData.exact_map_location.longitude),
-              }
+              lat: parseFloat(formData.exact_map_location.latitude),
+              lng: parseFloat(formData.exact_map_location.longitude),
+            }
             : INITIAL_MAP_LOCATION;
 
         // Clean up existing map first
@@ -862,13 +862,8 @@ const CreateTicket = () => {
       isFormValid = false;
     };
 
-    const safeTextRegex = /^[a-zA-Z0-9\s.,\-\/\(\)&']+$/;
+    // No validation for event_name as per user request
 
-    if (!formData.event_name.trim()) {
-      addError("event_name", "Event name is required.");
-    } else if (!safeTextRegex.test(formData.event_name.trim())) {
-      addError("event_name", "Event name contains invalid special characters.");
-    }
     if (!formData.event_category) {
       addError("event_category", "Event category is required.");
     }
@@ -889,9 +884,8 @@ const CreateTicket = () => {
       }
       if (!formData.venue.trim()) {
         addError("venue", "Event venue is required for offline events.");
-      } else if (!safeTextRegex.test(formData.venue.trim())) {
-        addError("venue", "Event venue contains invalid special characters.");
       }
+
       if (!formData.seating_arrangement) {
         addError(
           "seating_arrangement",
@@ -1120,33 +1114,33 @@ const CreateTicket = () => {
       return;
     }
 
-const youtubeRegex =
-  /^https:\/\/www\.(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+    const youtubeRegex =
+      /^https:\/\/www\.(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
 
-if (
-  formData.event_youtube_link &&
-  !youtubeRegex.test(formData.event_youtube_link)
-) {
-  addError(
-    "event_youtube_link",
-    "Please use a valid format like 'https://www.youtube.com/watch?v=VIDEO_ID'."
-  );
-}
+    if (
+      formData.event_youtube_link &&
+      !youtubeRegex.test(formData.event_youtube_link)
+    ) {
+      addError(
+        "event_youtube_link",
+        "Please use a valid format like 'https://www.youtube.com/watch?v=VIDEO_ID'."
+      );
+    }
 
-const instagramRegex =
-  /^https:\/\/www\.instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+    const instagramRegex =
+      /^https:\/\/www\.instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
 
-if (
-  formData.event_instagram_link &&
-  !instagramRegex.test(formData.event_instagram_link)
-) {
-  if (!firstErrorField) {
-    addError(
-      "event_instagram_link",
-      "Please enter a valid profile link, like 'https://www.instagram.com/username'."
-    );
-  }
-}
+    if (
+      formData.event_instagram_link &&
+      !instagramRegex.test(formData.event_instagram_link)
+    ) {
+      if (!firstErrorField) {
+        addError(
+          "event_instagram_link",
+          "Please enter a valid profile link, like 'https://www.instagram.com/username'."
+        );
+      }
+    }
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
     if (formData.event_dates && formData.event_dates.length > 0) {
@@ -1383,17 +1377,15 @@ if (
       showAlert({
         type: "success",
         message: formData.event_name,
-        description: `Successfully ${
-          isEditMode ? "updated" : "added"
-        } your event.`,
+        description: `Successfully ${isEditMode ? "updated" : "added"
+          } your event.`,
       });
 
       setTimeout(() => {
         navigate(`/ticket/update-ticket-media/${newTicketId}`, {
           state: {
-            message: `${
-              isEditMode ? "Event updated" : "Event created"
-            } successfully!`,
+            message: `${isEditMode ? "Event updated" : "Event created"
+              } successfully!`,
             newEvent: response.data,
             ticketId: newTicketId,
           },
@@ -1407,9 +1399,8 @@ if (
           type: "error",
           message: "Duplicate Event Detected",
           description: conflictDetails
-            ? `An event with similar details already exists. ${
-                conflictDetails.suggestion || ""
-              }`
+            ? `An event with similar details already exists. ${conflictDetails.suggestion || ""
+            }`
             : "An event with the same name, location, and overlapping dates already exists.",
         });
       } else {
@@ -1490,21 +1481,14 @@ if (
     const trimmedName = poc.POC_name.trim();
     const trimmedEmail = poc.POC_email.trim();
     const trimmedContact = poc.POC_contact.trim();
-    const simpleNameRegex = /^[a-zA-Z\s]+$/;
-    const contactRegex = /^[0-9\s\+]+$/;
-
     const tempPocErrors = {};
     let pocInputValid = true;
     let pocAlertDescription = "";
-    // 1. Check for empty fields first
+
     if (!trimmedName) {
       tempPocErrors.POC_name = true;
       pocInputValid = false;
       pocAlertDescription = "POC Name is required.";
-    } else if (!simpleNameRegex.test(trimmedName)) {
-      tempPocErrors.POC_name = true;
-      pocInputValid = false;
-      pocAlertDescription = "POC Name must only contain letters and spaces.";
     }
 
     if (!trimmedEmail) {
@@ -1518,13 +1502,8 @@ if (
       pocInputValid = false;
       if (pocInputValid)
         pocAlertDescription = "POC Contact Number is required.";
-    } else if (!contactRegex.test(trimmedContact)) {
-      tempPocErrors.POC_contact = true;
-      pocInputValid = false;
-      if (pocInputValid)
-        pocAlertDescription =
-          'POC Contact must only contain numbers, spaces, or "+".';
     }
+
 
     if (!pocInputValid) {
       showAlert({
@@ -1711,11 +1690,10 @@ if (
             <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mt-4 mb-12">
                 <div
-                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
-                    darkMode
-                      ? "bg-[#1E1242] text-gray-300"
-                      : "bg-[#1E1242] text-gray-300"
-                  }`}
+                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${darkMode
+                    ? "bg-[#1E1242] text-gray-300"
+                    : "bg-[#1E1242] text-gray-300"
+                    }`}
                 >
                   {/* --- FIX: Replaced Emoji with Icon --- */}
                   <img
@@ -1753,7 +1731,7 @@ if (
                     placeholder="Enter your event name here..."
                     info="The public title of your event."
                     error={errors.event_name} // Pass the error state
-                    required={true} // This adds the red asterisk
+                    required={true}
                     darkMode={darkMode}
                     ref={(el) => (errorFieldRefs.current.event_name = el)}
                   />
@@ -1814,10 +1792,9 @@ if (
                             onChange={handleInputChange}
                             placeholder="Type your custom subcategory..."
                             className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                              ${
-                                errors.event_subcategory
-                                  ? "border-red-500"
-                                  : darkMode
+                              ${errors.event_subcategory
+                                ? "border-red-500"
+                                : darkMode
                                   ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
                                   : "bg-white text-black border-black"
                               }`}
@@ -1836,9 +1813,9 @@ if (
                           value={
                             formData.event_subcategory
                               ? subCategoryOptions.find(
-                                  (option) =>
-                                    option.value === formData.event_subcategory
-                                )
+                                (option) =>
+                                  option.value === formData.event_subcategory
+                              )
                               : null
                           }
                           onChange={handleSelectChange}
@@ -1917,11 +1894,10 @@ if (
                           key={type}
                           type="button"
                           onClick={() => handleLocationTypeChange(type)}
-                          className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                            formData.location_type === type.toLowerCase()
-                              ? "bg-[#10B981] text-white shadow-lg"
-                              : "bg-gray-200 dark:bg-[#374151] text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                          }`}
+                          className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${formData.location_type === type.toLowerCase()
+                            ? "bg-[#10B981] text-white shadow-lg"
+                            : "bg-gray-200 dark:bg-[#374151] text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                            }`}
                         >
                           {type}
                         </button>
@@ -2251,11 +2227,10 @@ if (
                               value={formData.gate_open_hour || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${
-                                        darkMode
-                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-black"
-                                      }`}
+                                      ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 Hour
@@ -2277,11 +2252,10 @@ if (
                               value={formData.gate_open_minute || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${
-                                        darkMode
-                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-black"
-                                      }`}
+                                      ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 Minute
@@ -2303,11 +2277,10 @@ if (
                               value={formData.gate_open_ampm || ""}
                               onChange={handleInputChange}
                               className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${
-                                        darkMode
-                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-black"
-                                      }`}
+                                      ${darkMode
+                                  ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                  : "bg-white text-black border-black"
+                                }`}
                             >
                               <option value="" disabled>
                                 AM/PM
@@ -2355,9 +2328,8 @@ if (
                         return (
                           <div
                             key={guest.id}
-                            className={`rounded-lg p-3 flex items-center justify-between ${
-                              darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
-                            }`}
+                            className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
+                              }`}
                           >
                             <div className="flex items-center gap-3">
                               <img
@@ -2378,11 +2350,10 @@ if (
                             <button
                               type="button"
                               onClick={() => handleEditGuest(guest)}
-                              className={`p-2 ${
-                                darkMode
-                                  ? "text-gray-400 hover:text-white"
-                                  : "text-black hover:text-black"
-                              }`}
+                              className={`p-2 ${darkMode
+                                ? "text-gray-400 hover:text-white"
+                                : "text-black hover:text-black"
+                                }`}
                             >
                               <svg
                                 className="w-4 h-4"
@@ -2416,45 +2387,40 @@ if (
                       Rules and regulations (Optional)
                     </label>
                     <div
-                      className={`bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-black"
-                      }`}
+                      className={`bg-transparent border rounded-lg ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                        }`}
                     >
                       <div
-                        className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-black"
-                        } flex items-center space-x-1`}
+                        className={`p-2 border-b ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                          } flex items-center space-x-1`}
                       >
                         <button
                           type="button"
                           onClick={() => handleFormat("bold")}
-                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           B
                         </button>
                         <button
                           type="button"
                           onClick={() => handleFormat("italic")}
-                          className={`w-8 h-8 flex items-center justify-center rounded italic ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded italic ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           I
                         </button>
                         <button
                           type="button"
                           onClick={() => handleFormat("underline")}
-                          className={`w-8 h-8 flex items-center justify-center rounded underline ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded underline ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           U
                         </button>
@@ -2491,11 +2457,10 @@ if (
                     <div>
                       <label
                         htmlFor="rule-file-upload"
-                        className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${
-                          darkMode
-                            ? "border-gray-600 hover:bg-gray-700"
-                            : "border-black hover:bg-gray-100"
-                        }`}
+                        className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${darkMode
+                          ? "border-gray-600 hover:bg-gray-700"
+                          : "border-black hover:bg-gray-100"
+                          }`}
                       >
                         Attach document
                         <svg
@@ -2520,9 +2485,8 @@ if (
                       />
                       {formData.event_rules_file && (
                         <span
-                          className={`ml-4 text-sm ${
-                            darkMode ? "text-gray-400" : "text-gray-600"
-                          }`}
+                          className={`ml-4 text-sm ${darkMode ? "text-gray-400" : "text-gray-600"
+                            }`}
                         >
                           {formData.event_rules_file.name}
                         </span>
@@ -2548,21 +2512,19 @@ if (
                       {formData.prohibited_items.map((item) => (
                         <div
                           key={item}
-                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-                            darkMode
-                              ? "bg-[#2B2B2B] text-gray-300"
-                              : "bg-gray-200 text-gray-700"
-                          }`}
+                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${darkMode
+                            ? "bg-[#2B2B2B] text-gray-300"
+                            : "bg-gray-200 text-gray-700"
+                            }`}
                         >
                           <span>{item}</span>
                           <button
                             type="button"
                             onClick={() => removeProhibitedItem(item)}
-                            className={`${
-                              darkMode
-                                ? "text-black hover:text-white"
-                                : "text-gray-400 hover:text-black"
-                            }`}
+                            className={`${darkMode
+                              ? "text-black hover:text-white"
+                              : "text-gray-400 hover:text-black"
+                              }`}
                           >
                             🗑️
                           </button>
@@ -2582,49 +2544,44 @@ if (
                       Describe your event how it is
                     </p>
                     <div
-                      className={`mt-4 bg-transparent border rounded-lg transition-colors duration-300 ${
-                        errors.event_description
-                          ? "border-red-500"
-                          : darkMode
+                      className={`mt-4 bg-transparent border rounded-lg transition-colors duration-300 ${errors.event_description
+                        ? "border-red-500"
+                        : darkMode
                           ? "border-[#4A4A4A]"
                           : "border-black"
-                      }`}
+                        }`}
                     >
                       <div
-                        className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-black"
-                        } flex items-center space-x-1`}
+                        className={`p-2 border-b ${darkMode ? "border-[#4A4A4A]" : "border-black"
+                          } flex items-center space-x-1`}
                       >
                         <button
                           type="button"
                           onClick={() => handleFormat("bold")}
-                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded font-bold ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           B
                         </button>
                         <button
                           type="button"
                           onClick={() => handleFormat("italic")}
-                          className={`w-8 h-8 flex items-center justify-center rounded italic ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded italic ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           I
                         </button>
                         <button
                           type="button"
                           onClick={() => handleFormat("underline")}
-                          className={`w-8 h-8 flex items-center justify-center rounded underline ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-200 hover:bg-gray-300"
-                          }`}
+                          className={`w-8 h-8 flex items-center justify-center rounded underline ${darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                            }`}
                         >
                           U
                         </button>
@@ -2774,11 +2731,10 @@ if (
                 <div className="pt-8 flex justify-end gap-4">
                   <button
                     type="button"
-                    className={`px-8 py-3 rounded-lg font-semibold ${
-                      darkMode
-                        ? "bg-gray-700 hover:bg-gray-600"
-                        : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                    }`}
+                    className={`px-8 py-3 rounded-lg font-semibold ${darkMode
+                      ? "bg-gray-700 hover:bg-gray-600"
+                      : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      }`}
                     onClick={handleBack}
                   >
                     Go back
