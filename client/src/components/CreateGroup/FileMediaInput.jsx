@@ -1,6 +1,6 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import InfoTooltip from "./InfoTooltip";
-import { FiTrash2, FiUpload, FiCheck, FiX, FiEye } from "react-icons/fi";
+import { FiTrash2, FiUpload, FiCheck, FiX, FiEye, FiMaximize2, FiMinimize2, FiRefreshCcw, FiRotateCcw, FiZoomIn, FiZoomOut, FiLoader } from "react-icons/fi";
 import Cropper from "react-easy-crop";
 
 const FileMediaInput = ({
@@ -26,6 +26,28 @@ const FileMediaInput = ({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [lockAspect, setLockAspect] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!imageToCrop) return;
+      if (e.key === "Escape") {
+        setImageToCrop(null);
+        setZoom(1);
+      }
+      if (e.key === "Enter" && !isProcessing) {
+        createCroppedImage();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [imageToCrop, isProcessing]);
+
+  const resetCropper = () => {
+    setZoom(1);
+    setCrop({ x: 0, y: 0 });
+  };
   const getPreviewUrl = () => {
     if (!preview) return null;
     if (typeof preview === "string") return preview;
@@ -39,6 +61,9 @@ const FileMediaInput = ({
   const onInternalFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Reset input value so the same file can be selected again
+    e.target.value = "";
 
     // If it's a document or no crop is needed, skip to standard handler
     if (isDocument || !file.type.startsWith("image/")) {
@@ -56,40 +81,62 @@ const FileMediaInput = ({
   }, []);
 
   const createCroppedImage = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       const image = new Image();
       image.src = imageToCrop;
-      await new Promise((res) => (image.onload = res));
+      await new Promise((res, rej) => {
+        image.onload = res;
+        image.onerror = rej;
+      });
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
-      // Output resolution based on aspect ratio:
-      // 1920×720  → banner (aspectRatio = 16/9 ≈ 2.67)  — actually use 1920×720
-      // 1080×1350 → portrait (aspectRatio = 4/5 = 0.8)
-      // 1:1       → logo/square
+      // Calculate output dimensions
       let outputWidth, outputHeight;
 
-      if (Math.abs(aspectRatio - 16 / 9) < 0.1) {
-        // Banner: 1920×1080
-        outputWidth = 1920;
-        outputHeight = 1080;
-      } else if (Math.abs(aspectRatio - 1920 / 720) < 0.1) {
-        // Legacy Banner: 1920×720
-        outputWidth = 1920;
-        outputHeight = 720;
-      } else if (Math.abs(aspectRatio - 1080 / 1350) < 0.1 || Math.abs(aspectRatio - 3 / 4) < 0.1) {
-        // Portrait: 1080×1350
-        outputWidth = 1080;
-        outputHeight = 1350;
+      // Try to parse resolution from prop (e.g. "1920x1080")
+      let targetWidth = null;
+      let targetHeight = null;
+      if (resolution && typeof resolution === "string" && resolution.includes("x")) {
+        const parts = resolution.split("x");
+        targetWidth = parseInt(parts[0], 10);
+        targetHeight = parseInt(parts[1], 10);
+      }
+
+      if (lockAspect) {
+        if (targetWidth && targetHeight) {
+          outputWidth = targetWidth;
+          outputHeight = targetHeight;
+        } else {
+          // Fallback to smart defaults based on aspect ratio
+          if (Math.abs(aspectRatio - 16 / 9) < 0.1 || Math.abs(aspectRatio - 1920 / 1080) < 0.1) {
+            outputWidth = 1920; outputHeight = 1080;
+          } else if (Math.abs(aspectRatio - 1920 / 720) < 0.1) {
+            outputWidth = 1920; outputHeight = 720;
+          } else if (Math.abs(aspectRatio - 0.8) < 0.1) {
+            outputWidth = 1080; outputHeight = 1350;
+          } else {
+            outputWidth = 1200;
+            outputHeight = Math.round(1200 / aspectRatio);
+          }
+        }
       } else {
-        // Default square (logo): 800×800
-        outputWidth = 800;
-        outputHeight = 800;
+        // For free-form, use cropped pixels but cap for performance
+        const MAX_DIM = 2000;
+        const scale = Math.min(MAX_DIM / croppedAreaPixels.width, MAX_DIM / croppedAreaPixels.height, 1);
+        outputWidth = Math.round(croppedAreaPixels.width * scale);
+        outputHeight = Math.round(croppedAreaPixels.height * scale);
       }
 
       canvas.width = outputWidth;
       canvas.height = outputHeight;
+
+      // Fill background white for transparent images (common for logos/banners)
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, outputWidth, outputHeight);
 
       ctx.drawImage(
         image,
@@ -108,99 +155,163 @@ const FileMediaInput = ({
         const syntheticEvent = { target: { files: [croppedFile] } };
         onFileChange(syntheticEvent, id);
         setImageToCrop(null);
+        setIsProcessing(false);
       }, "image/jpeg", 0.92);
     } catch (e) {
       console.error("Crop error:", e);
+      setIsProcessing(false);
     }
   };
 
   return (
     <div className="w-full mb-6">
       {imageToCrop && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 animate-in fade-in">
-          <div
-            className={`relative w-full bg-[#1a1a1a]/90 backdrop-blur-xl rounded-t-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 border-x border-t border-white/10 ${aspectRatio >= 1 ? "max-w-xl sm:max-w-2xl" : "max-w-xs sm:max-w-sm"
-              } h-[35vh] sm:h-[45vh] md:h-[50vh]`}
-          >
-            <Cropper
-              image={imageToCrop}
-              crop={crop}
-              zoom={zoom}
-              aspect={lockAspect ? aspectRatio : undefined}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-            />
-          </div>
-
-          <div
-            className={`w-full bg-[#2b2b2b]/90 backdrop-blur-xl p-4 sm:p-5 rounded-b-2xl flex flex-col gap-4 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 border-x border-b border-white/10 ${aspectRatio >= 1 ? "max-w-xl sm:max-w-2xl" : "max-w-xs sm:max-w-sm"
-              }`}
-          >
-            {/* Unlock hint shown only when locked */}
-            {lockAspect && (
-              <div className="flex items-center justify-between bg-[#1e1e1e] rounded-lg px-3 py-2">
-                <span className="text-xs text-gray-400">
-                  🔒 Crop is locked to the recommended ratio. Unlock to crop freely from all sides.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLockAspect(false)}
-                  className="ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg whitespace-nowrap transition-colors"
-                >
-                  Unlock Crop
-                </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 dark:bg-black/90 backdrop-blur-xl p-4 sm:p-6 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-4xl flex flex-col h-[90vh] bg-white dark:bg-[#121212] rounded-3xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-black/40">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <FiMaximize2 size={20} />
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="text-gray-900 dark:text-white font-bold text-lg leading-tight">
+                    Refine Image
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">Crop and zoom to fit the layout perfectly</p>
+                </div>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => {
+                  setImageToCrop(null);
+                  setZoom(1);
+                }}
+                className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl transition-all text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
 
-            {/* Unlocked hint */}
-            {!lockAspect && (
-              <div className="flex items-center justify-between bg-[#1e1e1e] rounded-lg px-3 py-2">
-                <span className="text-xs text-gray-400">
-                  🔓 Free crop enabled — drag any side or corner to resize.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLockAspect(true)}
-                  className="ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-lg whitespace-nowrap transition-colors"
-                >
-                  Reset Ratio
-                </button>
-              </div>
-            )}
+            {/* Cropper Container */}
+            <div className="relative flex-1 bg-gray-50 dark:bg-[#0a0a0a]">
+              <Cropper
+                image={imageToCrop}
+                crop={crop}
+                zoom={zoom}
+                aspect={lockAspect ? aspectRatio : undefined}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
 
-            {/* Zoom + Action buttons */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-1">
-                <span className="text-xs text-gray-400 whitespace-nowrap">Zoom</span>
-                <input
-                  type="range"
-                  value={zoom}
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <div className="flex gap-3 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImageToCrop(null);
-                    setLockAspect(true); // reset for next time
-                  }}
-                  className="px-4 py-2 text-sm text-white bg-gray-700 rounded-lg hover:bg-gray-600 flex items-center gap-2"
-                >
-                  <FiX /> Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={createCroppedImage}
-                  className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center gap-2 font-semibold"
-                >
-                  <FiCheck /> Save Crop
-                </button>
+            {/* Controls */}
+            <div className="p-4 sm:p-6 bg-white dark:bg-[#121212] border-t border-gray-100 dark:border-white/10 overflow-y-auto max-h-[40vh] sm:max-h-none">
+              <div className="max-w-4xl mx-auto space-y-5 sm:space-y-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8 items-end">
+                  {/* Zoom Control */}
+                  <div className="space-y-2 sm:space-y-4">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        Zoom
+                      </label>
+                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-lg">
+                        {Math.round(zoom * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <FiZoomOut className="text-gray-400" size={14} />
+                      <input
+                        type="range"
+                        value={zoom}
+                        min={1}
+                        max={3}
+                        step={0.01}
+                        onChange={(e) => setZoom(Number(e.target.value))}
+                        className="flex-1 h-1 bg-gray-100 dark:bg-white/5 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                      />
+                      <FiZoomIn className="text-gray-400" size={14} />
+                    </div>
+                  </div>
+
+                  {/* Aspect Ratio Toggle */}
+                  <div className="space-y-2 sm:space-y-4">
+                    <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] block">
+                      Aspect Ratio
+                    </label>
+                    <div className="flex p-1 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-100 dark:border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => setLockAspect(true)}
+                        className={`flex-1 py-2 px-2 sm:px-3 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${lockAspect
+                          ? "bg-white dark:bg-white/10 text-indigo-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                          : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          }`}
+                      >
+                        <FiMinimize2 size={12} className="shrink-0" />
+                        <span className="truncate max-w-[100px] sm:max-w-none">
+                          {aspectRatio === 1 ? "Square (1:1)" : aspectRatio === 16 / 9 ? "16:9" : resolution || `Locked (${aspectRatio?.toFixed(1) || 1})`}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLockAspect(false)}
+                        className={`flex-1 py-2 px-2 sm:px-3 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${!lockAspect
+                          ? "bg-white dark:bg-white/10 text-indigo-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                          : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          }`}
+                      >
+                        <FiMaximize2 size={12} className="shrink-0" /> <span className="truncate">Free</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset Button */}
+                  <div className="flex justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={resetCropper}
+                      className="flex items-center justify-center w-full sm:w-auto gap-2 px-4 py-2 bg-gray-50 dark:bg-white/5 sm:bg-transparent sm:dark:bg-transparent rounded-xl sm:rounded-none text-xs font-bold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors group border border-gray-100 dark:border-white/5 sm:border-none"
+                    >
+                      <FiRefreshCcw size={14} className="group-hover:rotate-[-45deg] transition-transform" />
+                      Reset View
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex flex-row items-center justify-between sm:justify-end gap-3 pt-5 sm:pt-6 border-t border-gray-100 dark:border-white/5">
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={() => {
+                      setImageToCrop(null);
+                      setZoom(1);
+                    }}
+                    className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl text-gray-500 dark:text-gray-400 font-bold text-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all disabled:opacity-50 text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={createCroppedImage}
+                    className="flex-[2] sm:flex-none px-4 sm:px-10 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 active:scale-[0.98] disabled:bg-indigo-400 whitespace-nowrap"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <FiLoader size={18} className="animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FiCheck size={18} />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -212,75 +323,90 @@ const FileMediaInput = ({
       </label>
 
       <div
-        className={`relative flex items-center justify-between p-4 rounded-xl bg-transparent border-2 border-dashed border-gray-600 hover:border-indigo-500 transition-all ${error ? "border-red-500" : ""
-          }`}
+        className={`relative flex items-center justify-between p-5 rounded-2xl bg-gray-50/50 dark:bg-white/[0.02] border-2 border-dashed ${error ? "border-red-500/50 bg-red-50/10" : "border-gray-200 dark:border-white/10 hover:border-indigo-500/50 dark:hover:border-indigo-500/50"
+          } transition-all group/container`}
       >
-        {/* ... (Existing Content Logic - Left & Middle) ... */}
         {!preview ? (
-          <div className="flex gap-12">
-            <div className="flex flex-col text-left">
-              <p className="text-sm text-gray-400">
-                Drag your file(s) or <span className="text-white font-semibold">browse</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Only {acceptedFiles.replace(/\./g, "")} files allowed</p>
-              {resolution && <p className="text-xs text-gray-500 italic">Resolution: ({resolution})</p>}
+          <div className="flex flex-1 items-center gap-6">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover/container:text-indigo-500 transition-colors">
+              <FiUpload size={24} />
             </div>
-            <div className="flex flex-col text-center" >
-              <p className="text-sm text-gray-400"> Max Size</p>
-              {maxSizeMB && <p className="text-xs text-gray-500 ">{maxSizeMB} MB</p>}
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col text-left">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Drag and drop or <span className="text-gray-900 dark:text-white font-bold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" onClick={() => fileInputRef.current.click()}>browse</span>
+                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{acceptedFiles.replace(/\./g, "")}</p>
+                  {resolution && (
+                    <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-white/10" />
+                  )}
+                  {resolution && <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{resolution}</p>}
+                </div>
+              </div>
+              <div className="flex flex-col items-start sm:items-end sm:text-right" >
+                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Max Size</p>
+                {maxSizeMB && <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{maxSizeMB} MB</p>}
+              </div>
             </div>
           </div>
-
         ) : (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-1">
             {!isDocument && previewUrl && (
-              <div 
-                className={`relative group rounded border border-gray-600 overflow-hidden bg-black/20 ${
-                  aspectRatio ? "" : "w-12 h-12"
-                }`}
-                style={aspectRatio ? { 
-                  width: aspectRatio > 1 ? "120px" : "64px",
+              <div
+                className={`relative group rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden bg-black/5 dark:bg-black/20 shadow-inner ${aspectRatio ? "" : "w-14 h-14"
+                  }`}
+                style={aspectRatio ? {
+                  width: aspectRatio > 1.5 ? "140px" : "80px",
                   aspectRatio: `${aspectRatio}`
                 } : {}}
               >
                 <img
                   src={previewUrl}
                   alt="preview"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                 />
                 <div
-                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded cursor-pointer"
+                  className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer"
                   onClick={onPreviewClick}
                 >
-                  <FiEye className="text-white w-5 h-5" />
+                  <FiEye className="text-white w-6 h-6 transform scale-75 group-hover:scale-100 transition-transform" />
                 </div>
               </div>
             )}
-            <div className="flex flex-col">
-              <span className="text-sm text-white font-medium truncate max-w-[150px]">
-                {typeof preview === "object" ? preview.name : "Uploaded File"}
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm text-gray-900 dark:text-white font-bold truncate pr-4">
+                {typeof preview === "object" ? preview.name : "Uploaded Asset"}
               </span>
-              <span className="text-xs text-green-500">File uploaded</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+                <span className="text-[10px] font-bold text-green-600 dark:text-green-500 uppercase tracking-wider">Ready to use</span>
+              </div>
             </div>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 ml-4">
           <button
             type="button"
             onClick={() => fileInputRef.current.click()}
-            className={`flex items-center gap-2 px-4 py-2 ${preview ? 'bg-[#333]' : 'bg-indigo-600'} text-white text-sm rounded-lg transition-colors`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${preview
+              ? 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+              : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-600/10'
+              }`}
           >
-            <FiUpload /> {preview ? "Replace" : "Browse file"}
+            {preview ? <FiRefreshCcw size={14} /> : <FiUpload size={14} />}
+            <span className="hidden sm:inline">{preview ? "Replace" : "Select File"}</span>
           </button>
           {preview && (
             <button
               type="button"
               onClick={() => onRemove(id)}
-              className="p-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-lg transition-colors"
+              className="p-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-xl transition-all border border-red-100 dark:border-red-500/10"
+              title="Remove file"
             >
-              <FiTrash2 size={18} />
+              <FiTrash2 size={16} />
             </button>
           )}
         </div>
