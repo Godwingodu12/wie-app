@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Calendar, ArrowUpRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { EventWithLocation } from '@/types/ticket';
 import { useTheme } from '@/components/home/ThemeContext';
 
@@ -14,18 +16,18 @@ interface PopularEventBannerProps {
 export default function PopularEventBanner({
   events,
   onViewAll,
-  title = "Popular event",
+  title = "Popular Events",
 }: PopularEventBannerProps) {
   const router = useRouter();
-  const { themeStyles, isDark } = useTheme();
+  const { themeStyles } = useTheme();
   const [active, setActive] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const reset = useCallback(() => {
+  const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setActive((p) => (p + 1) % events.length);
-    }, 3000);
+    }, 6000);
   }, [events.length]);
 
   useEffect(() => {
@@ -33,122 +35,109 @@ export default function PopularEventBanner({
       setActive(0);
       return;
     }
-    reset();
+    resetTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [reset, events.length]);
+  }, [resetTimer, events.length]);
 
   if (!events.length) return null;
 
-  const ev = events[active];
+  const currentEvent = events[active];
+  if (!currentEvent) return null;
 
-  if (!ev) return null;
-
-  // Desktop: event_banner, Mobile: event_portrait (fallback to event_banner)
-  const desktopSrc = (ev as any).event_banner || null;
-  const mobileSrc  = (ev as any).event_portrait || (ev as any).event_banner || null;
+  const desktopImage = (currentEvent as any).event_banner || null;
+  const mobileImage  = (currentEvent as any).event_portrait || (currentEvent as any).event_banner || null;
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-lg" style={{ color: themeStyles.text }}>{title}</h2>
+    <div className="mb-14 px-4 sm:px-0">
+      {/* Header Section */}
+      <div className="flex items-end justify-between mb-6 px-1">
+        <h2 className="font-semibold text-2xl sm:text-3xl tracking-tight" style={{ color: themeStyles.text }}>
+          {title}
+        </h2>
         <button
           onClick={onViewAll}
-          className="text-xs font-medium text-transparent bg-clip-text"
-          style={{
-            backgroundImage:
-              'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
-            WebkitBackgroundClip: 'text',
-          }}
+          className="group flex items-center gap-2 text-xs font-semibold uppercase tracking-widest transition-all hover:opacity-70"
+          style={{ color: '#8860D9' }}
         >
-          see all
+          Explore All
+          <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
         </button>
       </div>
 
-      {/* Banner */}
+      {/* Hero Banner Container - Wider aspect for reduced height */}
       <div
-        className="relative w-full overflow-hidden cursor-pointer group mx-auto"
-        style={{ borderRadius: 12, maxWidth: 1147, opacity: 1 }}
+        className="relative w-full overflow-hidden cursor-pointer mx-auto bg-black group aspect-[2/1] sm:aspect-[3/1]"
+        style={{ borderRadius: 12, maxWidth: 1147 }}
         onClick={() => {
-          const id = ev._id || (ev as any).id;
+          const id = currentEvent._id || (currentEvent as any).id;
           if (id) router.push(`/events/${id}`);
         }}
       >
-        {/* Desktop banner — hidden on mobile */}
-        <div
-          className="hidden sm:block w-full"
-          style={{ height: 312 }}
-        >
-          {desktopSrc ? (
-            <img
-              src={desktopSrc}
-              alt={ev.event_name}
-              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
-              style={{ objectFit: 'cover', display: 'block', width: '100%', height: '100%' }}
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
-            />
-          )}
-        </div>
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={active}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1, ease: [0.4, 0, 0.2, 1] }}
+            className="absolute inset-0 w-full h-full"
+          >
+            {/* Background Image Layers */}
+            <div className="absolute inset-0">
+              <img
+                src={desktopImage || mobileImage}
+                alt={currentEvent.event_name}
+                className="hidden sm:block absolute inset-0 w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-105"
+              />
+              <img
+                src={mobileImage || desktopImage}
+                alt={currentEvent.event_name}
+                className="block sm:hidden absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent hidden md:block" />
+            </div>
 
-        {/* Mobile portrait — hidden on desktop */}
-        <div
-          className="block sm:hidden w-full"
-          style={{ aspectRatio: '4 / 5' }}
-        >
-          {mobileSrc ? (
-            <img
-              src={mobileSrc}
-              alt={ev.event_name}
-              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
-              style={{ objectFit: 'cover', display: 'block', width: '100%', height: '100%' }}
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
-            />
-          )}
-        </div>
+            {/* Event Details Content */}
+            <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8 lg:p-10">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+                className="max-w-3xl space-y-3"
+              >
+                <div className="space-y-1">
+                  <h1 className="text-white font-semibold text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-tight tracking-tight">
+                    {currentEvent.event_name}
+                  </h1>
+                </div>
 
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)',
-          }}
-        />
+                <div className="flex items-center gap-6 text-white/90 text-[10px] sm:text-xs font-semibold tracking-wider uppercase">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-[#8860D9]" />
+                    {currentEvent.event_dates?.[0]?.start_date
+                      ? new Date(currentEvent.event_dates[0].start_date).toLocaleDateString('en-US', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        })
+                      : 'TBA'}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
-        {/* Event info */}
-        <div className="absolute bottom-4 left-4 right-14">
-          <p className="text-white font-bold text-sm sm:text-base line-clamp-1">{ev.event_name}</p>
-          <p className="text-white/70 text-[10px] sm:text-xs mt-0.5">
-            {ev.event_dates?.[0]?.start_date
-              ? new Date(ev.event_dates[0].start_date).toLocaleDateString('en-US', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : ''}
-          </p>
-        </div>
-
-        {/* Dot indicators */}
-        <div className="absolute bottom-4 right-4 flex gap-1.5">
-          {events.slice(0, 6).map((item, i) => (
+        {/* Minimalist Indicators (Dots instead of counts) */}
+        <div className="absolute bottom-6 right-8 flex gap-2 z-10">
+          {events.slice(0, 5).map((_, i) => (
             <button
-              key={`dot-${item._id || (item as any).id || i}-${i}`}
-              onClick={(e) => { e.stopPropagation(); setActive(i); reset(); }}
-              className="transition-all"
-              style={{
-                width: i === active ? 16 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === active ? '#8860D9' : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)'),
-              }}
+              key={i}
+              onClick={(e) => { e.stopPropagation(); setActive(i); resetTimer(); }}
+              className={`h-1 rounded-full transition-all duration-500 ${
+                i === active ? 'w-6 bg-[#8860D9]' : 'w-1 bg-white/20 hover:bg-white/40'
+              }`}
             />
           ))}
         </div>
