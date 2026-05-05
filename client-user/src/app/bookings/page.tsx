@@ -10,6 +10,7 @@ import SideBar from "@/components/home/SideBar";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { useTheme } from '@/components/home/ThemeContext';
 import BookingSkeleton from '@/components/skeletons/BookingSkeleton';
+import { getEventImage } from '@/utils/helpers';
 import {
   Calendar,
   MapPin,
@@ -130,7 +131,7 @@ function BookingsContent() {
           } else {
             setUnreadCounts(prev => ({ ...prev, [filter]: 0 }));
           }
-          
+
           setBookings(prev => prev.map(b => statusesToClear.includes(b.bookingStatus) ? { ...b, isRead: true } : b));
           if (statusesToClear.includes('CANCELLED')) {
              setCancelledBookings(prev => prev.map(b => ({ ...b, isRead: true } as CancelledBooking)));
@@ -143,7 +144,7 @@ function BookingsContent() {
   const isEventCompleted = (booking: any): boolean => {
     const activeStatuses = ['CONFIRMED', 'VERIFIED'];
     if (!activeStatuses.includes(booking.bookingStatus)) return false;
-    
+
     const event = booking.eventDetails;
     const endDateStr = event?.eventEndDate || event?.eventDate;
     if (!endDateStr) return false;
@@ -195,8 +196,8 @@ function BookingsContent() {
         <SideBar />
         <main
           className="flex-1 transition-all duration-300 relative z-10"
-          style={{ 
-            marginLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH) 
+          style={{
+            marginLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH)
           }}
         >
           <BookingSkeleton />
@@ -259,8 +260,8 @@ function BookingsContent() {
               }}
             >
               {FILTER_TABS.map((tab) => {
-                const count = tab.id === 'confirmed' ? unreadCounts.confirmed : 
-                              tab.id === 'cancelled' ? unreadCounts.cancelled : 
+                const count = tab.id === 'confirmed' ? unreadCounts.confirmed :
+                              tab.id === 'cancelled' ? unreadCounts.cancelled :
                               tab.id === 'pending' ? unreadCounts.pending : 0;
                 return (
                 <button
@@ -391,7 +392,7 @@ function BookingRow({ booking, type, getStyle, displayStatus, onClick }: any) {
         <div className="col-span-4 flex items-center gap-4">
           <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-white/10">
             <img
-              src={event?.event_portrait || event?.event_banner || event?.image || '/placeholder.png'}
+              src={getEventImage(event, booking.qrPayload)}
               alt={event?.eventName}
               className="w-full h-full object-cover"
             />
@@ -464,7 +465,7 @@ function BookingRow({ booking, type, getStyle, displayStatus, onClick }: any) {
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/10">
               <img
-                src={event?.event_portrait || event?.event_banner || event?.image || '/placeholder.png'}
+                src={getEventImage(event, booking.qrPayload)}
                 alt={event?.eventName}
                 className="w-full h-full object-cover"
               />
