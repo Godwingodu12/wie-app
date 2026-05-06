@@ -469,7 +469,6 @@ function LocationPanel({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
-  // ── GPS: use current location 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser.');
@@ -482,33 +481,10 @@ function LocationPanel({
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
-          // Reverse geocode using Google Geocoding API via our backend
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${
-              // We proxy via backend to hide the key
-              ''
-            }`,
-          );
-          // Use our location details API with a special "current" endpoint
-          // For now, use Nominatim (free, no key needed for reverse geocode)
-          const geoRes = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { 'User-Agent': 'wie-app/1.0' } }
-          );
-          const geoData = await geoRes.json() as {
-            display_name: string;
-            address: {
-              city?: string; town?: string; village?: string;
-              suburb?: string; state?: string; country?: string;
-              road?: string; neighbourhood?: string;
-            };
-          };
-
-          const addr    = geoData.address;
-          const city    = addr.city ?? addr.town ?? addr.village ?? addr.state ?? '';
-          const suburb  = addr.suburb ?? addr.neighbourhood ?? addr.road ?? '';
-          const label   = suburb && city ? `${suburb} · ${city}` : city || geoData.display_name.split(',')[0];
-          onSelect(label, {});
+          // All geocoding goes through our backend — API key never exposed
+          const { reverseGeocode } = await import('@/services/locationService');
+          const data = await reverseGeocode(latitude, longitude);
+          onSelect(data.label, {});
         } catch {
           setGpsError('Could not determine your location. Try searching manually.');
         } finally {
@@ -523,9 +499,10 @@ function LocationPanel({
           setGpsError('Could not get your location. Try searching manually.');
         }
       },
-      { timeout: 10000, enableHighAccuracy: false }
+      { timeout: 10000, enableHighAccuracy: false },
     );
   };
+
   const handleSelect = async (s: PlaceSuggestion) => {
     setLoadingId(s.placeId);
     try {
