@@ -354,12 +354,10 @@ const FileMediaInput = ({
           <div className="flex items-center gap-4 flex-1">
             {!isDocument && previewUrl && (
               <div
-                className={`relative group rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden bg-black/5 dark:bg-black/20 shadow-inner ${aspectRatio ? "" : "w-14 h-14"
-                  }`}
-                style={aspectRatio ? {
-                  width: aspectRatio > 1.5 ? "140px" : "80px",
-                  aspectRatio: `${aspectRatio}`
-                } : {}}
+                className={`relative group rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden bg-gray-100 dark:bg-black/40 shadow-sm flex-shrink-0 ${
+                  !aspectRatio ? "w-14 h-14" : aspectRatio > 1.5 ? "w-24 sm:w-32" : aspectRatio < 1 ? "w-14 sm:w-16" : "w-16 sm:w-20"
+                }`}
+                style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : {}}
               >
                 <img
                   src={previewUrl}

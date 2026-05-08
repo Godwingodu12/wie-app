@@ -2,31 +2,31 @@ import mongoose from 'mongoose';
 // Guest Schema
 const guestSchema = new mongoose.Schema({
   guest_name: { type: String },
-  guest_profile: { type: String }, 
-  guest_link: { type: String }, 
+  guest_profile: { type: String },
+  guest_link: { type: String },
 });
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
-  ticket_type:            { type: String },
-  ticket_price:           { type: Number },   // GST-inclusive price organiser sets (buyer pays this for ticket)
-  ticket_base_price:      { type: Number, default: 0 }, // extracted base (ticket_price / 1.18)
-  ticket_gst_percentage:  { type: Number, default: 0 }, // 18 if GST applicable
-  ticket_gst_amount:      { type: Number, default: 0 }, // extracted GST = ticket_price - ticket_base_price
-  ticket_gst_applicable:  { type: Boolean, default: false },
-  ticket_photo:           { type: String },
+  ticket_type: { type: String },
+  ticket_price: { type: Number },
+  ticket_base_price: { type: Number, default: 0 },
+  ticket_gst_percentage: { type: Number, default: 0 },
+  ticket_gst_amount: { type: Number, default: 0 },
+  ticket_gst_applicable: { type: Boolean, default: false },
+  ticket_photo: { type: String },
   ticket_photo_public_id: { type: String },
-  max_capacity:           { type: Number },
+  max_capacity: { type: Number },
 });
 const ticketdateSchema = new mongoose.Schema({
-    start_date: { type: String, required: true },
-    end_date: { type: String },
-    start_time: { type: String, required: false },
-    end_time: { type: String, required: false },
-    event_link: { type: String, required: false },
-    video_name: { type: String, required: false },
-    verification_event_code: { type: String, required: false },
-    video_file_path: { type: String, required: false },
-    preview_image_path: { type: String, required: false },
+  start_date: { type: String, required: true },
+  end_date: { type: String },
+  start_time: { type: String, required: false },
+  end_time: { type: String, required: false },
+  event_link: { type: String, required: false },
+  video_name: { type: String, required: false },
+  verification_event_code: { type: String, required: false },
+  video_file_path: { type: String, required: false },
+  preview_image_path: { type: String, required: false },
 });
 // Banking Details Schema
 const bankingDetailsSchema = new mongoose.Schema({
@@ -63,8 +63,8 @@ const subEventSchema = new mongoose.Schema({
   event_name: { type: String, required: true },
   event_category: { type: String, required: true },
   event_subcategory: { type: String, required: true },
-  event_type: { type: String, required: true,enum: ['private', 'public']},
-  subevent: { type: String, required: true, enum: ['1','2','5']},
+  event_type: { type: String, required: true, enum: ['private', 'public'] },
+  subevent: { type: String, required: true, enum: ['1', '2', '5'] },
   event_language: {
     type: [String],
     enum: [
@@ -77,20 +77,20 @@ const subEventSchema = new mongoose.Schema({
     ],
     default: []
   },
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: false},
-  location: { 
-    type: String, 
-    required: function() { return this.location_type === 'offline'; } 
+  location_type: { type: String, enum: ['offline', 'online', 'recorded'], required: false },
+  location: {
+    type: String,
+    required: function () { return this.location_type === 'offline'; }
   },
-  venue: { 
-      type: String, 
-      required: function() { return this.location_type === 'offline'; } 
+  venue: {
+    type: String,
+    required: function () { return this.location_type === 'offline'; }
   },
-  seating_arrangement: { 
-      type: String, 
-      default: 'none', 
-      enum: ['seated', 'standing','seated and standing','other','none'],
-      required: function() { return this.location_type === 'offline'; }
+  seating_arrangement: {
+    type: String,
+    default: 'none',
+    enum: ['seated', 'standing', 'seated and standing', 'other', 'none'],
+    required: function () { return this.location_type === 'offline'; }
   },
   min_age_allowed: { type: Number, required: true },
   max_age_allowed: { type: Number, required: false },
@@ -101,7 +101,7 @@ const subEventSchema = new mongoose.Schema({
     longitude: { type: Number },
     address: { type: String }
   },
-  
+
   // Date and Time
   event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
   event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
@@ -109,7 +109,7 @@ const subEventSchema = new mongoose.Schema({
   event_instagram_link: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
   //for online event
-  verification_event_code: { type: String},
+  verification_event_code: { type: String },
   event_rules: fileSchema,
   POCS: [POCSchema],
   prohibited_items: [{ type: String }],
@@ -117,28 +117,28 @@ const subEventSchema = new mongoose.Schema({
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: true },
   event_images: [{
-      path: {
-        type: String,
-        required: true
-      },
-      originalName: {
-        type: String,
-        required: true
-      },
-      mimeType: {
-        type: String,
-        required: true
-      },
-      size: {
-        type: Number,
-        required: true
-      },
-      uploadedAt: {
-        type: Date,
-        default: Date.now
-      }
-    }], 
-    // Add these after event_banner in ticketSchema
+    path: {
+      type: String,
+      required: true
+    },
+    originalName: {
+      type: String,
+      required: true
+    },
+    mimeType: {
+      type: String,
+      required: true
+    },
+    size: {
+      type: Number,
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  // Add these after event_banner in ticketSchema
   event_portrait: { type: String, required: false },
   event_videos: [{
     path: { type: String, required: true },
@@ -146,12 +146,12 @@ const subEventSchema = new mongoose.Schema({
     mimeType: { type: String, required: true },
     size: { type: Number, required: true },
     uploadedAt: { type: Date, default: Date.now }
-  }], 
+  }],
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
   gst_applicable: { type: Boolean, default: false },
-  gst_percentage:{ type: Number,  default: 0 },
+  gst_percentage: { type: Number, default: 0 },
   gst_registered_group: { type: Boolean, default: false },
   main_ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
   // Banking Details for sub-events
@@ -172,9 +172,9 @@ const subEventSchema = new mongoose.Schema({
         isAvailable: { type: Boolean, default: true },
         isSelected: { type: Boolean, default: false },
         ticketTypeId: { type: String, default: null },
-        ticketTypeName: { type: String, default: null }, 
+        ticketTypeName: { type: String, default: null },
         ticketTypeColor: { type: String, default: null },
-        price: { type: Number, default: 0 } 
+        price: { type: Number, default: 0 }
       }],
       ticketTypeAssignments: [{
         ticketTypeId: String,
@@ -191,21 +191,22 @@ const subEventSchema = new mongoose.Schema({
   attendance_count: { type: Boolean, default: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
+  restrict_booking: { type: Boolean, default: false },
   // Status
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted','remove'],
+    enum: ['pending', 'confirmed', 'cancelled', 'live', 'completed', 'deleted', 'remove'],
     default: 'pending'
   },
   cancellation_reason: { type: String, default: '' },
-  cancelled_at:        { type: Date },
-  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  cancelled_at: { type: Date },
+  cancelled_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   rehosted_at: { type: Date },
   like: { type: Number, required: false, default: 0 },
   share: { type: Number, required: false, default: 0 },
   // Booking statistics
   totalBookings: { type: Number, required: false, default: 0 },
-  totalTicketsSold: { type: Number, required: false, default: 0 }, 
+  totalTicketsSold: { type: Number, required: false, default: 0 },
   revenue: { type: Number, required: false, default: 0 },
   total_cancellation: { type: Number, required: false, default: 0 },
   // Versioning for sub-events
@@ -213,18 +214,18 @@ const subEventSchema = new mongoose.Schema({
   rehosted_from: { type: mongoose.Schema.Types.ObjectId, default: null }, // _id of old cancelled sub-event
   // Sub-event audit history stored inline (no cross-table join needed)
   audit_history: [{
-    version:          { type: Number },
-    cancelled_at:     { type: Date },
+    version: { type: Number },
+    cancelled_at: { type: Date },
     cancellation_reason: { type: String },
     metrics_snapshot: { type: mongoose.Schema.Types.Mixed }, // frozen lifecycle_metrics
   }],
   // Sub-event lifecycle metrics (reset on rehost)
   lifecycle_metrics: {
-    like:               { type: Number, default: 0 },
-    share:              { type: Number, default: 0 },
-    totalBookings:      { type: Number, default: 0 },
-    totalTicketsSold:   { type: Number, default: 0 },
-    revenue:            { type: Number, default: 0 },
+    like: { type: Number, default: 0 },
+    share: { type: Number, default: 0 },
+    totalBookings: { type: Number, default: 0 },
+    totalTicketsSold: { type: Number, default: 0 },
+    revenue: { type: Number, default: 0 },
     total_cancellation: { type: Number, default: 0 },
     total_refund_amount: { type: Number, default: 0 },
   },
@@ -250,12 +251,12 @@ const ticketSchema = new mongoose.Schema({
   },
   min_age_allowed: { type: Number, required: true },
   max_age_allowed: { type: Number, required: false },
-  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other','none']},
+  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing', 'seated and standing', 'other', 'none'] },
   kids_friendly: { type: Boolean, default: false },
   pet_friendly: { type: Boolean, default: false },
-  
+
   // Location
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
+  location_type: { type: String, enum: ['offline', 'online', 'recorded'], required: true },
   location: { type: String, required: false },
   venue: { type: String, required: false },
   exact_map_location: {
@@ -270,9 +271,9 @@ const ticketSchema = new mongoose.Schema({
   gate_open_time: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
   //for online event
-  verification_event_code: { type: String},
+  verification_event_code: { type: String },
   event_rules: fileSchema,
-  
+
   prohibited_items: [{ type: String }],
   college_authorisation: { type: String, required: false },
   event_description: { type: String, required: false },
@@ -299,7 +300,7 @@ const ticketSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }], 
+  }],
   event_portrait: { type: String, required: false },
   event_videos: [{
     path: { type: String, required: true },
@@ -311,8 +312,8 @@ const ticketSchema = new mongoose.Schema({
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: false },
-  gst_applicable:       { type: Boolean, default: false },
-  gst_percentage:       { type: Number,  default: 0 },
+  gst_applicable: { type: Boolean, default: false },
+  gst_percentage: { type: Number, default: 0 },
   gst_registered_group: { type: Boolean, default: false },
   // Banking Details (can have multiple for main event)
   banking_details: [bankingDetailsSchema],
@@ -323,6 +324,7 @@ const ticketSchema = new mongoose.Schema({
   attendance_count: { type: Boolean, default: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
+  restrict_booking: { type: Boolean, default: false },
   ticket_layout: { type: String, required: false },
   ticket_layout_public_id: { type: String, required: false },
   seating_layout: {
@@ -336,13 +338,13 @@ const ticketSchema = new mongoose.Schema({
         isAvailable: { type: Boolean, default: true },
         isSelected: { type: Boolean, default: false },
         ticketTypeId: { type: String, default: null },
-        ticketTypeName: { type: String, default: null }, 
+        ticketTypeName: { type: String, default: null },
         ticketTypeColor: { type: String, default: null },
-        price: { type: Number, default: 0 } 
+        price: { type: Number, default: 0 }
       }],
       ticketTypeAssignments: [{
         ticketTypeId: String,
-        ticketTypeName: String, 
+        ticketTypeName: String,
         color: String,
         assignedSeats: [String],
         capacity: Number,
@@ -353,11 +355,11 @@ const ticketSchema = new mongoose.Schema({
   },
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
-  like: {type: Number,required: false,default: 0},
+  like: { type: Number, required: false, default: 0 },
   share: { type: Number, required: false, default: 0 },
   // Booking statistics
   totalBookings: { type: Number, required: false, default: 0 },
-  totalTicketsSold: { type: Number, required: false, default: 0 }, 
+  totalTicketsSold: { type: Number, required: false, default: 0 },
   revenue: { type: Number, required: false, default: 0 },
   total_cancellation: { type: Number, required: false, default: 0 },
   //ticket offer or bulk booking
@@ -367,33 +369,33 @@ const ticketSchema = new mongoose.Schema({
   // References
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  
+
   // Status and Updates
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted','remove'],
+    enum: ['pending', 'confirmed', 'cancelled', 'live', 'completed', 'deleted', 'remove'],
     default: 'pending'
   },
   cancellation_reason: { type: String, default: '' },
-  cancelled_at:        { type: Date },
-  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  cancelled_at: { type: Date },
+  cancelled_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   rehosted_at: { type: Date },
   // Promotion tracking
-  promoted_to_ticket_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
-  promoted_from_sub_event:  { type: Boolean, default: false },
-  original_main_event_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
-  promoted_at:              { type: Date },
-  isMain:                   { type: Boolean, default: true },
+  promoted_to_ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
+  promoted_from_sub_event: { type: Boolean, default: false },
+  original_main_event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
+  promoted_at: { type: Date },
+  isMain: { type: Boolean, default: true },
   updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updated_at: { type: Date, default: Date.now },
   lifecycle_metrics: {
-    like:                    { type: Number, default: 0 },
-    share:                   { type: Number, default: 0 },
-    totalBookings:           { type: Number, default: 0 },
-    totalTicketsSold:        { type: Number, default: 0 },
-    revenue:                 { type: Number, default: 0 },
-    total_cancellation:      { type: Number, default: 0 },
-    total_refund_amount:     { type: Number, default: 0 },
+    like: { type: Number, default: 0 },
+    share: { type: Number, default: 0 },
+    totalBookings: { type: Number, default: 0 },
+    totalTicketsSold: { type: Number, default: 0 },
+    revenue: { type: Number, default: 0 },
+    total_cancellation: { type: Number, default: 0 },
+    total_refund_amount: { type: Number, default: 0 },
   },
   // Form Progress Tracking
   form_progress: {
@@ -403,7 +405,7 @@ const ticketSchema = new mongoose.Schema({
     banking_tickets: { type: Boolean, default: false },
     terms_conditions: { type: Boolean, default: false },
   },
-  
+
   // Terms and Conditions (Company provided)
   terms_accepted: { type: Boolean, default: false },
   terms_accepted_at: { type: Date },

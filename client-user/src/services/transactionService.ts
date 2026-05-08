@@ -125,6 +125,8 @@ export interface Booking {
   refundInitiatedAt?: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  event_link?: string;
+  event_code?: string;
 }
 export interface CreateSeatedBookingRequest {
   ticketId: string;

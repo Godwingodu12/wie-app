@@ -292,10 +292,10 @@ export default function EventDetailPage() {
   const isOnlineOrRecorded =
     event?.location_type === "online" || event?.location_type === "recorded";
 
-  const actionLabel = isOnlineOrRecorded
-    ? hasEventStarted()
+  const actionLabel = hasBooked
+    ? isOnlineOrRecorded
       ? "Watch Now"
-      : "Notify Me"
+      : "View Ticket"
     : "Book Tickets";
 
   const handleShare = async (method: string) => {
@@ -592,18 +592,8 @@ export default function EventDetailPage() {
   }, [eventId]);
 
   const handleBookEvent = () => {
-    const isOnlineOrRecorded =
-      event?.location_type === "online" || event?.location_type === "recorded";
-
-    if (isOnlineOrRecorded) {
-      if (hasEventStarted()) {
-        // WATCH FLOW
-        router.push(`/events/${eventId}/watch`);
-      } else {
-        // NOTIFY FLOW
-        alert("You will be notified when the event starts");
-        // TODO: call notify-me API
-      }
+    if (hasBooked) {
+      router.push(`/bookings/${userBooking?.id}`);
       return;
     }
 
@@ -969,7 +959,7 @@ export default function EventDetailPage() {
                           {/* Free / Paid Badge */}
                           {event.payment_type && (
                             <div
-                              className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0"
+                              className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 md:x items-center justify-center flex-shrink-0"
                             >
                               <span
                                 className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold uppercase tracking-wider"

@@ -23,6 +23,7 @@ import {
   Download,
   RefreshCw,
   Clock,
+  Video,
   ArrowRight
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -236,6 +237,36 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                           #{bookingId.slice(-8).toUpperCase()}
                         </div>
                       </div>
+
+                      {/* Online event link */}
+                      {booking.event_link && (
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <a
+                            href={booking.event_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:scale-[1.02] active:scale-[0.98] ${
+                              isDark
+                                ? 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30'
+                                : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200'
+                            }`}
+                          >
+                            <Video className="w-4 h-4" />
+                            Join Online Event
+                          </a>
+
+                          {booking.event_code && (
+                            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border ${
+                              isDark
+                                ? 'bg-white/5 border-white/10 text-gray-400'
+                                : 'bg-black/5 border-black/10 text-gray-600'
+                            }`}>
+                              <span className="opacity-60 uppercase tracking-tighter">Code:</span>
+                              <span className="font-mono text-sm tracking-widest">{booking.event_code}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -500,6 +531,17 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                       }
                     />
 
+                    {/* Online Code (Ticket Row) */}
+                    {booking.event_code && (
+                      <TicketRow
+                        isDark={isDark}
+                        label="Meeting Code"
+                        value={booking.event_code}
+                        mono
+                        valueColor="text-[#8860D9]"
+                      />
+                    )}
+
                     {/* Payment + Amount */}
                     <div className="flex gap-2.5">
                       <TicketRow
@@ -524,6 +566,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                         valueColor="text-emerald-400"
                       />
                     </div>
+
                     {/* Price breakdown (subtotal / tax / platform fee) */}
                     {(booking.qrPayload?.subtotal !== undefined || booking.subtotal) && (
                       <div

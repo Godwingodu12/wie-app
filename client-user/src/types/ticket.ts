@@ -122,6 +122,7 @@ export interface SubEvent {
   parentEventCategory?: string;
   parentEventBanner?: string;
   parentEventLogo?: string;
+  restrict_booking?: boolean;
 }
 export interface Event {
   _id: string;
@@ -177,6 +178,7 @@ export interface Event {
   exact_map_location?: ExactMapLocation;
   form_progress?: FormProgress;
   seating_layout?: SeatingLayout;
+  restrict_booking?: boolean;
   __v?: number;
 }
 export interface SearchLocation {
