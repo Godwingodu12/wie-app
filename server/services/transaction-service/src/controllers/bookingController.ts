@@ -77,6 +77,14 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       });
     }
 
+    // restrict_booking: true = allow multiple; false/absent = 1 ticket per person
+    if (!ticket.restrict_booking && quantity > 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Only 1 ticket allowed per person for this event",
+      });
+    }
+
     const user = await getUserById(userId);
 
     const bookingId = `FR${Date.now()}${Math.random()
@@ -217,7 +225,7 @@ export const createBooking = async (req: Request, res: Response) => {
       }
     }
 
-    // Check 50 ticket limit per user per event
+    // Check per-user ticket limit
     const userExistingBookings = await prisma.booking.aggregate({
       where: {
         userId,
@@ -227,7 +235,23 @@ export const createBooking = async (req: Request, res: Response) => {
       _sum: { quantity: true },
     });
     const totalUserTickets = userExistingBookings._sum.quantity || 0;
-    if (totalUserTickets + quantity > 50) {
+
+    // restrict_booking: true = allow multiple (up to 50); false/absent = 1 ticket per person
+    const multipleAllowed = ticket.restrict_booking === true;
+    if (!multipleAllowed) {
+      if (totalUserTickets > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Only 1 ticket allowed per person for this event",
+        });
+      }
+      if (quantity > 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Only 1 ticket allowed per person for this event",
+        });
+      }
+    } else if (totalUserTickets + quantity > 50) {
       return res.status(400).json({
         success: false,
         message: `Maximum 50 tickets per event. You have already booked ${totalUserTickets}.`,
@@ -587,7 +611,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       referenceId: razorpayPaymentId,
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Payment verified successfully",
       data: { booking: updatedBooking, qrCode },
@@ -652,6 +676,30 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
         success: false,
         message: `Seats already booked: ${unavailableSeats.join(", ")}`,
       });
+    }
+
+    // restrict_booking: true = allow multiple seats; false/absent = 1 seat per person
+    if (!ticket.restrict_booking && selectedSeats.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Only 1 seat allowed per person for this event",
+      });
+    }
+
+    if (!ticket.restrict_booking) {
+      const existingUserBooking = await prisma.booking.findFirst({
+        where: {
+          userId,
+          ticketId,
+          bookingStatus: { in: ["CONFIRMED", "PENDING"] },
+        },
+      });
+      if (existingUserBooking) {
+        return res.status(400).json({
+          success: false,
+          message: "Only 1 ticket allowed per person for this event",
+        });
+      }
     }
 
     const user = await getUserById(userId);
@@ -819,7 +867,7 @@ export const getBookedSeats = async (req: Request, res: Response) => {
       )
       .flatMap((b) => (b.seatDetails as any)?.selectedSeats || []);
 
-    res.json({ success: true, data: { bookedSeats } });
+    res.status(200).json({ success: true, data: { bookedSeats } });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -839,7 +887,7 @@ export const checkUserBooking = async (req: Request, res: Response) => {
       bookingStatus: { in: ["CONFIRMED", "PENDING"] },
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       hasBooked: !!existingBooking,
       booking: existingBooking || null,
@@ -941,6 +989,19 @@ export const getBookingById = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
+    // ── Fetch event_link and event_code from ticket-service (top-level, not in qrPayload) ──
+    let eventLink = "";
+    let eventCode = "";
+    try {
+      if (booking.ticketId) {
+        const ticketData = await getTicketById(booking.ticketId);
+        eventLink = ticketData?.event_dates?.[0]?.event_link || "";
+        eventCode = ticketData?.event_dates?.[0]?.verification_event_code || "";
+      }
+    } catch (_) {
+      // Non-fatal — fall back to empty string
+    }
+
     // ── Build qrPayload from booking record (authoritative source) ──────────
     // Reading paymentMethod from both root and nested paymentTransaction
     // because Prisma serialisation sometimes buries it.
@@ -990,6 +1051,8 @@ export const getBookingById = async (req: Request, res: Response) => {
         booking: {
           ...booking,
           qrPayload,
+          event_link: eventLink,
+          event_code: eventCode,
         },
       },
     });
@@ -1276,7 +1339,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       userId,
     ).catch(() => ({ totalCancellations: 0, totalCancelledTickets: 0 }));
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Booking cancelled successfully",
       data: {
@@ -1316,7 +1379,7 @@ export const getUserCancellationStats = async (req: Request, res: Response) => {
     }
 
     const stats = await BookingModel.getUserCancellationStats(userId);
-    res.json({ success: true, data: stats });
+    res.status(200).json({ success: true, data: stats });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1343,7 +1406,7 @@ export const trackRefund = async (req: Request, res: Response) => {
     const isPending =
       b.refundStatus === "PENDING" || b.refundStatus === "PROCESSING";
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
         booking: b,
@@ -1394,7 +1457,7 @@ export const getDailyBookingStats = async (req: Request, res: Response) => {
 
     const dailyStats = await BookingModel.getDailyBookingStats(ticketId);
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: dailyStats,
     });
@@ -1423,7 +1486,7 @@ export const getMonthlyBookingStats = async (req: Request, res: Response) => {
       endDate as string,
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: stats,
     });
@@ -1445,7 +1508,7 @@ export const getTicketTypeStats = async (req: Request, res: Response) => {
       });
     }
     const typeStats = await BookingModel.getTicketTypeStats(ticketId);
-    res.json({
+    res.status(200).json({
       success: true,
       data: typeStats,
     });
@@ -1615,7 +1678,7 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
       (b) => b.refundStatus === "COMPLETED",
     ).length;
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       data: {
         cancelledBookings: result,
@@ -1689,7 +1752,7 @@ export const getUserRehostedBookings = async (req: Request, res: Response) => {
       return true;
     });
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       data: {
         events: relevantRehostedEvents,
@@ -1741,7 +1804,7 @@ export const markAsRead = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Bookings marked as read",
       data: { count },
@@ -1761,7 +1824,7 @@ export const countUnread = async (req: Request, res: Response) => {
 
     const counts = await BookingModel.countUnread(userId);
 
-    res.json({ success: true, data: counts });
+    res.status(200).json({ success: true, data: counts });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
