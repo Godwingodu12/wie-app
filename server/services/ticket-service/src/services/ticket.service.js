@@ -7,11 +7,11 @@ import { verifyBookingQR } from '../grpc/bookingClient.js';
 import fs from "fs";
 import cron from "node-cron";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
-import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
-import { 
-  generateSeatingLayoutFromFile, 
+import { validateIFSCCode, validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import {
+  generateSeatingLayoutFromFile,
   normalizeSeatData,
-  generateFallbackLayout  
+  generateFallbackLayout
 } from '../utils/seatingLayoutGenerator.js';
 import {
   processFileUploads,
@@ -44,23 +44,13 @@ export const resolveGSTApplicability = (group, paymentType, frontendChoice) => {
   return { applicable: chosen, mandatory: false };
 };
 
-/**
- * Option C — Inclusive model.
- * The price the organiser enters already contains GST.
- * We extract the GST portion for internal tracking.
- *
- * Example: organiser enters ₹118 (18% GST inclusive)
- *   basePrice = 118 × 100 / 118 = 100.00
- *   gstAmount = 118 − 100   = 18.00
- */
-export const extractGSTFromInclusive = (inclusivePrice, gstPct) => {
-  if (!gstPct || gstPct === 0) {
-    return { basePrice: inclusivePrice, gstAmount: 0 };
-  }
-  const divisor   = 1 + gstPct / 100;                                    // 1.18
-  const basePrice = Math.round((inclusivePrice / divisor) * 100) / 100;  // 100.00
-  const gstAmount = Math.round((inclusivePrice - basePrice) * 100) / 100; // 18.00
-  return { basePrice, gstAmount };
+// The organiser enters BASE price. GST is added ON TOP.
+// e.g. base=100, GST=18% → inclusive=118, gstAmount=18
+export const extractGSTFromInclusive = (basePrice, gstPct) => {
+  const base = Math.round(basePrice * 100) / 100;
+  const gstAmount = Math.round(base * (gstPct / 100) * 100) / 100;
+  const inclusivePrice = Math.round((base + gstAmount) * 100) / 100;
+  return { basePrice: base, gstAmount, inclusivePrice };
 };
 
 function parseJSONSafely(value, defaultValue = []) {
@@ -84,7 +74,7 @@ export const getUserData = async (req, res) => {
     const userId = req.user._id || req.user.id;
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
-    }    
+    }
     const userData = await getUserFromAuthService(userId, 3, true);
     if (!userData) {
       return res.status(404).json({ message: "User not found" });
@@ -94,9 +84,9 @@ export const getUserData = async (req, res) => {
       user: userData,
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
@@ -135,7 +125,7 @@ export const CreateGroup = async (req, res) => {
     // VALIDATE IFSC CODE IF PROVIDED (before file upload)
     if (primary_bank_ifsc) {
       const ifscValidation = await validateIFSCCode(primary_bank_ifsc);
-      
+
       if (!ifscValidation.isValid) {
         return res.status(400).json({
           message: "Invalid bank IFSC code",
@@ -361,9 +351,9 @@ export const CreateGroup = async (req, res) => {
         "Educational", "Healthcare", "Institute",
       ];
       const orgTypeLower = (organisation_type || "").toLowerCase().trim();
-      const isGSTMandatory  = GST_MANDATORY_SECTORS.includes(orgTypeLower);
+      const isGSTMandatory = GST_MANDATORY_SECTORS.includes(orgTypeLower);
       const isGSTConditional = GST_CONDITIONAL_SECTORS.includes(orgTypeLower);
-      const isGSTExempt     = GST_EXEMPT_SECTORS.includes(orgTypeLower);
+      const isGSTExempt = GST_EXEMPT_SECTORS.includes(orgTypeLower);
       // Enforce GST only for mandatory sectors
       if (isGSTMandatory && !gst_no) {
         return res.status(400).json({
@@ -508,25 +498,25 @@ export const UpdateGroup = async (req, res) => {
     const { groupId } = req.params;
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
-    
+
     // Validate groupId
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required" });
     }
-    
+
     // Find the existing group
     const existingGroup = await Group.findById(groupId);
     if (!existingGroup) {
       return res.status(404).json({ message: "Group not found" });
     }
-    
+
     // Authorization check - ensure user owns this group
     if (existingGroup.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         message: "You are not authorized to update this group",
       });
     }
-    
+
     // Extract update data from request body
     const {
       name,
@@ -552,11 +542,11 @@ export const UpdateGroup = async (req, res) => {
         });
       }
     }
-    
+
     // VALIDATE AADHAAR CARD IF NEW FILE IS UPLOADED (BEFORE CLOUDINARY UPLOAD)
     if (req.files?.id_proof?.[0]) {
       const aadhaarValidation = await validateAadhaarDocument(req.files.id_proof[0]);
-      
+
       if (!aadhaarValidation.isValid) {
         return res.status(400).json({
           message: "Aadhaar card validation failed",
@@ -564,11 +554,11 @@ export const UpdateGroup = async (req, res) => {
         });
       }
     }
-    
+
     // NOW PROCESS FILE UPLOADS TO CLOUDINARY (after validation passes)
     let uploadedFiles = {};
     const filesToDelete = [];
-    
+
     if (req.files && Object.keys(req.files).length > 0) {
       try {
         uploadedFiles = await processGroupFileUploads(req.files);
@@ -784,7 +774,7 @@ export const UpdateGroup = async (req, res) => {
     if (uploadedFiles.company_logo) {
       updateData.company_logo = uploadedFiles.company_logo;
     }
-    
+
     // Validation for organisation groups
     if (existingGroup.grp_type === "organisation") {
       const finalOrgType = organisation_type !== undefined ? organisation_type : existingGroup.organisation_type;
@@ -803,10 +793,10 @@ export const UpdateGroup = async (req, res) => {
         const orgTypeLower = finalOrgType.toLowerCase().trim();
         const isGSTMandatory = GST_MANDATORY_SECTORS.includes(orgTypeLower);
         const isGSTConditional = GST_CONDITIONAL_SECTORS.includes(orgTypeLower);
-        const isGSTExempt    = GST_EXEMPT_SECTORS.includes(orgTypeLower);
-        const finalGst       = gst_no !== undefined ? gst_no : existingGroup.gst_no;
+        const isGSTExempt = GST_EXEMPT_SECTORS.includes(orgTypeLower);
+        const finalGst = gst_no !== undefined ? gst_no : existingGroup.gst_no;
         const finalBankCheck = uploadedFiles.bank_check || existingGroup.bank_check;
-        const finalLogo      = uploadedFiles.company_logo || existingGroup.company_logo;
+        const finalLogo = uploadedFiles.company_logo || existingGroup.company_logo;
         const missingFields = [];
         if (isGSTMandatory && (!finalGst || finalGst.trim() === "")) {
           missingFields.push("gst_no (mandatory for this sector)");
@@ -827,7 +817,7 @@ export const UpdateGroup = async (req, res) => {
         }
       }
     }
-    
+
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
@@ -985,7 +975,7 @@ const sanitizeDescriptionHtml = (html) => {
   return html
     .replace(/<!--StartFragment-->/gi, "")
     .replace(/<!--EndFragment-->/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")        
+    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/&nbsp;/gi, " ")
 
     // 3. Strip data-* paste-marker attributes (ProseMirror, TipTap, Slate)
@@ -1003,7 +993,7 @@ const sanitizeDescriptionHtml = (html) => {
     .replace(/\u200C/g, "")
     .replace(/\u200D/g, "")
     .replace(/\uFEFF/g, "")
-    .replace(/&#8203;/g, "")               
+    .replace(/&#8203;/g, "")
     .replace(/&#x200[BbCcDd];/gi, "")
 
     //    Allowed: p, br, ul, ol, li, b, strong, i, em, u, span
@@ -1044,7 +1034,7 @@ export const createTicketBasicInfo = async (req, res) => {
     const eventRulesFiles = [];
     const videoFiles = {};
     const previewImageFiles = {};
-    
+
     // Handle file upload first using Promise wrapper
     await new Promise((resolve, reject) => {
       uploadFields(req, res, (err) => {
@@ -1099,7 +1089,7 @@ export const createTicketBasicInfo = async (req, res) => {
     const uploadedFiles = await processFileUploads(req.files || {});
     Object.keys(uploadedFiles).forEach((fieldName) => {
       if (fieldName === "ticket_layout") {
-        return; 
+        return;
       }
       if (fieldName.startsWith("guest_profile_")) {
         const index = fieldName.split("_")[2];
@@ -1246,7 +1236,7 @@ export const createTicketBasicInfo = async (req, res) => {
       "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
       "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
       "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
-      "Arabic", "Persian (Farsi)", "Hebrew","Swahili", "Zulu", "Afrikaans","Other"
+      "Arabic", "Persian (Farsi)", "Hebrew", "Swahili", "Zulu", "Afrikaans", "Other"
     ];
 
     let languageArray = [];
@@ -1323,8 +1313,8 @@ export const createTicketBasicInfo = async (req, res) => {
     }
 
     // Validate event_subcategory length (optional field)
-    if (event_subcategory && event_subcategory.trim() && 
-        (event_subcategory.trim().length < 2 || event_subcategory.trim().length > 100)) {
+    if (event_subcategory && event_subcategory.trim() &&
+      (event_subcategory.trim().length < 2 || event_subcategory.trim().length > 100)) {
       return res.status(400).json({
         message: 'Event subcategory must be between 2 and 100 characters if provided',
       });
@@ -1397,7 +1387,7 @@ export const createTicketBasicInfo = async (req, res) => {
         const poc = pocsArray[i];
 
         if (typeof poc === "object" && poc !== null) {
-          
+
           // Name length
           if (poc.POC_name && poc.POC_name.length > 100) {
             return res.status(400).json({
@@ -1443,11 +1433,11 @@ export const createTicketBasicInfo = async (req, res) => {
           message: 'Maximum 50 hashtags allowed',
         });
       }
-      
-      const invalidHashtags = hashtagArray.filter(tag => 
+
+      const invalidHashtags = hashtagArray.filter(tag =>
         typeof tag !== 'string' || tag.length > 50 || tag.length < 1
       );
-      
+
       if (invalidHashtags.length > 0) {
         return res.status(400).json({
           message: 'Each hashtag must be a string between 1 and 50 characters',
@@ -1664,7 +1654,7 @@ export const createTicketBasicInfo = async (req, res) => {
           if (end_time && end_time.trim() !== "") {
             dateEntry.end_time = end_time.trim();
           }
-          
+
           return dateEntry;
         });
       } catch (validationError) {
@@ -1842,7 +1832,7 @@ export const createTicketBasicInfo = async (req, res) => {
     let processedGuests = [];
     if (guests) {
       const guestsArray = parseJSONSafely(guests, []);
-      
+
       processedGuests = guestsArray.map((guest, index) => {
         let guestData = {
           guest_name: "",
@@ -1996,15 +1986,15 @@ export const createTicketBasicInfo = async (req, res) => {
           message: "You don't have permission to update this ticket",
         });
       }
-    
+
       // Preserve the current event_status when updating
       const currentEventStatus = ticket.event_status;
-      
+
       Object.assign(ticket, ticketData);
-      
+
       // Restore the original event_status to prevent it from being reset to 'pending'
       ticket.event_status = currentEventStatus;
-      
+
       ticket.updated_by = userId;
       ticket.updated_at = new Date();
       await ticket.save();
@@ -2049,107 +2039,107 @@ export const createTicketBasicInfo = async (req, res) => {
     }
 
     res.status(201).json(responseData);
-    } catch (error) {
-      console.error("Error creating event:", error);
-      // Handle multer errors
-      if (error.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({
-          message: "File size too large. Maximum 10MB allowed per file.",
-        });
-      }
-      if (error.code === "LIMIT_FILE_COUNT") {
-        return res.status(400).json({
-          message: "Too many files uploaded. Maximum limits: 10 guest profiles, 1 event rules file.",
-        });
-      }
-      if (error.code === "LIMIT_UNEXPECTED_FILE") {
-        return res.status(400).json({
-          message: "Unexpected file field. Only 'guest_profile_0' to 'guest_profile_9' and 'event_rules' are allowed.",
-        });
-      }
+  } catch (error) {
+    console.error("Error creating event:", error);
+    // Handle multer errors
+    if (error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        message: "File size too large. Maximum 10MB allowed per file.",
+      });
+    }
+    if (error.code === "LIMIT_FILE_COUNT") {
+      return res.status(400).json({
+        message: "Too many files uploaded. Maximum limits: 10 guest profiles, 1 event rules file.",
+      });
+    }
+    if (error.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({
+        message: "Unexpected file field. Only 'guest_profile_0' to 'guest_profile_9' and 'event_rules' are allowed.",
+      });
+    }
 
-      // Handle file type errors
-      if (
-        error.message &&
-        (error.message.includes("Guest profile") ||
-          error.message.includes("Event rules file must be a document") ||
-          error.message.includes("Only PDF, DOC, DOCX, JPG, JPEG, and PNG files are allowed"))
-      ) {
-        return res.status(400).json({
-          message: "Invalid file type",
-          error: error.message,
-        });
-      }
-
-      // Handle MongoDB errors
-      if (error.name === "CastError") {
-        return res.status(400).json({
-          message: "Data type casting error. Check your data format.",
-          error: error.message,
-          field: error.path,
-        });
-      }
-
-      if (error.name === "ValidationError") {
-        const validationErrors = Object.keys(error.errors).map((key) => ({
-          field: key,
-          message: error.errors[key].message,
-        }));
-
-        return res.status(400).json({
-          message: "Validation error",
-          errors: validationErrors,
-        });
-      }
-
-      if (error.code === 11000) {
-        return res.status(409).json({
-          message: "Duplicate entry found",
-          error: "Event with similar details already exists at database level",
-        });
-      }
-      // Cleanup: Delete uploaded Cloudinary files if database operation fails
-      try {
-        const filesToDelete = [];
-        if (guestProfileFiles && typeof guestProfileFiles === "object") {
-          Object.values(guestProfileFiles).forEach((file) => {
-            if (file && file.public_id) filesToDelete.push(file.public_id);
-          });
-        }
-        if (eventRulesFiles && Array.isArray(eventRulesFiles)) {
-          eventRulesFiles.forEach((file) => {
-            if (file && file.public_id) filesToDelete.push(file.public_id);
-          });
-        }
-
-        if (videoFiles && typeof videoFiles === "object") {
-          Object.values(videoFiles).forEach((file) => {
-            if (file && file.public_id) filesToDelete.push(file.public_id);
-          });
-        }
-
-        if (previewImageFiles && typeof previewImageFiles === "object") {
-          Object.values(previewImageFiles).forEach((file) => {
-            if (file && file.public_id) filesToDelete.push(file.public_id);
-          });
-        }
-
-        if (filesToDelete.length > 0) {
-          for (const publicId of filesToDelete) {
-            try {
-              await deleteFromCloudinary(publicId, "auto");
-            } catch (deleteErr) {
-              console.error(`Failed to delete file ${publicId}:`, deleteErr);
-            }
-          }
-        }
-      } catch (cleanupError) {
-        console.error("Error cleaning up Cloudinary files:", cleanupError);
-      }
-      res.status(500).json({
-        message: "Internal server error",
+    // Handle file type errors
+    if (
+      error.message &&
+      (error.message.includes("Guest profile") ||
+        error.message.includes("Event rules file must be a document") ||
+        error.message.includes("Only PDF, DOC, DOCX, JPG, JPEG, and PNG files are allowed"))
+    ) {
+      return res.status(400).json({
+        message: "Invalid file type",
         error: error.message,
       });
+    }
+
+    // Handle MongoDB errors
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Data type casting error. Check your data format.",
+        error: error.message,
+        field: error.path,
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.keys(error.errors).map((key) => ({
+        field: key,
+        message: error.errors[key].message,
+      }));
+
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validationErrors,
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "Duplicate entry found",
+        error: "Event with similar details already exists at database level",
+      });
+    }
+    // Cleanup: Delete uploaded Cloudinary files if database operation fails
+    try {
+      const filesToDelete = [];
+      if (guestProfileFiles && typeof guestProfileFiles === "object") {
+        Object.values(guestProfileFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      if (eventRulesFiles && Array.isArray(eventRulesFiles)) {
+        eventRulesFiles.forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+
+      if (videoFiles && typeof videoFiles === "object") {
+        Object.values(videoFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+
+      if (previewImageFiles && typeof previewImageFiles === "object") {
+        Object.values(previewImageFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+
+      if (filesToDelete.length > 0) {
+        for (const publicId of filesToDelete) {
+          try {
+            await deleteFromCloudinary(publicId, "auto");
+          } catch (deleteErr) {
+            console.error(`Failed to delete file ${publicId}:`, deleteErr);
+          }
+        }
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
+    }
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 export const updateTicketMedia = async (req, res) => {
@@ -2218,17 +2208,17 @@ export const updateTicketMedia = async (req, res) => {
           }
         }
       }
-    } 
+    }
     // Check if any new media files were uploaded
     const hasNewMediaFiles =
       !!eventLogoUrl || !!eventBannerUrl || !!eventPortraitUrl || event_images.length > 0 || event_videos.length > 0;
     const hasNewCollegeAuth = !!collegeAuthorisationUrl;
 
     const isSyncingGallery = !!(
-      req.body.existing_event_images || 
-      req.body.image_order || 
-      req.body.existing_event_videos || 
-      req.body.video_order||
+      req.body.existing_event_images ||
+      req.body.image_order ||
+      req.body.existing_event_videos ||
+      req.body.video_order ||
       req.body.delete_event_portrait || // Add these flags
       req.body.delete_event_logo
     );
@@ -2289,7 +2279,7 @@ export const updateTicketMedia = async (req, res) => {
       });
     }
     const userId = req.user._id || req.user.id;
-     updateData = {
+    updateData = {
       "form_progress.media": true,
       updated_by: userId,
       updated_at: new Date(),
@@ -2318,10 +2308,10 @@ export const updateTicketMedia = async (req, res) => {
         size: file.size, // ✅ REQUIRED BY SCHEMA
         uploadedAt: new Date()
       }));
-    
+
       // 3️⃣ Merge
       let combinedImages = [...keptImages, ...newUploadedImages];
-    
+
       // 4️⃣ Apply frontend order
       if (finalOrder.length > 0) {
         combinedImages.sort((a, b) => {
@@ -2336,11 +2326,11 @@ export const updateTicketMedia = async (req, res) => {
       const existingTicket = await Ticket.findById(ticketId);
       const keepVideoPaths = JSON.parse(req.body.existing_event_videos || "[]");
       const videoOrder = JSON.parse(req.body.video_order || "[]");
-    
+
       const keptVideos = (existingTicket?.event_videos || []).filter(v =>
         keepVideoPaths.includes(v.path)
       );
-    
+
       const newVideos = event_videos.map(file => ({
         path: file.path,
         originalName: file.originalName,
@@ -2348,15 +2338,15 @@ export const updateTicketMedia = async (req, res) => {
         size: file.size, // ✅ REQUIRED
         uploadedAt: new Date()
       }));
-    
+
       let combinedVideos = [...keptVideos, ...newVideos];
-    
+
       if (videoOrder.length > 0) {
         combinedVideos.sort(
           (a, b) => videoOrder.indexOf(a.path) - videoOrder.indexOf(b.path)
         );
       }
-    
+
       updateData.event_videos = combinedVideos.slice(0, 5);
     }
     // Add college authorization file if uploaded
@@ -2397,7 +2387,7 @@ export const updateTicketMedia = async (req, res) => {
       message: "Ticket media updated successfully",
       ticket: updatedTicket,
       ticketId: ticketId,
-uploadedFiles: {
+      uploadedFiles: {
         event_logo: !!eventLogoUrl,
         event_banner: !!eventBannerUrl,
         event_portrait: !!eventPortraitUrl,
@@ -2408,7 +2398,7 @@ uploadedFiles: {
       uploadedUrls: {
         event_logo: eventLogoUrl,
         event_banner: eventBannerUrl,
-        event_portrait:eventPortraitUrl,
+        event_portrait: eventPortraitUrl,
         college_authorisation: collegeAuthorisationUrl,
       },
       organisationType: organisation_type || "Not specified",
@@ -2439,7 +2429,7 @@ uploadedFiles: {
       ) {
         event_images.forEach((img) => filesToDelete.push(img.path));
       }
-            if (
+      if (
         typeof event_videos !== "undefined" &&
         event_videos &&
         event_videos.length > 0
@@ -2584,7 +2574,7 @@ export const updateTicketAddOns = async (req, res) => {
     if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
-    // ── Detect layout-generation-only requests 
+    // ── Detect layout-generation-only requests
     // This flag can arrive either as a top-level body field OR inside sub_event JSON
     let isLayoutGenerationOnly = false;
     if (req.body.generate_layout_only === "true" || req.body.generate_layout_only === true) {
@@ -2814,8 +2804,8 @@ export const updateTicketAddOns = async (req, res) => {
             ? "For offline events: location, venue, and seating_arrangement are required"
             : subEventData.location_type === "online" ||
               subEventData.location_type === "recorded"
-            ? "For online/recorded events: event_link is required in event_dates"
-            : "",
+              ? "For online/recorded events: event_link is required in event_dates"
+              : "",
       });
     }
 
@@ -2905,7 +2895,7 @@ export const updateTicketAddOns = async (req, res) => {
       "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
       "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
       "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
-      "Arabic", "Persian (Farsi)", "Hebrew","Swahili", "Zulu", "Afrikaans","Other"
+      "Arabic", "Persian (Farsi)", "Hebrew", "Swahili", "Zulu", "Afrikaans", "Other"
     ];
     const languageArray = parseJSONSafely(subEventData.event_language, []);
     if (!Array.isArray(languageArray) || languageArray.length === 0) {
@@ -3211,8 +3201,8 @@ export const updateTicketAddOns = async (req, res) => {
           typeof portraitFile === "string"
             ? portraitFile
             : Array.isArray(portraitFile)
-            ? portraitFile[0].path
-            : portraitFile.path;
+              ? portraitFile[0].path
+              : portraitFile.path;
         processedFiles.event_portrait_public_id =
           typeof portraitFile === "object"
             ? Array.isArray(portraitFile)
@@ -3656,16 +3646,16 @@ export const updateTicketAddOns = async (req, res) => {
           throw new Error(`Invalid ticket price for ticket ${index + 1}`);
         if (isNaN(parsedCapacity) || parsedCapacity <= 0)
           throw new Error(`Invalid max capacity for ticket ${index + 1}`);
-        const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
+        const { basePrice, gstAmount, inclusivePrice } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type:            String(ticketType).trim(),
-          ticket_price:           parsedPrice,
-          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
-          ticket_gst_percentage:  appliedGSTPct,
-          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
-          ticket_gst_applicable:  gstApplicable,
-          max_capacity:           parsedCapacity,
-          ticket_photo:           "",
+          ticket_type: String(ticketType).trim(),
+          ticket_price: gstApplicable ? inclusivePrice : parsedPrice, // what buyer pays
+          ticket_base_price: parsedPrice,// organiser's entered price
+          ticket_gst_percentage: appliedGSTPct,
+          ticket_gst_amount: gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable: gstApplicable,
+          max_capacity: parsedCapacity,
+          ticket_photo: "",
           ticket_photo_public_id: "",
         };
 
@@ -3734,19 +3724,19 @@ export const updateTicketAddOns = async (req, res) => {
         .filter((item) => item !== "" && item !== "undefined" && item !== "null");
     })();
     const finalTicketTypes =
-          processedTicketTypes && processedTicketTypes.length > 0
-            ? processedTicketTypes.map((ticket) => ({
-                ticket_type:            String(ticket.ticket_type),
-                ticket_price:           Number(ticket.ticket_price),
-                ticket_base_price:      Number(ticket.ticket_base_price),
-                ticket_gst_percentage:  Number(ticket.ticket_gst_percentage),
-                ticket_gst_amount:      Number(ticket.ticket_gst_amount),
-                ticket_gst_applicable:  Boolean(ticket.ticket_gst_applicable),
-                max_capacity:           Number(ticket.max_capacity),
-                ticket_photo:           String(ticket.ticket_photo || ""),
-                ticket_photo_public_id: String(ticket.ticket_photo_public_id || ""),
-              }))
-            : [];
+      processedTicketTypes && processedTicketTypes.length > 0
+        ? processedTicketTypes.map((ticket) => ({
+          ticket_type: String(ticket.ticket_type),
+          ticket_price: Number(ticket.ticket_price),
+          ticket_base_price: Number(ticket.ticket_base_price),
+          ticket_gst_percentage: Number(ticket.ticket_gst_percentage),
+          ticket_gst_amount: Number(ticket.ticket_gst_amount),
+          ticket_gst_applicable: Boolean(ticket.ticket_gst_applicable),
+          max_capacity: Number(ticket.max_capacity),
+          ticket_photo: String(ticket.ticket_photo || ""),
+          ticket_photo_public_id: String(ticket.ticket_photo_public_id || ""),
+        }))
+        : [];
 
     const cleanedDescription = sanitizeDescriptionHtml(subEventData.event_description);
     const descriptionPlainText = stripHtmlForValidation(cleanedDescription);
@@ -3783,9 +3773,9 @@ export const updateTicketAddOns = async (req, res) => {
         min_age_allowed: Number(ageNum),
         max_age_allowed: Number(ageMax),
         event_description: descriptionPlainText,
-        payment_type:         String(subEventData.payment_type),
-        gst_applicable:       gstApplicable,
-        gst_percentage:       appliedGSTPct,
+        payment_type: String(subEventData.payment_type),
+        gst_applicable: gstApplicable,
+        gst_percentage: appliedGSTPct,
         gst_registered_group: groupHasGSTIN,
         kids_friendly: Boolean(
           subEventData.kids_friendly === "true" || subEventData.kids_friendly === true
@@ -3816,6 +3806,9 @@ export const updateTicketAddOns = async (req, res) => {
         attendance_count: Boolean(
           subEventData.attendance_count === "true" || subEventData.attendance_count === true
         ),
+        restrict_booking: Boolean(
+          subEventData.restrict_booking === "true" || subEventData.restrict_booking === true
+        ),
         booking_start_date: subEventData.booking_start_date
           ? String(subEventData.booking_start_date).trim()
           : "",
@@ -3834,15 +3827,16 @@ export const updateTicketAddOns = async (req, res) => {
           const existing = existingSubEvent.ticket_types || [];
           if (existing.length === 0) return [];
           return existing.map((t) => {
-            const inclPrice = Number(t.ticket_price || 0);
-            const { basePrice, gstAmount } = extractGSTFromInclusive(inclPrice, appliedGSTPct);
+            // Use stored base price for recalculation; fall back to ticket_price if base not stored
+            const basePrice = Number(t.ticket_base_price || t.ticket_price || 0);
+            const { gstAmount, inclusivePrice } = extractGSTFromInclusive(basePrice, appliedGSTPct);
             return {
               ...t.toObject ? t.toObject() : t,
-              ticket_price:           inclPrice,
-              ticket_base_price:      gstApplicable ? basePrice  : inclPrice,
-              ticket_gst_percentage:  appliedGSTPct,
-              ticket_gst_amount:      gstApplicable ? gstAmount  : 0,
-              ticket_gst_applicable:  gstApplicable,
+              ticket_price: gstApplicable ? inclusivePrice : basePrice,// what buyer pays
+              ticket_base_price: basePrice,// organiser's entered price
+              ticket_gst_percentage: appliedGSTPct,
+              ticket_gst_amount: gstApplicable ? gstAmount : 0,
+              ticket_gst_applicable: gstApplicable,
             };
           });
         })(),
@@ -3889,12 +3883,12 @@ export const updateTicketAddOns = async (req, res) => {
         event_images:
           processedFiles.event_images && processedFiles.event_images.length > 0
             ? processedFiles.event_images.map((img) => ({
-                path: String(img.path),
-                originalName: String(img.originalName),
-                mimeType: String(img.mimeType),
-                size: Number(img.size),
-                uploadedAt: new Date(img.uploadedAt),
-              }))
+              path: String(img.path),
+              originalName: String(img.originalName),
+              mimeType: String(img.mimeType),
+              size: Number(img.size),
+              uploadedAt: new Date(img.uploadedAt),
+            }))
             : existingSubEvent.event_images || [],
         event_videos:
           processedFiles.event_videos?.length > 0
@@ -4208,8 +4202,7 @@ export const updateTicketAddOns = async (req, res) => {
             try {
               localFilePath = await downloadFileFromCloudinary(
                 layoutFileData.cloudinaryUrl,
-                `layout_${ticketId}_${Date.now()}.${
-                  layoutFileData.mimeType?.split("/")[1] || "jpg"
+                `layout_${ticketId}_${Date.now()}.${layoutFileData.mimeType?.split("/")[1] || "jpg"
                 }`
               );
             } catch (downloadError) {
@@ -4420,7 +4413,7 @@ export const updateTicketAddOns = async (req, res) => {
       min_age_allowed: Number(ageNum),
       max_age_allowed: Number(ageMax),
       event_description: descriptionPlainText,
-      payment_type:String(subEventData.payment_type),
+      payment_type: String(subEventData.payment_type),
       gst_applicable: gstApplicable,
       gst_percentage: appliedGSTPct,
       gst_registered_group: groupHasGSTIN,
@@ -4433,6 +4426,9 @@ export const updateTicketAddOns = async (req, res) => {
       ),
       attendance_count: Boolean(
         subEventData.attendance_count === "true" || subEventData.attendance_count === true
+      ),
+      restrict_booking: Boolean(
+        subEventData.restrict_booking === "true" || subEventData.restrict_booking === true
       ),
       event_date_type: subEventData.event_date_type
         ? String(subEventData.event_date_type)
@@ -4855,7 +4851,7 @@ export const updateTicketDetails = async (req, res) => {
   try {
     const processedFiles = {};
     const ticketPhotoFiles = {};
-    
+
     // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
@@ -4891,13 +4887,14 @@ export const updateTicketDetails = async (req, res) => {
       attendance_count,
       booking_start_date,
       booking_end_date,
+      restrict_booking,
       use_group_bank_account = "true",
     } = req.body;
     // Resolve GST (now payment_type is defined)
     const { applicable: gstApplicable, mandatory: gstMandatory } =
       resolveGSTApplicability(GroupBank, payment_type, req.body.gst_applicable);
     const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
-    //VALIDATION SECTION 
+    //VALIDATION SECTION
     // 1. Validate payment_type (REQUIRED)
     if (!payment_type || String(payment_type).trim() === "") {
       return res.status(400).json({
@@ -5050,7 +5047,7 @@ export const updateTicketDetails = async (req, res) => {
             message: "Ticket layout upload failed or is invalid",
           });
         }
-        
+
         processedFiles.ticket_layout = layoutFile.cloudinaryUrl;
         processedFiles.ticket_layout_public_id = layoutFile.public_id;
 
@@ -5058,7 +5055,7 @@ export const updateTicketDetails = async (req, res) => {
         if (total_capacity && parseInt(total_capacity) > 0) {
           const localFilePath = layoutFile.localPath;
           const fileType = layoutFile.mimeType;
-          
+
           try {
             if (!localFilePath) {
               throw new Error('Local file path not available for processing');
@@ -5092,13 +5089,13 @@ export const updateTicketDetails = async (req, res) => {
                 // Silent cleanup failure
               }
             }
-            
+
             // Log the full error for debugging
             console.error('❌ Full error details:', error);
             console.error('Error name:', error.name);
             console.error('Error message:', error.message);
             console.error('Error stack:', error.stack);
-            
+
             // Check if it's a timeout error
             if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
               return res.status(400).json({
@@ -5114,7 +5111,7 @@ export const updateTicketDetails = async (req, res) => {
                 ]
               });
             }
-            
+
             // Check if Python service is not running
             if (error.code === 'ECONNREFUSED' || error.message.includes('connect ECONNREFUSED')) {
               return res.status(400).json({
@@ -5130,7 +5127,7 @@ export const updateTicketDetails = async (req, res) => {
                 ]
               });
             }
-            
+
             // For other errors, show the actual error message
             return res.status(400).json({
               message: 'Failed to generate seating layout',
@@ -5209,19 +5206,19 @@ export const updateTicketDetails = async (req, res) => {
             `Invalid max_capacity for ticket ${index + 1}. Must be a positive integer. Provided: ${maxCapacity}`
           );
         }
-        const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
+        const { basePrice, gstAmount, inclusivePrice } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type:            String(ticketType).trim(),
-          ticket_price:           parsedPrice,                        // GST-inclusive price (buyer sees this)
-          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
-          ticket_gst_percentage:  appliedGSTPct,
-          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
-          ticket_gst_applicable:  gstApplicable,
-          max_capacity:           parsedCapacity,
-          ticket_photo:           existingPhoto,
+          ticket_type: String(ticketType).trim(),
+          ticket_price: gstApplicable ? inclusivePrice : parsedPrice,   // buyer pays this
+          ticket_base_price: parsedPrice,                                // organiser entered this
+          ticket_gst_percentage: appliedGSTPct,
+          ticket_gst_amount: gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable: gstApplicable,
+          max_capacity: parsedCapacity,
+          ticket_photo: existingPhoto,
           ticket_photo_public_id: ticket.ticket_photo_public_id || "",
-          assigned_seats:         ticket.assigned_seats || [],
-          _id:                    ticket._id || ticket.id,
+          assigned_seats: ticket.assigned_seats || [],
+          _id: ticket._id || ticket.id,
         };
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
@@ -5291,7 +5288,7 @@ export const updateTicketDetails = async (req, res) => {
         ];
       } else {
         const customBankingDetails = parseNestedData(req.body.banking_details, "banking_details");
-        
+
         if (!customBankingDetails || customBankingDetails.length === 0) {
           return res.status(400).json({
             message: "Custom banking details are required when not using group bank account",
@@ -5439,14 +5436,14 @@ export const updateTicketDetails = async (req, res) => {
       finalBankingDetails = [];
     }
     const updateData = {
-      payment_type:                    String(payment_type),
-      banking_details:                 finalBankingDetails,
-      gst_applicable:                  gstApplicable,
-      gst_percentage:                  appliedGSTPct,
-      gst_registered_group:            !!(GroupBank?.gst_no),
+      payment_type: String(payment_type),
+      banking_details: finalBankingDetails,
+      gst_applicable: gstApplicable,
+      gst_percentage: appliedGSTPct,
+      gst_registered_group: !!(GroupBank?.gst_no),
       "form_progress.banking_tickets": true,
-      updated_by:                      userId,
-      updated_at:                      new Date(),
+      updated_by: userId,
+      updated_at: new Date(),
     };
     // Add ticket types if provided
     if (processedTicketTypes.length > 0) {
@@ -5489,60 +5486,60 @@ export const updateTicketDetails = async (req, res) => {
     }
     // Handle seating layout - PRIORITY 1: Manual assignment from frontend
     if (req.body.seating_layout) {
-      try {        
-        const parsedLayout = typeof req.body.seating_layout === 'string' 
-          ? JSON.parse(req.body.seating_layout) 
-          : req.body.seating_layout;        
+      try {
+        const parsedLayout = typeof req.body.seating_layout === 'string'
+          ? JSON.parse(req.body.seating_layout)
+          : req.body.seating_layout;
         // Validate structure
         if (!parsedLayout.seats || !Array.isArray(parsedLayout.seats)) {
           console.error('❌ Invalid seating layout structure - missing seats array');
           throw new Error('Seating layout must contain a seats array');
         }
-        
+
         if (!parsedLayout.rows || !Array.isArray(parsedLayout.rows)) {
           console.error('❌ Invalid seating layout structure - missing rows array');
           throw new Error('Seating layout must contain a rows array');
         }
-      const processedSeats = parsedLayout.seats.map(seat => {
-        let seatPrice = null;
-        if (seat.ticketTypeId && processedTicketTypes.length > 0) {
-          const matchingTicket = processedTicketTypes.find(
-            tt => String(tt._id) === String(seat.ticketTypeId)
-          );
-          if (matchingTicket) {
-            seatPrice = matchingTicket.ticket_price;
+        const processedSeats = parsedLayout.seats.map(seat => {
+          let seatPrice = null;
+          if (seat.ticketTypeId && processedTicketTypes.length > 0) {
+            const matchingTicket = processedTicketTypes.find(
+              tt => String(tt._id) === String(seat.ticketTypeId)
+            );
+            if (matchingTicket) {
+              seatPrice = matchingTicket.ticket_price;
+            }
           }
-        }
-        // If no match found but price was provided in seat data, use it
-        if (seatPrice === null && seat.price !== undefined && seat.price !== null) {
-          seatPrice = Number(seat.price);
-        }
-        // Create clean seat object with explicit fields
-        const cleanSeat = {
-          seatId: seat.seatId,
-          row: seat.row,
-          column: seat.column,
-          isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
-          isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
-          ticketTypeId: seat.ticketTypeId || null,
-          ticketTypeName: seat.ticketTypeName || null,
-          ticketTypeColor: seat.ticketTypeColor || null,
-          price: seatPrice, 
-        };    
-        // If seat has assignment but missing color, try to recover from assignments
-        if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
-          const assignment = parsedLayout.ticketTypeAssignments?.find(
-            a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
-          );
-          
-          if (assignment && assignment.color) {
-            cleanSeat.ticketTypeColor = assignment.color;
-            cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
-          } else {
-            console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+          // If no match found but price was provided in seat data, use it
+          if (seatPrice === null && seat.price !== undefined && seat.price !== null) {
+            seatPrice = Number(seat.price);
           }
-        }
-        return cleanSeat;
+          // Create clean seat object with explicit fields
+          const cleanSeat = {
+            seatId: seat.seatId,
+            row: seat.row,
+            column: seat.column,
+            isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
+            isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
+            ticketTypeId: seat.ticketTypeId || null,
+            ticketTypeName: seat.ticketTypeName || null,
+            ticketTypeColor: seat.ticketTypeColor || null,
+            price: seatPrice,
+          };
+          // If seat has assignment but missing color, try to recover from assignments
+          if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
+            const assignment = parsedLayout.ticketTypeAssignments?.find(
+              a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+            );
+
+            if (assignment && assignment.color) {
+              cleanSeat.ticketTypeColor = assignment.color;
+              cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
+            } else {
+              console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+            }
+          }
+          return cleanSeat;
         });
         const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => {
           // ✅ Find matching ticket type to get accurate price
@@ -5642,7 +5639,7 @@ export const updateTicketDetails = async (req, res) => {
             const nonZeroPrices = assignedSeats
               .filter(s => s.price !== null && s.price !== undefined && s.price > 0)
               .map(s => ({ seatId: s.seatId, price: s.price }));
-            
+
             if (nonZeroPrices.length > 0) {
               return res.status(400).json({
                 message: 'Free events cannot have assigned seats with non-zero prices',
@@ -5663,11 +5660,11 @@ export const updateTicketDetails = async (req, res) => {
           hint: 'Seating layout data is corrupted or invalid'
         });
       }
-    } 
+    }
     // PRIORITY 2: Auto-generated layout (only if no manual layout provided)
-    else if (processedFiles.seating_layout) {      
+    else if (processedFiles.seating_layout) {
       updateData.seating_layout = processedFiles.seating_layout;
-      
+
       if (processedFiles.seating_layout_url) {
         updateData.seating_layout_url = String(processedFiles.seating_layout_url);
         updateData.seating_layout_public_id = String(processedFiles.seating_layout_public_id || "");
@@ -5677,9 +5674,9 @@ export const updateTicketDetails = async (req, res) => {
     if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
       updateData.total_capacity = String(total_capacity);
     }
-    if(attendance_count === "true" || attendance_count === true){
+    if (attendance_count === "true" || attendance_count === true) {
       updateData.attendance_count = true;
-    }else{
+    } else {
       updateData.attendance_count = false;
     }
     // Add booking dates if provided
@@ -5689,6 +5686,8 @@ export const updateTicketDetails = async (req, res) => {
     if (booking_end_date && String(booking_end_date).trim() !== "") {
       updateData.booking_end_date = String(booking_end_date);
     }
+    // Booking restriction: true = allow multiple tickets per person, false (default) = 1 ticket only
+    updateData.restrict_booking = (restrict_booking === "true" || restrict_booking === true);
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
@@ -5713,6 +5712,9 @@ export const updateTicketDetails = async (req, res) => {
       banking_method: use_group_bank_account === "true" ? "group_account" : "custom_account",
       banking_details_count: finalBankingDetails.length,
       attendance_count: attendance_count,
+      restrict_booking: updatedTicket.restrict_booking,
+      gst_applicable: updatedTicket.gst_applicable,
+      gst_percentage: updatedTicket.gst_percentage,
       total_capacity: total_capacity,
       ticket_types_count: processedTicketTypes.length,
       uploadedFiles: {
@@ -6241,9 +6243,9 @@ export const deleteSubEvent = async (req, res) => {
     }
 
     // Soft-delete: mark sub-event as "deleted" — do NOT pull/remove it
-    parentTicket.sub_events[subEventIndex].event_status      = "remove";
-    parentTicket.sub_events[subEventIndex].cancelled_at      = new Date();
-    parentTicket.sub_events[subEventIndex].cancelled_by      = userId;
+    parentTicket.sub_events[subEventIndex].event_status = "remove";
+    parentTicket.sub_events[subEventIndex].cancelled_at = new Date();
+    parentTicket.sub_events[subEventIndex].cancelled_by = userId;
     parentTicket.sub_events[subEventIndex].cancellation_reason = "Deleted by host";
 
     parentTicket.markModified("sub_events");
@@ -6255,7 +6257,7 @@ export const deleteSubEvent = async (req, res) => {
       data: {
         ticketId,
         subEventId,
-        event_name:   parentTicket.sub_events[subEventIndex].event_name,
+        event_name: parentTicket.sub_events[subEventIndex].event_name,
         event_status: "deleted",
       },
     });
@@ -6292,20 +6294,20 @@ export const getAllDeletedEvents = async (req, res) => {
         if (["cancelled", "deleted", "remove"].includes(se.event_status)) {
           deletedSubEvents.push({
             // Spread sub-event fields
-            _id:                  se._id,
-            event_name:           se.event_name,
-            event_category:       se.event_category,
-            event_type:           se.event_type,
-            event_banner:         se.event_banner,
-            event_dates:          se.event_dates,
-            event_status:         se.event_status,
-            cancellation_reason:  se.cancellation_reason,
-            cancelled_at:         se.cancelled_at,
-            cancelled_by:         se.cancelled_by,
-            createdAt:            se.createdAt || ticket.createdAt,
-            isSubEvent:           true,
-            parentEventId:        ticket._id,
-            parentEventName:      ticket.event_name,
+            _id: se._id,
+            event_name: se.event_name,
+            event_category: se.event_category,
+            event_type: se.event_type,
+            event_banner: se.event_banner,
+            event_dates: se.event_dates,
+            event_status: se.event_status,
+            cancellation_reason: se.cancellation_reason,
+            cancelled_at: se.cancelled_at,
+            cancelled_by: se.cancelled_by,
+            createdAt: se.createdAt || ticket.createdAt,
+            isSubEvent: true,
+            parentEventId: ticket._id,
+            parentEventName: ticket.event_name,
           });
         }
       });
@@ -6316,11 +6318,11 @@ export const getAllDeletedEvents = async (req, res) => {
       ...deletedSubEvents,
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return res.status(200).json({
-      message:       allDeleted.length === 0
-                       ? "No deleted events found"
-                       : "Deleted events fetched successfully",
+      message: allDeleted.length === 0
+        ? "No deleted events found"
+        : "Deleted events fetched successfully",
       deletedEvents: allDeleted,
-      count:         allDeleted.length,
+      count: allDeleted.length,
     });
   } catch (error) {
     console.error("Error fetching deleted events:", error);
@@ -6329,8 +6331,8 @@ export const getAllDeletedEvents = async (req, res) => {
 };
 export const deleteAllEvents = async (req, res) => {
   try {
-      const userId = req.user._id || req.user.id;
-      if (!userId) {
+    const userId = req.user._id || req.user.id;
+    if (!userId) {
       return res.status(400).json({
         message: "Missing required parameters",
         required: "userId",
@@ -6343,8 +6345,8 @@ export const deleteAllEvents = async (req, res) => {
     const deletedCount = deletedEvents.length;
     if (!deletedEvents || deletedCount === 0) {
       return res
-          .status(404)
-          .json({ message: "All Tickets not found or empty tickets" });
+        .status(404)
+        .json({ message: "All Tickets not found or empty tickets" });
     }
     res.status(200).json({
       message: "All Tickets deleted successfully",
@@ -6352,7 +6354,7 @@ export const deleteAllEvents = async (req, res) => {
       count: deletedEvents.deletedCount,
     });
   } catch (error) {
-      console.error("Error deleting tickets:", error);
+    console.error("Error deleting tickets:", error);
   }
 };
 
@@ -6360,7 +6362,7 @@ export const deleteEventPermenently = async (req, res) => {
   try {
     const { ticketId } = req.params;
     const userId = req.user._id || req.user.id;
-    const { isSubEvent, parentEventId, subEventId } = req.body; 
+    const { isSubEvent, parentEventId, subEventId } = req.body;
 
     if (!ticketId || !userId) {
       return res.status(400).json({
@@ -6395,7 +6397,7 @@ export const deleteEventPermenently = async (req, res) => {
     }
 
     const deletedEvent = await Ticket.findOneAndDelete({
-      _id:          ticketId,
+      _id: ticketId,
       userId,
       event_status: { $in: ["cancelled", "deleted", "remove"] },
     });
@@ -6442,7 +6444,7 @@ export const deleteEventPermenently = async (req, res) => {
 
 export const getDeletedEventById = async (req, res) => {
   try {
-    const userId   = req.user._id || req.user.id;
+    const userId = req.user._id || req.user.id;
     const ticketId = req.params.eventId;
     const subEventId = req.query.subEventId || null; // optional query param
 
@@ -6471,19 +6473,19 @@ export const getDeletedEventById = async (req, res) => {
       }
 
       return res.status(200).json({
-        message:    "Deleted sub-event retrieved successfully",
-        ticket:     parentTicket, // return full parent so frontend can extract sub-event
-        subEvent:   subEvent,
-        ticketId:   ticketId,
+        message: "Deleted sub-event retrieved successfully",
+        ticket: parentTicket, // return full parent so frontend can extract sub-event
+        subEvent: subEvent,
+        ticketId: ticketId,
         subEventId: subEventId,
-        userId:     userId,
+        userId: userId,
       });
     }
 
     // ── Case 2: Fetching a root ticket ────────────────────────────────────
     const deletedEvent = await Ticket.findOne({
-      _id:          ticketId,
-      userId:       userId,
+      _id: ticketId,
+      userId: userId,
       event_status: { $in: ["cancelled", "deleted", "remove"] },
     });
 
@@ -6494,10 +6496,10 @@ export const getDeletedEventById = async (req, res) => {
     }
 
     return res.status(200).json({
-      message:  "Deleted ticket retrieved successfully",
-      ticket:   deletedEvent,
+      message: "Deleted ticket retrieved successfully",
+      ticket: deletedEvent,
       ticketId: ticketId,
-      userId:   userId,
+      userId: userId,
     });
 
   } catch (error) {
@@ -6569,9 +6571,9 @@ export const recoverDeletedEvent = async (req, res) => {
         message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       });
     }
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
@@ -6605,20 +6607,20 @@ export const recoverSubEvent = async (req, res) => {
     }
 
     // Restore to confirmed regardless of which deleted status it had
-    parentTicket.sub_events[subIdx].event_status        = "confirmed";
-    parentTicket.sub_events[subIdx].cancellation_reason  = undefined;
-    parentTicket.sub_events[subIdx].cancelled_at         = undefined;
-    parentTicket.sub_events[subIdx].cancelled_by         = undefined;
+    parentTicket.sub_events[subIdx].event_status = "confirmed";
+    parentTicket.sub_events[subIdx].cancellation_reason = undefined;
+    parentTicket.sub_events[subIdx].cancelled_at = undefined;
+    parentTicket.sub_events[subIdx].cancelled_by = undefined;
     parentTicket.markModified("sub_events");
     await parentTicket.save({ validateBeforeSave: false });
 
     return res.status(200).json({
-      success:        true,
-      message:        "Sub-event recovered successfully",
+      success: true,
+      message: "Sub-event recovered successfully",
       data: {
         subEventId,
         parentTicketId,
-        event_name:   parentTicket.sub_events[subIdx].event_name,
+        event_name: parentTicket.sub_events[subIdx].event_name,
         event_status: "confirmed",
       },
     });
@@ -6627,20 +6629,21 @@ export const recoverSubEvent = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
   }
 };
-export const getAllGroups = async (req, res)=>{
-  try{
-    const groups = await Group.find({status:"active"}).sort({
-                  createdAt: -1});
+export const getAllGroups = async (req, res) => {
+  try {
+    const groups = await Group.find({ status: "active" }).sort({
+      createdAt: -1
+    });
     res.status(200).json({
       count: groups.length,
       groups,
     });
-  }catch(error){
+  } catch (error) {
     console.error("Error fetching groups:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-export const getAllLiveEvents =  async (req, res)=>{
+export const getAllLiveEvents = async (req, res) => {
   try {
     const tickets = await Ticket.find({ event_status: "live" }).sort({
       createdAt: -1,
@@ -6656,11 +6659,11 @@ export const getAllLiveEvents =  async (req, res)=>{
         message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       });
     }
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
     });
-  }   
+  }
 };
 
 export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, now) => {
@@ -6676,8 +6679,8 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     return { promoted: false, newMain: null };
   }
 
-  const newMainSubEvent    = activeSubEvents[0];
-  const newMainSubEventId  = newMainSubEvent._id.toString();
+  const newMainSubEvent = activeSubEvents[0];
+  const newMainSubEventId = newMainSubEvent._id.toString();
 
   const promotedSubEventObj = newMainSubEvent.toObject
     ? newMainSubEvent.toObject()
@@ -6689,69 +6692,73 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     (se) => se._id.toString() !== newMainSubEventId
   );
 
-  //  Create new main Ticket from promoted sub-event 
+  //  Create new main Ticket from promoted sub-event
   const newMainTicket = new Ticket({
-    event_name:           promotedSubEventObj.event_name,
-    event_category:       promotedSubEventObj.event_category,
-    event_subcategory:    promotedSubEventObj.event_subcategory,
-    event_type:           promotedSubEventObj.event_type,
-    event_language:       promotedSubEventObj.event_language        || [],
-    event_description:    promotedSubEventObj.event_description,
-    event_banner:         promotedSubEventObj.event_banner,
-    event_logo:           promotedSubEventObj.event_logo,
-    event_images:         promotedSubEventObj.event_images          || [],
-    event_portrait:       promotedSubEventObj.event_portrait,
-    event_videos:         promotedSubEventObj.event_videos          || [],
-    event_dates:          promotedSubEventObj.event_dates,
-    event_date_type:      promotedSubEventObj.event_date_type       || ticket.event_date_type,
-    gate_open_time:       promotedSubEventObj.gate_open_time,
-    location:             promotedSubEventObj.location,
-    location_type:        promotedSubEventObj.location_type         || ticket.location_type,
-    venue:                promotedSubEventObj.venue,
-    exact_map_location:   promotedSubEventObj.exact_map_location,
-    seating_arrangement:  promotedSubEventObj.seating_arrangement   || 'none',
-    min_age_allowed:      promotedSubEventObj.min_age_allowed       ?? ticket.min_age_allowed ?? 0,
-    max_age_allowed:      promotedSubEventObj.max_age_allowed,
-    kids_friendly:        promotedSubEventObj.kids_friendly         ?? false,
-    pet_friendly:         promotedSubEventObj.pet_friendly          ?? false,
-    attendance_count:     promotedSubEventObj.attendance_count      ?? false,
-    payment_type:         promotedSubEventObj.payment_type          || ticket.payment_type,
-    ticket_types:         promotedSubEventObj.ticket_types          || ticket.ticket_types   || [],
-    seating_layout:       promotedSubEventObj.seating_layout        || ticket.seating_layout,
-    ticket_layout:        promotedSubEventObj.ticket_layout         || ticket.ticket_layout,
-    banking_details:      promotedSubEventObj.banking_details       || ticket.banking_details || [],
-    guests:               promotedSubEventObj.guests                || [],
-    POCS:                 promotedSubEventObj.POCS                  || [],
-    hashtag:              promotedSubEventObj.hashtag               || [],
-    prohibited_items:     promotedSubEventObj.prohibited_items      || [],
-    total_capacity:       promotedSubEventObj.total_capacity,
-    booking_start_date:   promotedSubEventObj.booking_start_date,
-    booking_end_date:     promotedSubEventObj.booking_end_date,
-    event_rules:          promotedSubEventObj.event_rules,
+    event_name: promotedSubEventObj.event_name,
+    event_category: promotedSubEventObj.event_category,
+    event_subcategory: promotedSubEventObj.event_subcategory,
+    event_type: promotedSubEventObj.event_type,
+    event_language: promotedSubEventObj.event_language || [],
+    event_description: promotedSubEventObj.event_description,
+    event_banner: promotedSubEventObj.event_banner,
+    event_logo: promotedSubEventObj.event_logo,
+    event_images: promotedSubEventObj.event_images || [],
+    event_portrait: promotedSubEventObj.event_portrait,
+    event_videos: promotedSubEventObj.event_videos || [],
+    event_dates: promotedSubEventObj.event_dates,
+    event_date_type: promotedSubEventObj.event_date_type || ticket.event_date_type,
+    gate_open_time: promotedSubEventObj.gate_open_time,
+    location: promotedSubEventObj.location,
+    location_type: promotedSubEventObj.location_type || ticket.location_type,
+    venue: promotedSubEventObj.venue,
+    exact_map_location: promotedSubEventObj.exact_map_location,
+    seating_arrangement: promotedSubEventObj.seating_arrangement || 'none',
+    min_age_allowed: promotedSubEventObj.min_age_allowed ?? ticket.min_age_allowed ?? 0,
+    max_age_allowed: promotedSubEventObj.max_age_allowed,
+    kids_friendly: promotedSubEventObj.kids_friendly ?? false,
+    pet_friendly: promotedSubEventObj.pet_friendly ?? false,
+    attendance_count: promotedSubEventObj.attendance_count ?? false,
+    restrict_booking: promotedSubEventObj.restrict_booking ?? false,
+    payment_type: promotedSubEventObj.payment_type || ticket.payment_type,
+    ticket_types: promotedSubEventObj.ticket_types || ticket.ticket_types || [],
+    seating_layout: promotedSubEventObj.seating_layout || ticket.seating_layout,
+    ticket_layout: promotedSubEventObj.ticket_layout || ticket.ticket_layout,
+    banking_details: promotedSubEventObj.banking_details || ticket.banking_details || [],
+    guests: promotedSubEventObj.guests || [],
+    POCS: promotedSubEventObj.POCS || [],
+    hashtag: promotedSubEventObj.hashtag || [],
+    prohibited_items: promotedSubEventObj.prohibited_items || [],
+    total_capacity: promotedSubEventObj.total_capacity,
+    booking_start_date: promotedSubEventObj.booking_start_date,
+    booking_end_date: promotedSubEventObj.booking_end_date,
+    event_rules: promotedSubEventObj.event_rules,
     event_instagram_link: promotedSubEventObj.event_instagram_link,
-    event_youtube_link:   promotedSubEventObj.event_youtube_link,
-    groupId:              ticket.groupId,
-    userId:               ticket.userId,
-    created_by:           ticket.created_by,
-    isMain:               true,
-    parentEventId:        null,
-    //  Inherit the original main's live/confirmed status 
-    event_status:         ticket.event_status === "live" ? "live" : "confirmed",
-    //  Remaining sub-events with updated main_ticket_id 
+    event_youtube_link: promotedSubEventObj.event_youtube_link,
+    gst_applicable: promotedSubEventObj.gst_applicable,
+    gst_registered_group: promotedSubEventObj.gst_registered_group,
+    restrict_booking: promotedSubEventObj.restrict_booking,
+    groupId: ticket.groupId,
+    userId: ticket.userId,
+    created_by: ticket.created_by,
+    isMain: true,
+    parentEventId: null,
+    //  Inherit the original main's live/confirmed status
+    event_status: ticket.event_status === "live" ? "live" : "confirmed",
+    //  Remaining sub-events with updated main_ticket_id
     // We set main_ticket_id AFTER save since we need newMainTicket._id
-    sub_events:           remainingSubEventDocs.map((se) => ({
+    sub_events: remainingSubEventDocs.map((se) => ({
       ...(se.toObject ? se.toObject() : { ...se }),
       main_ticket_id: null, // temporary — updated below after save
     })),
-    // ── Promotion metadata 
+    // ── Promotion metadata
     promoted_from_sub_event: true,
-    promoted_at:          now,
+    promoted_at: now,
     original_main_event_id: ticket._id,
   });
 
   await newMainTicket.save();
 
-  //  Now update main_ticket_id on all remaining sub-events 
+  //  Now update main_ticket_id on all remaining sub-events
   // The new main's _id is now known after save
   if (newMainTicket.sub_events?.length > 0) {
     newMainTicket.sub_events = newMainTicket.sub_events.map((se) => ({
@@ -6761,15 +6768,15 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     newMainTicket.markModified("sub_events");
     await newMainTicket.save();
   }
-  ticket.sub_events             = [];
-  ticket.promoted_to_ticket_id  = newMainTicket._id;
+  ticket.sub_events = [];
+  ticket.promoted_to_ticket_id = newMainTicket._id;
   ticket.markModified("sub_events");
   await ticket.save();
   return {
-    promoted:              true,
-    newMain:               newMainTicket,
-    newMainTicketId:       newMainTicket._id.toString(),
-    promotedSubEventId:    newMainSubEventId,
+    promoted: true,
+    newMain: newMainTicket,
+    newMainTicketId: newMainTicket._id.toString(),
+    promotedSubEventId: newMainSubEventId,
     remainingSubEventCount: remainingSubEventDocs.length,
   };
 };
@@ -6777,9 +6784,9 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
 export const getCancellationDescription = (tier) => {
   const descriptions = {
     full_refund: "Full refund — cancelled more than 48 hours before event",
-    last_day:    "90% refund — cancelled between 24–48 hours before event",
-    event_day:   "80% refund — cancelled within 24 hours of event",
-    no_refund:   "No refund — event has already started or passed",
+    last_day: "90% refund — cancelled between 24–48 hours before event",
+    event_day: "80% refund — cancelled within 24 hours of event",
+    no_refund: "No refund — event has already started or passed",
   };
   return descriptions[tier] || "Refund policy applies";
 };
@@ -6792,7 +6799,7 @@ export const startAutoDeleteCron = () => {
       // 1. Hard-delete root tickets that have been in deleted state > 30 days
       const deletedRootResult = await Ticket.deleteMany({
         event_status: { $in: ["cancelled", "deleted", "remove"] },
-        updatedAt:    { $lt: thirtyDaysAgo },
+        updatedAt: { $lt: thirtyDaysAgo },
       });
 
       // 2. Pull sub-events from all tickets where sub-event was deleted > 30 days
@@ -6826,52 +6833,54 @@ export const startAutoDeleteCron = () => {
 export const snapshotAndLockTicket = async (ticket, {
   cancelled_by,
   cancellation_reason = '',
-  refund_percentage   = 100,
-  cancellation_tier   = 'full_refund',
+  refund_percentage = 100,
+  cancellation_tier = 'full_refund',
   total_refund_amount = 0,
 } = {}) => {
   try {
     // Determine current lifecycle metrics (prefer new field, fall back to top-level)
     const metrics = ticket.lifecycle_metrics ?? {};
     const snapshot = {
-      like:               metrics.like              ?? ticket.like              ?? 0,
-      share:              metrics.share             ?? ticket.share             ?? 0,
-      totalBookings:      metrics.totalBookings     ?? ticket.totalBookings     ?? 0,
-      totalTicketsSold:   metrics.totalTicketsSold  ?? ticket.totalTicketsSold  ?? 0,
-      revenue:            metrics.revenue           ?? ticket.revenue           ?? 0,
+      like: metrics.like ?? ticket.like ?? 0,
+      share: metrics.share ?? ticket.share ?? 0,
+      totalBookings: metrics.totalBookings ?? ticket.totalBookings ?? 0,
+      totalTicketsSold: metrics.totalTicketsSold ?? ticket.totalTicketsSold ?? 0,
+      revenue: metrics.revenue ?? ticket.revenue ?? 0,
       total_cancellation: metrics.total_cancellation ?? ticket.total_cancellation ?? 0,
       total_refund_amount,
     };
 
     const audit = new TicketAudit({
       original_ticket_id: ticket._id,
-      userId:             ticket.userId,
-      groupId:            ticket.groupId,
-      version:            ticket.version ?? 1,
-      is_sub_event:       false,
+      userId: ticket.userId,
+      groupId: ticket.groupId,
+      version: ticket.version ?? 1,
+      is_sub_event: false,
       event_structure: {
-        event_name:        ticket.event_name,
-        event_category:    ticket.event_category,
+        event_name: ticket.event_name,
+        event_category: ticket.event_category,
         event_subcategory: ticket.event_subcategory,
-        event_type:        ticket.event_type,
+        event_type: ticket.event_type,
         event_description: ticket.event_description,
-        event_banner:      ticket.event_banner,
-        event_logo:        ticket.event_logo,
-        location:          ticket.location,
-        location_type:     ticket.location_type,
-        venue:             ticket.venue,
-        payment_type:      ticket.payment_type,
-        event_dates:       ticket.event_dates,
-        ticket_types:      ticket.ticket_types,
-        sub_events_count:  ticket.sub_events?.length ?? 0,
+        event_banner: ticket.event_banner,
+        event_logo: ticket.event_logo,
+        location: ticket.location,
+        location_type: ticket.location_type,
+        venue: ticket.venue,
+        payment_type: ticket.payment_type,
+        event_dates: ticket.event_dates,
+        ticket_types: ticket.ticket_types,
+        gst_applicable: ticket.gst_applicable,
+        restrict_booking: ticket.restrict_booking,
+        sub_events_count: ticket.sub_events?.length ?? 0,
       },
-      metrics_snapshot:   snapshot,
-      cancelled_at:       ticket.cancelled_at || new Date(),
-      cancelled_by:       cancelled_by || ticket.cancelled_by,
+      metrics_snapshot: snapshot,
+      cancelled_at: ticket.cancelled_at || new Date(),
+      cancelled_by: cancelled_by || ticket.cancelled_by,
       cancellation_reason,
       refund_percentage,
       cancellation_tier,
-      is_locked:          true,
+      is_locked: true,
     });
 
     await audit.save();
@@ -6891,53 +6900,57 @@ export const snapshotAndLockTicket = async (ticket, {
 export const snapshotAndLockSubEvent = async (parentTicket, subEvent, {
   cancelled_by,
   cancellation_reason = '',
-  refund_percentage   = 100,
-  cancellation_tier   = 'full_refund',
+  refund_percentage = 100,
+  cancellation_tier = 'full_refund',
   total_refund_amount = 0,
 } = {}) => {
   try {
-    const metrics  = subEvent.lifecycle_metrics ?? {};
+    const metrics = subEvent.lifecycle_metrics ?? {};
     const snapshot = {
-      like:               metrics.like               ?? subEvent.like               ?? 0,
-      share:              metrics.share              ?? subEvent.share              ?? 0,
-      totalBookings:      metrics.totalBookings      ?? subEvent.totalBookings      ?? 0,
-      totalTicketsSold:   metrics.totalTicketsSold   ?? subEvent.totalTicketsSold   ?? 0,
-      revenue:            metrics.revenue            ?? subEvent.revenue            ?? 0,
+      like: metrics.like ?? subEvent.like ?? 0,
+      share: metrics.share ?? subEvent.share ?? 0,
+      totalBookings: metrics.totalBookings ?? subEvent.totalBookings ?? 0,
+      totalTicketsSold: metrics.totalTicketsSold ?? subEvent.totalTicketsSold ?? 0,
+      revenue: metrics.revenue ?? subEvent.revenue ?? 0,
       total_cancellation: metrics.total_cancellation ?? subEvent.total_cancellation ?? 0,
       total_refund_amount,
     };
 
     const audit = new TicketAudit({
       original_ticket_id: parentTicket._id,
-      parent_ticket_id:   parentTicket._id,
-      userId:             parentTicket.userId  ?? null,
-      groupId:            parentTicket.groupId ?? null,
-      version:            subEvent.version ?? 1,
-      is_sub_event:       true,
-      sub_event_id:       subEvent._id,
+      parent_ticket_id: parentTicket._id,
+      userId: parentTicket.userId ?? null,
+      groupId: parentTicket.groupId ?? null,
+      version: subEvent.version ?? 1,
+      is_sub_event: true,
+      sub_event_id: subEvent._id,
       event_structure: {
-        event_name:        subEvent.event_name        || '',
-        event_category:    subEvent.event_category    || parentTicket.event_category    || '',
+        event_name: subEvent.event_name || '',
+        event_category: subEvent.event_category || parentTicket.event_category || '',
         event_subcategory: subEvent.event_subcategory || parentTicket.event_subcategory || '',
-        event_type:        subEvent.event_type        || parentTicket.event_type        || '',
+        event_type: subEvent.event_type || parentTicket.event_type || '',
         event_description: subEvent.event_description || parentTicket.event_description || '',
-        event_banner:      subEvent.event_banner      || parentTicket.event_banner      || '',
-        event_logo:        subEvent.event_logo        || parentTicket.event_logo        || '',
-        location:          subEvent.location          || parentTicket.location          || '',
-        location_type:     subEvent.location_type     || parentTicket.location_type     || '',
-        venue:             subEvent.venue             || parentTicket.venue             || '',
-        payment_type:      subEvent.payment_type      || parentTicket.payment_type      || '',
-        event_dates:       subEvent.event_dates       || [],
-        ticket_types:      subEvent.ticket_types      || parentTicket.ticket_types      || [],
-        sub_events_count:  0,
+        event_banner: subEvent.event_banner || parentTicket.event_banner || '',
+        event_logo: subEvent.event_logo || parentTicket.event_logo || '',
+        location: subEvent.location || parentTicket.location || '',
+        location_type: subEvent.location_type || parentTicket.location_type || '',
+        venue: subEvent.venue || parentTicket.venue || '',
+        payment_type: subEvent.payment_type || parentTicket.payment_type || '',
+        event_dates: subEvent.event_dates || [],
+        gst_applicable: subEvent.gst_applicable || parentTicket.gst_applicable || false,
+        gst_percentage: subEvent.gst_percentage || parentTicket.gst_percentage || 0,
+        gst_registered_group: subEvent.gst_registered_group || parentTicket.gst_registered_group || false,
+        restrict_booking: subEvent.restrict_booking || parentTicket.restrict_booking || false,
+        ticket_types: subEvent.ticket_types || parentTicket.ticket_types || [],
+        sub_events_count: 0,
       },
-      metrics_snapshot:   snapshot,
-      cancelled_at:       subEvent.cancelled_at || new Date(),
-      cancelled_by:       cancelled_by || subEvent.cancelled_by || null,
+      metrics_snapshot: snapshot,
+      cancelled_at: subEvent.cancelled_at || new Date(),
+      cancelled_by: cancelled_by || subEvent.cancelled_by || null,
       cancellation_reason,
       refund_percentage,
       cancellation_tier,
-      is_locked:          true,
+      is_locked: true,
     });
 
     await audit.save();
@@ -6959,85 +6972,90 @@ export const rehostMainEventV2 = async (cancelledTicket, userId) => {
 
   const newTicket = new Ticket({
     // ── STRUCTURE (copied as-is) ──
-    event_name:           cancelledTicket.event_name,
-    event_category:       cancelledTicket.event_category,
-    event_subcategory:    cancelledTicket.event_subcategory,
-    event_type:           cancelledTicket.event_type,
-    event_language:       cancelledTicket.event_language        || [],
-    event_description:    cancelledTicket.event_description,
-    event_banner:         cancelledTicket.event_banner,
-    event_logo:           cancelledTicket.event_logo,
-    event_images:         cancelledTicket.event_images          || [],
-    event_portrait:       cancelledTicket.event_portrait,
-    event_videos:         cancelledTicket.event_videos          || [],
-    event_dates:          cancelledTicket.event_dates,
-    event_date_type:      cancelledTicket.event_date_type,
-    gate_open_time:       cancelledTicket.gate_open_time,
-    location:             cancelledTicket.location,
-    location_type:        cancelledTicket.location_type,
-    venue:                cancelledTicket.venue,
-    exact_map_location:   cancelledTicket.exact_map_location,
-    seating_arrangement:  cancelledTicket.seating_arrangement   || 'none',
-    min_age_allowed:      cancelledTicket.min_age_allowed       ?? 0,
-    max_age_allowed:      cancelledTicket.max_age_allowed,
-    kids_friendly:        cancelledTicket.kids_friendly         ?? false,
-    pet_friendly:         cancelledTicket.pet_friendly          ?? false,
-    attendance_count:     cancelledTicket.attendance_count      ?? false,
-    payment_type:         cancelledTicket.payment_type,
-    ticket_types:         cancelledTicket.ticket_types          || [],
-    seating_layout:       cancelledTicket.seating_layout,
-    ticket_layout:        cancelledTicket.ticket_layout,
-    banking_details:      cancelledTicket.banking_details       || [],
-    guests:               cancelledTicket.guests                || [],
-    POCS:                 cancelledTicket.POCS                  || [],
-    hashtag:              cancelledTicket.hashtag               || [],
-    prohibited_items:     cancelledTicket.prohibited_items      || [],
-    total_capacity:       cancelledTicket.total_capacity,
-    booking_start_date:   cancelledTicket.booking_start_date,
-    booking_end_date:     cancelledTicket.booking_end_date,
-    event_rules:          cancelledTicket.event_rules,
+    event_name: cancelledTicket.event_name,
+    event_category: cancelledTicket.event_category,
+    event_subcategory: cancelledTicket.event_subcategory,
+    event_type: cancelledTicket.event_type,
+    event_language: cancelledTicket.event_language || [],
+    event_description: cancelledTicket.event_description,
+    event_banner: cancelledTicket.event_banner,
+    event_logo: cancelledTicket.event_logo,
+    event_images: cancelledTicket.event_images || [],
+    event_portrait: cancelledTicket.event_portrait,
+    event_videos: cancelledTicket.event_videos || [],
+    event_dates: cancelledTicket.event_dates,
+    event_date_type: cancelledTicket.event_date_type,
+    gate_open_time: cancelledTicket.gate_open_time,
+    location: cancelledTicket.location,
+    location_type: cancelledTicket.location_type,
+    venue: cancelledTicket.venue,
+    exact_map_location: cancelledTicket.exact_map_location,
+    seating_arrangement: cancelledTicket.seating_arrangement || 'none',
+    min_age_allowed: cancelledTicket.min_age_allowed ?? 0,
+    max_age_allowed: cancelledTicket.max_age_allowed,
+    kids_friendly: cancelledTicket.kids_friendly ?? false,
+    pet_friendly: cancelledTicket.pet_friendly ?? false,
+    attendance_count: cancelledTicket.attendance_count ?? false,
+    restrict_booking: cancelledTicket.restrict_booking ?? false,
+    payment_type: cancelledTicket.payment_type,
+    ticket_types: cancelledTicket.ticket_types || [],
+    seating_layout: cancelledTicket.seating_layout,
+    ticket_layout: cancelledTicket.ticket_layout,
+    banking_details: cancelledTicket.banking_details || [],
+    guests: cancelledTicket.guests || [],
+    POCS: cancelledTicket.POCS || [],
+    hashtag: cancelledTicket.hashtag || [],
+    prohibited_items: cancelledTicket.prohibited_items || [],
+    total_capacity: cancelledTicket.total_capacity,
+    booking_start_date: cancelledTicket.booking_start_date,
+    booking_end_date: cancelledTicket.booking_end_date,
+    event_rules: cancelledTicket.event_rules,
+    gst_applicable: cancelledTicket.gst_applicable,
+    gst_percentage: cancelledTicket.gst_percentage,
+    gst_registered_group: cancelledTicket.gst_registered_group,
+    restrict_booking: cancelledTicket.restrict_booking,
     event_instagram_link: cancelledTicket.event_instagram_link,
-    event_youtube_link:   cancelledTicket.event_youtube_link,
-    groupId:              cancelledTicket.groupId,
-    userId:               cancelledTicket.userId,
-    created_by:           cancelledTicket.created_by,
+    event_youtube_link: cancelledTicket.event_youtube_link,
+    groupId: cancelledTicket.groupId,
+    userId: cancelledTicket.userId,
+    created_by: cancelledTicket.created_by,
 
-    // ── Copy sub-events structure only, reset their metrics too 
+    // ── Copy sub-events structure only, reset their metrics too
     sub_events: (cancelledTicket.sub_events || [])
       .filter(se => !['cancelled', 'deleted', 'remove'].includes(se.event_status))
       .map(se => ({
         ...(se.toObject ? se.toObject() : { ...se }),
-        _id:                new mongoose.Types.ObjectId(), // fresh _id
-        event_status:       'confirmed',
+        _id: new mongoose.Types.ObjectId(), // fresh _id
+        event_status: 'confirmed',
         // Reset sub-event metrics
-        like:               0,
-        share:              0,
-        totalBookings:      0,
-        totalTicketsSold:   0,
-        revenue:            0,
+        like: 0,
+        share: 0,
+        totalBookings: 0,
+        totalTicketsSold: 0,
+        revenue: 0,
         total_cancellation: 0,
         lifecycle_metrics: {
           like: 0, share: 0, totalBookings: 0,
           totalTicketsSold: 0, revenue: 0,
           total_cancellation: 0, total_refund_amount: 0,
         },
-        audit_history:      [], // fresh audit history for V2 sub-events
-        version:            1,
-        rehosted_from:      se._id, // track where it came from
+        audit_history: [], // fresh audit history for V2 sub-events
+        version: 1,
+        rehosted_from: se._id, // track where it came from
         cancellation_reason: '',
-        cancelled_at:        undefined,
-        cancelled_by:        undefined,
-        rehosted_at:         undefined,
+        cancelled_at: undefined,
+        cancelled_by: undefined,
+        rehosted_at: undefined,
       })),
-    version:           (cancelledTicket.version ?? 1) + 1,
-    parent_event_id:   cancelledTicket._id,          // points to cancelled V1
+    version: (cancelledTicket.version ?? 1) + 1,
+    parent_event_id: cancelledTicket._id,          // points to cancelled V1
     original_event_id: originalEventId,              // always points to V1
 
-    like:               0,
-    share:              0,
-    totalBookings:      0,
-    totalTicketsSold:   0,
-    revenue:            0,
+    like: 0,
+    share: 0,
+    totalBookings: 0,
+    totalTicketsSold: 0,
+    revenue: 0,
     total_cancellation: 0,
     lifecycle_metrics: {
       like: 0, share: 0, totalBookings: 0,
@@ -7045,18 +7063,18 @@ export const rehostMainEventV2 = async (cancelledTicket, userId) => {
       total_cancellation: 0, total_refund_amount: 0,
     },
 
-    event_status:      'confirmed',
-    is_locked:         false,
-    isMain:            true,
-    rehosted_at:       now,
+    event_status: 'confirmed',
+    is_locked: false,
+    isMain: true,
+    rehosted_at: now,
 
     cancellation_reason: '',
-    cancelled_at:        undefined,
-    cancelled_by:        undefined,
+    cancelled_at: undefined,
+    cancelled_by: undefined,
     promoted_to_ticket_id: undefined,
 
-    form_progress:     cancelledTicket.form_progress,
-    terms_accepted:    cancelledTicket.terms_accepted,
+    form_progress: cancelledTicket.form_progress,
+    terms_accepted: cancelledTicket.terms_accepted,
     terms_accepted_at: cancelledTicket.terms_accepted_at,
     company_terms_version: cancelledTicket.company_terms_version,
   });
@@ -7097,40 +7115,40 @@ export const markAttendance = async ({ ticketId, subEventId = null, qrData, scan
   } catch { /* legacy QR — fall back to gRPC fields */ }
 
   const attendeeRecord = {
-    bookingId:     qrResult.externalId || qrResult.bookingId,
-    userId:        qrResult.userId,
-    userName:      qrResult.userName   || decodedPayload?.holderName  || '',
-    userEmail:     qrResult.userEmail,
-    userPhone:     qrResult.userPhone,
-    ticketType:    qrResult.ticketType || decodedPayload?.ticketType  || '',
-    quantity:      qrResult.quantity   ?? decodedPayload?.quantity    ?? 1,
+    bookingId: qrResult.externalId || qrResult.bookingId,
+    userId: qrResult.userId,
+    userName: qrResult.userName || decodedPayload?.holderName || '',
+    userEmail: qrResult.userEmail,
+    userPhone: qrResult.userPhone,
+    ticketType: qrResult.ticketType || decodedPayload?.ticketType || '',
+    quantity: qrResult.quantity ?? decodedPayload?.quantity ?? 1,
     paymentMethod: qrResult.paymentMethod || decodedPayload?.paymentMethod || '',
     transactionId: qrResult.externalId || qrResult.bookingId,
     // Full ticket detail fields from QR payload
-    eventName:     decodedPayload?.eventName  || '',
-    eventDate:     decodedPayload?.eventDate  || '',
-    eventTime:     decodedPayload?.eventTime  || '',
-    venue:         decodedPayload?.venue      || '',
-    totalAmount:   decodedPayload?.totalAmount ?? 0,
-    holderName:    decodedPayload?.holderName || qrResult.userName || '',
-    scannedAt:     new Date(),
+    eventName: decodedPayload?.eventName || '',
+    eventDate: decodedPayload?.eventDate || '',
+    eventTime: decodedPayload?.eventTime || '',
+    venue: decodedPayload?.venue || '',
+    totalAmount: decodedPayload?.totalAmount ?? 0,
+    holderName: decodedPayload?.holderName || qrResult.userName || '',
+    scannedAt: new Date(),
     scannedBy,
-    status:        'present',
+    status: 'present',
     qrData,
-    subEventId:    subEventId || null,
+    subEventId: subEventId || null,
   };
 
   const attendance = await Attendance.findOneAndUpdate(
     { ticketId, subEventId: subEventId || null },
     {
-      $push:       { attendees: attendeeRecord },
-      $inc:        { totalPresent: 1 },
+      $push: { attendees: attendeeRecord },
+      $inc: { totalPresent: 1 },
       $setOnInsert: {
         eventName: subEventId
           ? ticket.sub_events?.find(s => s._id.toString() === subEventId)?.event_name
           : ticket.event_name,
         totalBooked: 0,
-        startedAt:   new Date(),
+        startedAt: new Date(),
       },
     },
     { new: true, upsert: true }
@@ -7162,14 +7180,14 @@ export const initAttendance = async (ticketId, subEventId = null) => {
     { ticketId, subEventId: subEventId || null },
     {
       $setOnInsert: {
-        eventName:  subEventId
+        eventName: subEventId
           ? ticket.sub_events?.find(s => s._id.toString() === subEventId)?.event_name
           : ticket.event_name,
         totalBooked,
         totalPresent: 0,
-        attendees:    [],
-        startedAt:    new Date(),
-        isCompleted:  false,
+        attendees: [],
+        startedAt: new Date(),
+        isCompleted: false,
       },
     },
     { new: true, upsert: true }
