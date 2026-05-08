@@ -41,7 +41,7 @@ const SortablePhoto = ({
       }}
       {...attributes}
       {...listeners}
-      className={`group relative rounded-lg overflow-hidden border border-gray-700 bg-black ${
+      className={`group relative rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 shadow-sm ${
         aspectRatio === 1 ? "aspect-square" : ""
       }`}
       onClick={() => !isReordering && onPreview?.(img)}
@@ -52,7 +52,7 @@ const SortablePhoto = ({
           <img
             src={img.preview}
             alt="preview"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-cover"
           />
           {!isReordering && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
