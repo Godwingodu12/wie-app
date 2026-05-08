@@ -147,7 +147,7 @@ function RefundTrackingContent() {
         style={{ background: isDark ? LAYOUT.BACKGROUND_DARK : themeStyles.background, color: themeStyles.text }}
       >
         <SideBar />
-        <div 
+        <div
           className="flex-1 transition-all duration-300 relative z-10"
           style={{ paddingLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH) }}
         >
