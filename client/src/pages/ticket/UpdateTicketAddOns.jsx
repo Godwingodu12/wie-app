@@ -179,6 +179,7 @@ const UpdateTicketAddOns = () => {
     seating_arrangement: "none",
     kids_friendly: false,
     pet_friendly: false,
+    restrict_booking: false,
     gate_open_time: false,
     event_instagram_link: "",
     event_youtube_link: "",
@@ -1412,6 +1413,7 @@ const UpdateTicketAddOns = () => {
       max_age_allowed: parseInt(formData.max_age_allowed, 10) || 0,
       kids_friendly: formData.kids_friendly,
       pet_friendly: formData.pet_friendly,
+      restrict_booking: formData.restrict_booking,
       location_type: formData.location_type,
       event_date_type: formData.event_date_type,
       total_capacity: formData.total_capacity, // ✅ ADD THIS
@@ -2654,6 +2656,7 @@ const UpdateTicketAddOns = () => {
           seating_arrangement: subEvent.seating_arrangement || "none",
           kids_friendly: subEvent.kids_friendly || false,
           pet_friendly: subEvent.pet_friendly || false,
+          restrict_booking: subEvent.restrict_booking || false,
           event_instagram_link: subEvent.event_instagram_link || "",
           event_youtube_link: subEvent.event_youtube_link || "",
           hashtag: Array.isArray(subEvent.hashtag)
@@ -3745,6 +3748,15 @@ const UpdateTicketAddOns = () => {
                       onChange={() => handleToggleChange('attendance_count')}
                       darkMode={darkMode}
                     />
+                    <ToggleSwitch
+                      label="Restrict to single ticket per user?"
+                      checked={formData.restrict_booking}
+                      onChange={() => handleToggleChange("restrict_booking")}
+                      darkMode={darkMode}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                      When on, each person can only book 1 ticket at a time. By default, attendees can book multiple tickets.
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <FormInput
@@ -4949,20 +4961,11 @@ const UpdateTicketAddOns = () => {
                               const firstTicket = formData.ticket_types?.[0];
                               const rawPrice = firstTicket?.price || firstTicket?.ticket_price;
                               if (!firstTicket || !rawPrice || !formData.total_capacity) return null;
-
-                              const inclPrice = Number(rawPrice);
-                              if (isNaN(inclPrice) || inclPrice <= 0) return null;
-
                               const capacity = Number(formData.total_capacity);
-                              const divisor = 1 + GST_PERCENTAGE / 100;                                        // 1.18
-                              const basePrice = gstApplicable
-                                ? Math.round((inclPrice / divisor) * 100) / 100                                   // ₹100.00
-                                : inclPrice;
-                              const gstAmt = gstApplicable
-                                ? Math.round((inclPrice - basePrice) * 100) / 100                                  // ₹18.00
-                                : 0;
-                              const maxRev = Math.round(inclPrice * capacity * 100) / 100;                    // total
-
+                              const basePrice = Number(rawPrice);
+                              const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
+                              const inclPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
+                              const maxRev = Math.round(inclPrice * capacity * 100) / 100;
                               return (
                                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
                                   <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-3">
@@ -5128,11 +5131,9 @@ const UpdateTicketAddOns = () => {
                             {formData.ticket_types.length > 0 && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
                                 {formData.ticket_types.map((ticket) => {
-                                  const inclPrice = Number(ticket.price || ticket.ticket_price || 0);
-                                  const divisor = 1 + GST_PERCENTAGE / 100;
-                                  const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
-                                  const gstAmt = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
-
+                                  const basePrice = Number(ticket.price || ticket.ticket_price || 0);
+                                  const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
+                                  const inclPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
                                   return (
                                     <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] rounded-lg shadow-sm dark:shadow-none overflow-hidden">
                                       <div className="p-3 flex items-center justify-between">
