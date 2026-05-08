@@ -302,6 +302,7 @@ message SubEvent {
   string createdAt = 49;
   string updatedAt = 50;
   string event_portrait = 51;
+  bool restrict_booking = 52;
 }
 
 message TicketData {
@@ -371,7 +372,7 @@ message TicketData {
   string razorpayKeyId = 64;
   string razorpayKeySecret = 65;
   string event_portrait = 66;
-
+  bool restrict_booking = 67;
 }
 
 message GroupData {
