@@ -62,6 +62,7 @@ const UpdateTicketDetails = () => {
   const [totalCapacity, setTotalCapacity] = useState("");
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
   const [attendanceCount, setAttendanceCount] = useState(false);
+  const [restrictBooking, setRestrictBooking] = useState(false);
   const [seatingLayoutFile, setSeatingLayoutFile] = useState(null);
   const [seatingLayoutPreview, setSeatingLayoutPreview] = useState(null);
   const [generatedSeatingLayout, setGeneratedSeatingLayout] = useState(null);
@@ -102,9 +103,9 @@ const UpdateTicketDetails = () => {
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
   // GST state — driven by group's GSTIN presence
-  const [groupHasGSTIN, setGroupHasGSTIN]   = useState(false);
-  const [groupGSTIN, setGroupGSTIN]         = useState('');      // actual GSTIN string for display
-  const [gstEnabled, setGstEnabled]         = useState(false);   // organiser's choice (only relevant when no GSTIN)
+  const [groupHasGSTIN, setGroupHasGSTIN] = useState(false);
+  const [groupGSTIN, setGroupGSTIN] = useState('');      // actual GSTIN string for display
+  const [gstEnabled, setGstEnabled] = useState(false);   // organiser's choice (only relevant when no GSTIN)
   const GST_PERCENTAGE = 18;
   // Derived: GST is active when group has GSTIN (mandatory) OR organiser enabled it
   const gstApplicable = groupHasGSTIN || gstEnabled;
@@ -149,7 +150,7 @@ const UpdateTicketDetails = () => {
         // Load saved draft from localStorage
         const savedDraftRaw = localStorage.getItem(storageKey);
         const savedDraft = savedDraftRaw ? JSON.parse(savedDraftRaw) : null;
-        // ── GST: resolve from group GSTIN + saved draft 
+        // ── GST: resolve from group GSTIN + saved draft
         const gstin = groupData?.gst_no ? String(groupData.gst_no).trim() : '';
         setGroupHasGSTIN(!!gstin);
         setGroupGSTIN(gstin);
@@ -166,6 +167,7 @@ const UpdateTicketDetails = () => {
             savedDraft?.paymentType ?? ticketData.payment_type ?? "free"
           );
           setAttendanceCount(savedDraft?.attendanceCount ?? ticketData?.attendance_count ?? false);
+          setRestrictBooking(savedDraft?.restrictBooking ?? ticketData?.restrict_booking ?? false);
           setTotalCapacity(
             savedDraft?.totalCapacity ?? ticketData.total_capacity ?? ""
           );
@@ -201,8 +203,7 @@ const UpdateTicketDetails = () => {
                   );
                   if (assignment && assignment.color) {
                     console.log(
-                      `🔧 Restored seat ${seat.seatId}: ${
-                        assignment.ticketTypeName
+                      `🔧 Restored seat ${seat.seatId}: ${assignment.ticketTypeName
                       } (${assignment.color}) - ₹${assignment.price || 0}`
                     );
                     return {
@@ -223,34 +224,34 @@ const UpdateTicketDetails = () => {
           }
           setBookingStartDate(
             savedDraft?.bookingStartDate ??
-              (ticketData.booking_start_date
-                ? new Date(ticketData.booking_start_date)
-                    .toISOString()
-                    .split("T")[0]
-                : "")
+            (ticketData.booking_start_date
+              ? new Date(ticketData.booking_start_date)
+                .toISOString()
+                .split("T")[0]
+              : "")
           );
           setBookingEndDate(
             savedDraft?.bookingEndDate ??
-              (ticketData.booking_end_date
-                ? new Date(ticketData.booking_end_date)
-                    .toISOString()
-                    .split("T")[0]
-                : "")
+            (ticketData.booking_end_date
+              ? new Date(ticketData.booking_end_date)
+                .toISOString()
+                .split("T")[0]
+              : "")
           );
           setTickets(
             savedDraft?.tickets ??
-              ticketData.ticket_types?.map((t) => ({
-                ...t,
-                id: t._id || Date.now(),
-                name: t.ticket_type,
-                price: t.ticket_price,
-                capacity: t.max_capacity,
-                image: getTicketImageUrl(
-                  t.ticket_photo,
-                  "/placeholder-ticket.png"
-                ),
-              })) ??
-              []
+            ticketData.ticket_types?.map((t) => ({
+              ...t,
+              id: t._id || Date.now(),
+              name: t.ticket_type,
+              price: t.ticket_price,
+              capacity: t.max_capacity,
+              image: getTicketImageUrl(
+                t.ticket_photo,
+                "/placeholder-ticket.png"
+              ),
+            })) ??
+            []
           );
         }
         const loadedTickets =
@@ -479,8 +480,9 @@ const UpdateTicketDetails = () => {
       bookingEndDate,
       simpleTicketPrice,
       simpleTicketCapacity,
-      gstEnabled,      
-      attendanceCount,    
+      gstEnabled,
+      attendanceCount,
+      restrictBooking,
     };
 
     localStorage.setItem(storageKey, JSON.stringify(draftData));
@@ -500,6 +502,7 @@ const UpdateTicketDetails = () => {
     storageKey,
     gstEnabled,
     attendanceCount,
+    restrictBooking,
   ]);
   const handleBookingEndDateChange = (e) => {
     const newEndDate = e.target.value;
@@ -624,7 +627,7 @@ const UpdateTicketDetails = () => {
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
-    
+
     if (!validTypes.includes(seatingLayoutFile.type)) {
       showAlert({
         type: "error",
@@ -636,7 +639,7 @@ const UpdateTicketDetails = () => {
     }
 
     setIsGenerating(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("ticket_layout", seatingLayoutFile);
@@ -696,17 +699,16 @@ const UpdateTicketDetails = () => {
 
         setGeneratedSeatingLayout(generatedLayout);
         setShowSeatingPreview(true);
-        
+
         // Show success with detection details
         const detectedCount = generatedLayout.totalSeats || generatedLayout.seats?.length || 0;
         const variance = generatedLayout.variancePercentage || 0;
-        
+
         showAlert({
           type: "success",
           message: "Layout Generated Successfully!",
-          description: `Detected ${detectedCount} seats from your layout image. ${
-            variance > 0 ? `Variance from expected: ${variance}%` : ''
-          }`,
+          description: `Detected ${detectedCount} seats from your layout image. ${variance > 0 ? `Variance from expected: ${variance}%` : ''
+            }`,
         });
       } else {
         throw new Error("No seating layout returned from server");
@@ -721,11 +723,11 @@ const UpdateTicketDetails = () => {
       if (error.response?.data) {
         const errorData = error.response.data;
         errorMessage = errorData.message || errorMessage;
-        
+
         // Handle capacity mismatch specifically
         if (errorData.detectionDetails) {
           const { detectedSeats, expectedSeats, variance } = errorData.detectionDetails;
-          
+
           errorDescription = (
             <div className="space-y-3">
               <p className="text-sm">{errorData.hint}</p>
@@ -1090,6 +1092,7 @@ const UpdateTicketDetails = () => {
     apiFormData.append("total_capacity", totalCapacity || "0");
     apiFormData.append("use_group_bank_account", useGroupBankAccount);
     apiFormData.append('attendance_count', attendanceCount);
+    apiFormData.append('restrict_booking', restrictBooking);
     apiFormData.append("booking_start_date", bookingStartDate);
     apiFormData.append("booking_end_date", bookingEndDate);
     if (!useGroupBankAccount && bankingDetails.length > 0) {
@@ -1373,16 +1376,14 @@ const UpdateTicketDetails = () => {
               </section>
               {/* GST Notice / Toggle */}
               {paymentType === 'paid' && (
-                <div className={`rounded-lg border p-4 ${
-                  groupHasGSTIN
-                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
-                    : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
-                }`}>
+                <div className={`rounded-lg border p-4 ${groupHasGSTIN
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                  : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
+                  }`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                        groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
-                      }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
+                        }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
                       </svg>
@@ -1418,13 +1419,11 @@ const UpdateTicketDetails = () => {
                         <button
                           type="button"
                           onClick={() => setGstEnabled(prev => !prev)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
                         >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            gstEnabled ? 'translate-x-6' : 'translate-x-1'
-                          }`} />
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gstEnabled ? 'translate-x-6' : 'translate-x-1'
+                            }`} />
                         </button>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {gstEnabled ? 'GST ON' : 'GST OFF'}
@@ -1453,12 +1452,11 @@ const UpdateTicketDetails = () => {
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1 ">
                             <label
-                              className={`font-medium text-md ${
-                                groupHasBankAccount &&
+                              className={`font-medium text-md ${groupHasBankAccount &&
                                 !groupBankDetailsIncomplete
-                                  ? "text-gray-900 dark:text-white"
-                                  : "text-black dark:text-gray-400"
-                              }`}
+                                ? "text-gray-900 dark:text-white"
+                                : "text-black dark:text-gray-400"
+                                }`}
                             >
                               Do you want to use the bank account used for group
                               creation?
@@ -1626,20 +1624,19 @@ const UpdateTicketDetails = () => {
                           (errorFieldRefs.current.bank_acc_holder = el)
                         }
                         className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_acc_holder
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
+    w-full
+    bg-gray-100
+    dark:bg-[#1c1c1f]
+    text-gray-900
+    dark:text-white
+    rounded-md
+    p-3
+    disabled:opacity-50
+    disabled:cursor-not-allowed
+    ${errors.bank_acc_holder
+                            ? "border-2 border-red-500"
+                            : "border border-black dark:border-gray-700"
+                          }
   `}
                       />
                       {errors.bank_acc_holder && (
@@ -1666,20 +1663,19 @@ const UpdateTicketDetails = () => {
                         ref={(el) => (errorFieldRefs.current.bank_acc_no = el)}
                         placeholder="xxxx-xxxx-xxxx-xxxx"
                         className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_acc_no
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
+    w-full
+    bg-gray-100
+    dark:bg-[#1c1c1f]
+    text-gray-900
+    dark:text-white
+    rounded-md
+    p-3
+    disabled:opacity-50
+    disabled:cursor-not-allowed
+    ${errors.bank_acc_no
+                            ? "border-2 border-red-500"
+                            : "border border-black dark:border-gray-700"
+                          }
   `}
                       />
                       {errors.bank_acc_no && (
@@ -1705,20 +1701,19 @@ const UpdateTicketDetails = () => {
                         ref={(el) => (errorFieldRefs.current.bank_ifsc = el)}
                         placeholder="xxxxxxxxxxx"
                         className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_ifsc
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
+    w-full
+    bg-gray-100
+    dark:bg-[#1c1c1f]
+    text-gray-900
+    dark:text-white
+    rounded-md
+    p-3
+    disabled:opacity-50
+    disabled:cursor-not-allowed
+    ${errors.bank_ifsc
+                            ? "border-2 border-red-500"
+                            : "border border-black dark:border-gray-700"
+                          }
   `}
                       />
                       {errors.bank_ifsc && (
@@ -1819,12 +1814,11 @@ const UpdateTicketDetails = () => {
                         {/* Display Added Tickets */}
                         {tickets.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                            {tickets.map((ticket) => {
-                              const inclPrice = Number(ticket.price || ticket.ticket_price || 0);
-                              const divisor   = 1 + GST_PERCENTAGE / 100;
-                              const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
-                              const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
-
+                          {tickets.map((ticket) => {
+                            const basePrice = Number(ticket.price || ticket.ticket_price || 0);
+                            const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
+                            const totalPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
+                            const inclPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
                               return (
                                 <div key={ticket.id} className="bg-gray-100 dark:bg-[#2B2B2B] rounded-lg overflow-hidden shadow-sm dark:shadow-none">
                                   {/* Header row */}
@@ -1857,8 +1851,8 @@ const UpdateTicketDetails = () => {
                                           <span>₹{gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
-                                          <span>Ticket price (buyer pays)</span>
-                                          <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                          <span>Total ticket price (buyer pays)</span>
+                                          <span>₹{totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                       </div>
                                     ) : (
@@ -1918,6 +1912,22 @@ const UpdateTicketDetails = () => {
                     />
                   </div>
                 )}
+                {/* ─── BOOKING RESTRICTION ─── */}
+                <div className="flex items-center justify-between pt-4 pb-2">
+                  <div>
+                    <label className="font-medium text-gray-900 dark:text-white text-md">
+                      Restrict to single ticket per user?
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      When on, each person can only book 1 ticket at a time. By default, attendees can book multiple tickets.
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={restrictBooking}
+                    onChange={() => setRestrictBooking(prev => !prev)}
+                    darkMode={darkMode}
+                  />
+                </div>
                 {hasSeatingLayout && (
                   <div
                     className="animate-fade-in space-y-6"
@@ -2304,8 +2314,8 @@ const UpdateTicketDetails = () => {
                                 {!totalCapacity
                                   ? "Set total capacity first"
                                   : !seatingLayoutFile
-                                  ? "Upload a layout file"
-                                  : 'Click "Generate Layout" above'}
+                                    ? "Upload a layout file"
+                                    : 'Click "Generate Layout" above'}
                               </p>
                             </div>
                           )}
@@ -2336,7 +2346,7 @@ const UpdateTicketDetails = () => {
                             <p className="text-xs text-green-700 dark:text-green-300 mt-1">
                               {generatedSeatingLayout.layoutType === 'grid-generated' ? (
                                 <>
-                                  <strong>Grid Layout:</strong> Generated {generatedSeatingLayout.totalSeats} seats 
+                                  <strong>Grid Layout:</strong> Generated {generatedSeatingLayout.totalSeats} seats
                                   in {generatedSeatingLayout.gridDimensions?.rows} rows × {generatedSeatingLayout.gridDimensions?.cols} columns
                                   <br />
                                   <span className="text-yellow-700 dark:text-yellow-400">
@@ -2373,7 +2383,7 @@ const UpdateTicketDetails = () => {
                   <p className="text-black dark:text-gray-400 text-sm">
                     Set the price and total capacity for your {locationType} event tickets.
                   </p>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
                     <div ref={(el) => (errorFieldRefs.current.simpleTicketPrice = el)}>
                       <label
@@ -2395,11 +2405,10 @@ const UpdateTicketDetails = () => {
                         placeholder="Enter ticket price"
                         min="1"
                         step="1"
-                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
-                          errors.simpleTicketPrice
-                            ? "border-2 border-red-500"
-                            : "border border-black dark:border-gray-700"
-                        }`}
+                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${errors.simpleTicketPrice
+                          ? "border-2 border-red-500"
+                          : "border border-black dark:border-gray-700"
+                          }`}
                       />
                       {errors.simpleTicketPrice && (
                         <p className="text-red-500 text-xs mt-1">
@@ -2428,11 +2437,10 @@ const UpdateTicketDetails = () => {
                         placeholder="Enter total capacity"
                         min="1"
                         step="1"
-                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
-                          errors.simpleTicketCapacity
-                            ? "border-2 border-red-500"
-                            : "border border-black dark:border-gray-700"
-                        }`}
+                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${errors.simpleTicketCapacity
+                          ? "border-2 border-red-500"
+                          : "border border-black dark:border-gray-700"
+                          }`}
                       />
                       {errors.simpleTicketCapacity && (
                         <p className="text-red-500 text-xs mt-1">
@@ -2443,10 +2451,10 @@ const UpdateTicketDetails = () => {
                   </div>
                   {simpleTicketPrice && simpleTicketCapacity && (() => {
                     const inclPrice = Number(simpleTicketPrice);
-                    const divisor   = 1 + GST_PERCENTAGE / 100;
-                    const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
-                    const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
-                    const maxRev    = Math.round(inclPrice * Number(simpleTicketCapacity) * 100) / 100;
+                    const basePrice = inclPrice;// entered price is the base
+                    const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
+                    const totalPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
+                    const maxRev = Math.round(totalPrice * Number(simpleTicketCapacity) * 100) / 100;
 
                     return (
                       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
