@@ -47,7 +47,7 @@ const FullScreenViewer = ({ fileUrl, fileType, fileName, onClose, darkMode }) =>
             );
         }
         if (isImage) {
-            return <img src={fileUrl} alt={fileName} className="max-h-full max-w-full object-contain" />;
+            return <img src={fileUrl} alt={fileName} className="max-h-full max-w-full object-contain rounded-lg shadow-lg" />;
         }
 
         return <p className="text-white">Cannot preview this file type.</p>;
@@ -55,22 +55,22 @@ const FullScreenViewer = ({ fileUrl, fileType, fileName, onClose, darkMode }) =>
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-8 bg-black/80 backdrop-blur-md transition-opacity duration-300 animate-in fade-in"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-12 bg-black/90 backdrop-blur-md transition-opacity duration-300 animate-in fade-in"
             onClick={onClose}
         >
             <div
-                className={`relative w-full h-[80vh] sm:h-auto sm:max-h-[80vh] md:max-w-xl lg:max-w-2xl transition-all duration-300 flex flex-col ${darkMode ? 'bg-[#1a1a1a]/80 border border-white/10' : 'bg-white/80 border border-black/5'} rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 backdrop-blur-xl`}
+                className={`relative w-[95vw] sm:w-auto min-w-[280px] sm:min-w-[400px] md:max-w-lg lg:max-w-xl h-[75vh] sm:h-auto sm:max-h-[75vh] transition-all duration-300 flex flex-col ${darkMode ? 'bg-[#121212] border border-white/10' : 'bg-white border border-black/5'} rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className={`px-4 py-3 flex justify-between items-center flex-shrink-0 border-b ${darkMode ? 'border-gray-800 text-white' : 'border-gray-100 text-gray-900'}`}>
+                <div className={`px-4 py-3 flex justify-between items-center flex-shrink-0 border-b ${darkMode ? 'border-white/10 text-white' : 'border-gray-100 text-gray-900'} bg-opacity-50`}>
                     <div className="flex flex-col gap-0 max-w-[80%]">
-                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Preview</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Preview</span>
                         <span className="font-semibold truncate text-base leading-tight">{fileName}</span>
                     </div>
                     <button
                         onClick={onClose}
-                        className={`p-2 rounded-full transition-all ${darkMode ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-black/5 text-gray-500 hover:text-black'}`}
+                        className={`p-2 rounded-xl transition-all ${darkMode ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-black/5 text-gray-500 hover:text-black'}`}
                         aria-label="Close viewer"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +80,7 @@ const FullScreenViewer = ({ fileUrl, fileType, fileName, onClose, darkMode }) =>
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden p-2 sm:p-4">
+                <div className={`flex-1 w-full flex items-center justify-center overflow-hidden p-4 sm:p-8 ${darkMode ? 'bg-black/40' : 'bg-gray-50'}`}>
                     <div className="relative w-full h-full flex items-center justify-center">
                         {renderContent()}
                     </div>
