@@ -124,8 +124,7 @@ export default function UserProfilePage() {
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
 
-  const [posts,        setPosts]        = useState<any[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
+
   const [userFluxes,   setUserFluxes]   = useState<Flux[]>([]);
   const [userDiaries,  setUserDiaries]  = useState<Diary[]>([]);
   const [fluxLoading,  setFluxLoading]  = useState(false);
@@ -152,23 +151,19 @@ export default function UserProfilePage() {
     }
   }, [identifier, isOwnProfile]);
 
-useEffect(() => {
-    if (resolvedUserId) {
-      fetchUserPosts(activeTab);
-    }
-  }, [resolvedUserId, activeTab]);
+
 
   const fetchUserFluxAndDiary = async (uid: string) => {
     setFluxLoading(true);
     try {
       const [fluxes, diaries] = await Promise.all([
-        getUserFluxes(uid).catch(() => [] as Flux[]),
-        getUserDiaries(uid).catch(() => [] as Diary[]),
+        getUserFluxes(uid),
+        getUserDiaries(uid),
       ]);
       setUserFluxes(fluxes  ?? []);
       setUserDiaries(diaries ?? []);
     } catch (e) {
-      // Silently fail — backend returns empty arrays for unauthorized access
+      console.error("Failed to fetch user fluxes and diaries:", e);
       setUserFluxes([]);
       setUserDiaries([]);
     } finally {
@@ -258,31 +253,7 @@ const handleMessageClick = async () => {
     }
   }
 };
-  const fetchUserPosts = async (tab: string) => {
-    if (!resolvedUserId) return;
-    try {
-      setPostsLoading(true);
-      // Simulate API call for posts
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const mockPosts = Array(8)
-        .fill(null)
-        .map((_, i) => ({
-          id: `post-${i}`,
-          image_url: `https://picsum.photos/seed/${resolvedUserId}-${i + 100}/500/500`,
-          views: "1.7M",
-          type: i % 3 === 0 ? "video" : i % 3 === 1 ? "collection" : "image",
-          likes_count: Math.floor(Math.random() * 1000),
-          comments_count: Math.floor(Math.random() * 100),
-        }));
-
-      setPosts(mockPosts);
-    } catch (error) {
-      console.error("Failed to fetch posts:", error);
-    } finally {
-      setPostsLoading(false);
-    }
-  };
 
   const fetchSuggestedUsers = async () => {
     try {
@@ -875,6 +846,7 @@ const handleFollowToggle = async () => {
                 userId={resolvedUserId || identifier}
                 isMobile={isMobile}
                 isOwnProfile={false}
+                currentUserId={currentUser?.id}   
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
               />
