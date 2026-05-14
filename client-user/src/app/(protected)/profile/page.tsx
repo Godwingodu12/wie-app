@@ -10,7 +10,6 @@ import { getProfile, logout, updateProfile } from "@/services/wieUserService";
 import { getFollowStats } from "@/services/followService";
 import ImageCropModal from "@/components/profile/ImageCropModal";
 import FollowModal from "@/components/profile/FollowModal";
-
 import {
   Plus,
   Menu,
@@ -557,7 +556,14 @@ function ProfileContent() {
                           >
                             Add story
                           </button>
-                          <button className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}>
+                          <button
+                            onClick={() => {
+                              setShowActionModal(false);
+                              router.push("/post/add-post");
+                            }}
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
+                            style={{ color: themeStyles.text }}
+                          >
                             Add post
                           </button>
                           <button
@@ -875,15 +881,18 @@ function ProfileContent() {
             {/* Profile Tabs - Posts, Reels, Feed, Tags */}
             {displayUser.id && (
               <div className="w-full">
+                {/* Tab headers */}
                 <ProfileTabs
                   userId={displayUser.id}
                   isMobile={isMobile}
                   isOwnProfile={true}
+                  currentUserId={displayUser.id}    
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
                 />
               </div>
             )}
+
           </div>
         </div>
       </main>
