@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
-import { updateTicketStats, getTicketStats } from '../clients/ticketServiceClient';
+import { updateTicketStats, getTicketBookingStats } from '../clients/ticketServiceClient';
 import { InteractionModel, BookingModel } from '../models';
-import { getTicketBookingStats } from '../clients/ticketServiceClient';
 import { prisma } from '../config/db';
 
 // ✅ FIXED toggleLike — decrements gRPC stat on unlike
