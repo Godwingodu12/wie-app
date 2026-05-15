@@ -1,332 +1,293 @@
-import { Request, Response } from 'express';
-import { updateTicketStats, getTicketBookingStats } from '../clients/ticketServiceClient';
-import { InteractionModel, BookingModel } from '../models';
-import { prisma } from '../config/db';
+import { prisma } from "../config/db";
+import { Interaction, InteractionType } from "../generated/prisma";
 
-// ✅ FIXED toggleLike — decrements gRPC stat on unlike
-export const toggleLike = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
+export interface CreateInteractionData {
+  userId: string;
+  ticketId: string;
+  interactionType: InteractionType;
+  metadata?: Record<string, any>;
+}
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const existing = await InteractionModel.findUnique(userId, ticketId, 'LIKE');
-
-    if (existing) {
-      // ── Unlike ──
-      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'LIKE');
-      await updateTicketStats(ticketId, 'like', -1).catch((err: any) =>
-        console.warn(`⚠️ Could not decrement like stat: ${err.message}`)
-      );
-      return res.status(200).json({ success: true, liked: false, message: 'Event unliked' });
-    }
-
-    // ── Like ──
-    await InteractionModel.upsert({ userId, ticketId, interactionType: 'LIKE' });
-    await updateTicketStats(ticketId, 'like', 1).catch((err: any) =>
-      console.warn(`⚠️ Could not increment like stat: ${err.message}`)
-    );
-
-    res.status(200).json({ success: true, liked: true, message: 'Event liked' });
-  } catch (error: any) {
-    console.error('❌ Error toggling like:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const toggleSave = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const existing = await InteractionModel.findUnique(userId, ticketId, 'SAVE');
-
-    if (existing) {
-      // ── Unsave ──
-      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'SAVE');
-      return res.status(200).json({ success: true, saved: false, message: 'Event removed from saved' });
-    }
-
-    // ── Save ──
-    await InteractionModel.upsert({ userId, ticketId, interactionType: 'SAVE' });
-    res.status(200).json({ success: true, saved: true, message: 'Event saved' });
-  } catch (error: any) {
-    console.error('❌ Error toggling save:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Share Event
-export const shareEvent = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
-    const { shareMethod, platform } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Record share
-    await InteractionModel.create({
-      userId,
-      ticketId,
-      interactionType: 'SHARE',
-      metadata: {
-        shareMethod,
-        platform,
-        timestamp: new Date().toISOString(),
-      },
-    });
-
-    // Update ticket stats
-    await updateTicketStats(ticketId, 'share', 1);
-    const shareCount = await InteractionModel.countByType(ticketId, 'SHARE');
-
-    res.status(200).json({
-      success: true,
-      message: 'Event shared successfully',
+export class InteractionModel {
+  /**
+   * Create interaction
+   */
+  static async create(data: CreateInteractionData): Promise<Interaction> {
+    return await prisma.interaction.create({
       data: {
-        shareCount,
+        userId: data.userId,
+        ticketId: data.ticketId,
+        interactionType: data.interactionType,
+        metadata: data.metadata ?? undefined,
       },
     });
-  } catch (error: any) {
-    console.error('❌ Error sharing event:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
-};
-export const recordView = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    // Check if already viewed in last 24 hours
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const interactions = await InteractionModel.findByUserId(userId, {
-      type: 'VIEW',
-      limit: 100,
-    });
-    const recentView = interactions.interactions.find(
-      (i) =>
-        i.ticketId === ticketId &&
-        new Date(i.createdAt) >= yesterday
-    );
-
-    if (!recentView) {
-      // Record new view only if no recent view exists
-      try {
-        await InteractionModel.upsert({
+  /**
+   * Find interaction
+   */
+  static async findUnique(
+    userId: string,
+    ticketId: string,
+    interactionType: InteractionType,
+  ): Promise<Interaction | null> {
+    return await prisma.interaction.findUnique({
+      where: {
+        userId_ticketId_interactionType: {
           userId,
           ticketId,
-          interactionType: 'VIEW',
-        });
-      } catch (error: any) {
-        if (error.code === 'P2002') {
-          console.log(`ℹ️ View already exists for user ${userId} and ticket ${ticketId}`);
-        } else {
-          throw error; // Re-throw other errors
-        }
-      }
-    }
-    res.status(200).json({
-      success: true,
-      message: 'View recorded',
-    });
-  } catch (error: any) {
-    console.error('❌ Error recording view:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const getEventStats = async (req: Request, res: Response) => {
-  try {
-    const { ticketId } = req.params;
-    const userId = req.user?.id;
-    const interactionStats = await InteractionModel.getTicketStatistics(ticketId);
-    let bookingStats = {
-      totalBookings: 0,
-      totalRevenue: 0,
-      totalTicketsSold: 0,
-    };
-    try {
-      bookingStats = await getTicketBookingStats(ticketId);
-    } catch (error: any) {
-      console.warn('⚠️ [Transaction] Could not fetch booking stats:', error.message);
-    }
-    // ✅ FIXED: Normalize the stats to ensure both singular and plural forms
-    const normalizedStats = {
-      like: interactionStats.LIKE || 0,
-      likes: interactionStats.LIKE || 0,
-      share: interactionStats.SHARE || 0,
-      shares: interactionStats.SHARE || 0,
-      views: interactionStats.VIEW || 0,
-      view: interactionStats.VIEW || 0,
-      saves: interactionStats.SAVE || 0,
-      save: interactionStats.SAVE || 0,
-      feedback: interactionStats.FEEDBACK || 0,
-      totalBookings: bookingStats.totalBookings || 0,
-      totalRevenue: bookingStats.totalRevenue || 0,
-      totalTicketsSold: bookingStats.totalTicketsSold || 0,
-    };
-    res.status(200).json({
-      success: true,
-      data: {
-        stats: normalizedStats,
-        userInteractions: {
-          liked: userId
-            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'LIKE')
-            : false,
-          saved: userId
-            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'SAVE')
-            : false,
-          shared: userId
-            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'SHARE')
-            : false,
+          interactionType,
         },
       },
     });
-  } catch (error: any) {
-    console.error('❌ [Transaction] Error fetching event stats:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
-};
-// Get User's Liked Events
-export const getUserLikedEvents = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
+  static async delete(id: string): Promise<Interaction> {
+    return await prisma.interaction.delete({
+      where: { id },
+    });
+  }
+
+  static async deleteByCompositeKey(
+    userId: string,
+    ticketId: string,
+    interactionType: InteractionType,
+  ): Promise<Interaction | null> {
+    try {
+      return await prisma.interaction.delete({
+        where: {
+          userId_ticketId_interactionType: {
+            userId,
+            ticketId,
+            interactionType,
+          },
+        },
+      });
+    } catch (err: any) {
+      if (err.code === "P2025") {
+        // Record not found, which is an expected scenario for deletion attempts
+        return null;
+      }
+      console.error("Error deleting interaction by composite key:", err); // Log the error
+      throw err; // Re-throw other errors
+    }
+  }
+  static async findByUserId(
+    userId: string,
+    options?: {
+      type?: InteractionType;
+      limit?: number;
+      skip?: number;
+    },
+  ): Promise<{ interactions: Interaction[]; total: number }> {
+    const where: any = { userId };
+
+    if (options?.type) {
+      where.interactionType = options.type;
     }
 
-    const { limit = 50, skip = 0 } = req.query;
+    const [interactions, total] = await Promise.all([
+      prisma.interaction.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: options?.limit || 50,
+        skip: options?.skip || 0,
+      }),
+      prisma.interaction.count({ where }),
+    ]);
 
-    const ticketIds = await InteractionModel.getUserLikedTickets(userId, {
-      limit: parseInt(limit as string),
-      skip: parseInt(skip as string),
+    return { interactions, total };
+  }
+
+  /**
+   * Find interactions by ticket
+   */
+  static async findByTicketId(
+    ticketId: string,
+    interactionType?: InteractionType,
+  ): Promise<Interaction[]> {
+    const where: any = { ticketId };
+
+    if (interactionType) {
+      where.interactionType = interactionType;
+    }
+
+    return await prisma.interaction.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
     });
+  }
 
-    res.status(200).json({
-      success: true,
-      data: {
-        ticketIds,
-        total: ticketIds.length,
+  /**
+   * Count interactions by type
+   */
+  static async countByType(
+    ticketId: string,
+    interactionType: InteractionType,
+  ): Promise<number> {
+    return await prisma.interaction.count({
+      where: {
+        ticketId,
+        interactionType,
       },
     });
-  } catch (error: any) {
-    console.error('❌ Error fetching liked events:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
-};
 
-// Get User's Saved Events
-export const getUserSavedEvents = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { limit = 50, skip = 0 } = req.query;
-
-    const ticketIds = await InteractionModel.getUserSavedTickets(userId, {
-      limit: parseInt(limit as string),
-      skip: parseInt(skip as string),
+  /**
+   * Get interaction statistics for a ticket
+   */
+  static async getTicketStatistics(ticketId: string) {
+    const stats = await prisma.interaction.groupBy({
+      by: ["interactionType"],
+      where: { ticketId },
+      _count: true,
     });
 
-    res.status(200).json({
-      success: true,
-      data: {
-        ticketIds,
-        total: ticketIds.length,
-      },
+    const result: any = {
+      LIKE: 0,
+      SHARE: 0,
+      VIEW: 0,
+      SAVE: 0,
+      FEEDBACK: 0,
+    };
+
+    stats.forEach((stat) => {
+      result[stat.interactionType] = stat._count;
     });
-  } catch (error: any) {
-    console.error('❌ Error fetching saved events:', error);
-    res.status(500).json({ success: false, message: error.message });
+
+    return result;
   }
-};
 
-// Submit Feedback
-export const submitFeedback = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
-    const { rating, comment } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating must be between 1 and 5',
-      });
-    }
-
-    // Check if user has booking for this event
-    const bookings = await BookingModel.findByUserId(userId);
-    const hasBooking = bookings.bookings.some(
-      (b) => b.ticketId === ticketId && b.bookingStatus === 'CONFIRMED'
-    );
-
-    if (!hasBooking) {
-      return res.status(403).json({
-        success: false,
-        message: 'You must have a confirmed booking to submit feedback',
-      });
-    }
-
-    // Check if feedback already submitted
-    const existingFeedback = await InteractionModel.findUnique(
+  /**
+   * Check if user has interacted with ticket
+   */
+  static async hasUserInteracted(
+    userId: string,
+    ticketId: string,
+    interactionType: InteractionType,
+  ): Promise<boolean> {
+    const interaction = await this.findUnique(
       userId,
       ticketId,
-      'FEEDBACK'
+      interactionType,
     );
+    return interaction !== null;
+  }
 
-    if (existingFeedback) {
-      // Update existing feedback
-      await InteractionModel.updateMetadata(existingFeedback.id, {
-        rating,
-        comment,
-        updatedAt: new Date().toISOString(),
-      });
+  /**
+   * Get user's liked tickets
+   */
+  static async getUserLikedTickets(
+    userId: string,
+    options?: { limit?: number; skip?: number },
+  ): Promise<string[]> {
+    const interactions = await prisma.interaction.findMany({
+      where: {
+        userId,
+        interactionType: "LIKE",
+      },
+      select: { ticketId: true },
+      orderBy: { createdAt: "desc" },
+      take: options?.limit || 50,
+      skip: options?.skip || 0,
+    });
 
-      return res.status(200).json({
-        success: true,
-        message: 'Feedback updated successfully',
-      });
-    }
+    return interactions.map((i) => i.ticketId);
+  }
 
-    // Create new feedback
-    await InteractionModel.create({
-      userId,
+  /**
+   * Get user's saved tickets
+   */
+  static async getUserSavedTickets(
+    userId: string,
+    options?: { limit?: number; skip?: number },
+  ): Promise<string[]> {
+    const interactions = await prisma.interaction.findMany({
+      where: {
+        userId,
+        interactionType: "SAVE",
+      },
+      select: { ticketId: true },
+      orderBy: { createdAt: "desc" },
+      take: options?.limit || 50,
+      skip: options?.skip || 0,
+    });
+
+    return interactions.map((i) => i.ticketId);
+  }
+
+  /**
+   * Get feedback for ticket
+   */
+  static async getFeedback(
+    ticketId: string,
+    options?: { limit?: number; skip?: number },
+  ): Promise<{
+    feedback: Interaction[];
+    total: number;
+    averageRating: number;
+  }> {
+    const where = {
       ticketId,
-      interactionType: 'FEEDBACK',
-      metadata: {
-        rating,
-        comment,
+      interactionType: "FEEDBACK" as InteractionType,
+    };
+
+    const [feedback, total] = await Promise.all([
+      prisma.interaction.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: options?.limit || 50,
+        skip: options?.skip || 0,
+      }),
+      prisma.interaction.count({ where }),
+    ]);
+
+    // Calculate average rating
+    const ratings = feedback
+      .map((f) => (f.metadata as Record<string, any>)?.rating as number)
+      .filter((r): r is number => r !== undefined && r !== null);
+
+    const averageRating =
+      ratings.length > 0
+        ? ratings.reduce((sum: number, r: number) => sum + r, 0) /
+          ratings.length
+        : 0;
+
+    return {
+      feedback,
+      total,
+      averageRating: parseFloat(averageRating.toFixed(2)),
+    };
+  }
+  static async updateMetadata(
+    id: string,
+    metadata: Record<string, any>,
+  ): Promise<Interaction> {
+    return await prisma.interaction.update({
+      where: { id },
+      data: { metadata },
+    });
+  }
+  static async upsert(data: CreateInteractionData): Promise<Interaction> {
+    return await prisma.interaction.upsert({
+      where: {
+        userId_ticketId_interactionType: {
+          userId: data.userId,
+          ticketId: data.ticketId,
+          interactionType: data.interactionType,
+        },
+      },
+      update: {
+        metadata: data.metadata ?? undefined,
+        createdAt: new Date(), // Update timestamp on each view
+      },
+      create: {
+        userId: data.userId,
+        ticketId: data.ticketId,
+        interactionType: data.interactionType,
+        metadata: data.metadata ?? undefined,
       },
     });
-    res.status(200).json({
-      success: true,
-      message: 'Feedback submitted successfully',
-    });
-  } catch (error: any) {
-    console.error('❌ Error submitting feedback:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
-};
+}
+export default InteractionModel;
