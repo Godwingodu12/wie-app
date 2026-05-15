@@ -2438,11 +2438,14 @@ const CreateTicket = () => {
                         }}
                         onInput={() => {
                           if (rulesEditorRef.current) {
+                            const clean = sanitizeEditorHtml(
+                              rulesEditorRef.current.innerHTML
+                            );
                             setFormData((prev) => ({
                               ...prev,
                               event_rules: {
                                 ...(prev.event_rules || { type: "text" }),
-                                content: rulesEditorRef.current.innerHTML,
+                                content: clean,
                               },
                               // Ensure the type is 'text' if user starts typing
                               event_rules_file: null,
