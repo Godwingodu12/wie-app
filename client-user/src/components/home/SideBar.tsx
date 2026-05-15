@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
+import WieUserLogo from "@/assets/Auth/WieLogo.png";
 import HomeIcon from "@/assets/Home/HomeIcon.svg";
 import ExploreIcon from "@/assets/Home/ExploreIcon.svg";
 import ReelIcon from "@/assets/Home/ReelIcon.svg";
@@ -26,6 +26,13 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useTheme } from "./ThemeContext";
 import { MdLightMode, MdOutlineDarkMode  } from "react-icons/md";
 
+declare global {
+  interface WindowEventMap {
+    'unread-count-changed': CustomEvent<{ totalUnread: number }>;
+    'chat-screenshot-received': CustomEvent<void>;
+  }
+}
+
 const SideBar: React.FC = () => {
   const { isCollapsed, setIsCollapsed, isMobile } = useSidebar();
   const { user, token } = useAuth();
@@ -39,6 +46,7 @@ const SideBar: React.FC = () => {
   const [notificationCount, setNotificationCount] = useState<number>(0);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   const [unreadUsersCount, setUnreadUsersCount] = useState<number>(0); 
+  const [screenshotAlertCount, setScreenshotAlertCount] = useState<number>(0);
   const [sidebarReady, setSidebarReady] = useState(false);
   // Load unread notification count
   useEffect(() => {
@@ -135,7 +143,7 @@ const SideBar: React.FC = () => {
   useEffect(() => {
     if (!user || !token) return;
 
-    const handleUnreadCountChange = (event: CustomEvent) => {
+    const handleUnreadCountChange = (event: CustomEvent<{ totalUnread: number }>) => {
       const isOnMessagePage = typeof window !== 'undefined' && 
         window.location.pathname.startsWith('/message');
       if (isOnMessagePage) {
@@ -156,8 +164,19 @@ const SideBar: React.FC = () => {
         });
     };
 
-    window.addEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
+    window.addEventListener('unread-count-changed', handleUnreadCountChange as EventListener);
+    // Screenshot alerts → increment message badge 
+    const handleChatScreenshot = (event: CustomEvent<void>) => {
+      // Only bump the count when NOT on the messages page
+      const isOnMessagePage =
+        typeof window !== 'undefined' &&
+        window.location.pathname.startsWith('/message');
+      if (!isOnMessagePage) {
+        setScreenshotAlertCount(prev => prev + 1);
+      }
+    };
 
+    window.addEventListener('chat-screenshot-received', handleChatScreenshot as EventListener);
     // Also refresh on socket events
     const socket = socketService.getSocket();
     if (socket) {
@@ -207,12 +226,13 @@ const SideBar: React.FC = () => {
         socket.off('new-message-notification', handleNewMessageNotification);
         socket.off('messages-read', handleMessagesRead);
         socket.off('chat-unread-update', handleChatUnreadUpdate);
-        window.removeEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
+        window.removeEventListener('chat-screenshot-received', handleChatScreenshot as EventListener);
+        window.removeEventListener('unread-count-changed', handleUnreadCountChange as EventListener);
       };
     }
 
     return () => {
-      window.removeEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
+      window.removeEventListener('unread-count-changed', handleUnreadCountChange as EventListener);
     };
   }, [user, token]);
 
@@ -225,7 +245,7 @@ const SideBar: React.FC = () => {
       label: "Messages",
       icon: MessageIcon,
       path: "/message",
-      notificationCount: unreadUsersCount, // ✅ Changed to show user count
+      notificationCount: unreadUsersCount + screenshotAlertCount,
     },
     {
       id: "connections",
@@ -247,6 +267,9 @@ const SideBar: React.FC = () => {
   const mobileNavItems = mainNavItems.slice(0, 5);
 
   const handleNavClick = async (path: string) => {
+    if (path === '/message') {
+      setScreenshotAlertCount(0);
+    }
     if (path === '/notification') {
       const opening = !isNotificationOpen;
       setIsNotificationOpen(opening);
@@ -412,14 +435,7 @@ const SideBar: React.FC = () => {
         >
           {!isCollapsed && (
             <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap opacity-100 transition-opacity duration-300">
-              <Image
-                src={WieUserLogo}
-                alt="Wie Logo"
-                width={37}
-                height={37}
-                className="flex-shrink-0"
-                style={{ filter: themeStyles.iconFilter }}
-              />
+              <Image src={WieUserLogo} alt="Wie Logo" width={87} height={87} className="flex-shrink-0" style={{ filter: themeStyles.iconFilter }} />
               <span
                 className="font-medium text-2xl tracking-normal transition-colors duration-300"
                 style={{
@@ -436,8 +452,8 @@ const SideBar: React.FC = () => {
             <Image
               src={WieUserLogo}
               alt="Wie Logo"
-              width={32}
-              height={32}
+              width={82}
+              height={82}
               className="flex-shrink-0"
               style={{ filter: themeStyles.iconFilter }}
             />
