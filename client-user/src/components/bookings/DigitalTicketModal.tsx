@@ -137,13 +137,14 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300"
+      className="fixed inset-0 z-[200] overflow-y-auto bg-black/90 backdrop-blur-md animate-in fade-in duration-300"
       onClick={onClose}
     >
-      <div
-        className="relative w-full max-w-[480px] flex flex-col gap-4 animate-in zoom-in-95 duration-300 px-4"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="min-h-full flex flex-col items-center p-4 sm:p-6">
+        <div
+          className="relative w-full max-w-[480px] flex flex-col gap-4 animate-in zoom-in-95 duration-300 my-auto px-4"
+          onClick={e => e.stopPropagation()}
+        >
         {/* Ticket Wrapping Container */}
         <div
           ref={ticketRef}
@@ -151,7 +152,7 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
           className={`w-full max-w-[440px] mx-auto rounded-[32px] shadow-2xl flex flex-col ${bgClass} relative border ${borderColor} overflow-hidden`}
         >
           {/* Header Section */}
-          <div className={`p-6 sm:p-8 flex items-start flex-row border-b ${borderColor} ${isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]'}`}>
+          <div className={`p-4 sm:p-8 flex items-start flex-row border-b ${borderColor} ${isDark ? 'bg-white/[0.02]' : 'bg-black/[0.02]'}`}>
 
             <div className="w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-lg bg-white/5 mr-5 sm:mr-7 ticket-img-container">
               <img
@@ -184,8 +185,8 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
             </div>
           </div>
 
-          <div className="p-6 sm:px-8 sm:py-8">
-            <div className="grid grid-cols-2 gap-y-8 gap-x-6">
+          <div className="p-4 sm:p-8">
+            <div className="grid grid-cols-2 gap-y-4 sm:gap-y-6 gap-x-6">
 
               <div className="flex flex-col">
                 <div className="text-[11px] font-bold uppercase tracking-widest text-[#8860D9] flex flex-row items-center mb-2 pb-0.5 overflow-visible">
@@ -237,7 +238,7 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
               </div>
             </div>
 
-            <div className="my-8 h-px w-full border-t border-dashed opacity-40 border-gray-400" />
+            <div className="my-4 sm:my-6 h-px w-full border-t border-dashed opacity-40 border-gray-400" />
 
             <div className="flex flex-row items-center justify-between">
                <div className="flex-1">
@@ -286,5 +287,6 @@ export default function DigitalTicketModal({ show, onClose, booking }: DigitalTi
         </div>
       </div>
     </div>
+  </div>
   );
 }

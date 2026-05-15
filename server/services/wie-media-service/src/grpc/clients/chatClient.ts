@@ -1,27 +1,24 @@
-import * as grpc       from '@grpc/grpc-js';
-import * as protoLoader from '@grpc/proto-loader';
-import path             from 'path';
-import dotenv           from 'dotenv';
+import * as grpc from "@grpc/grpc-js";
+import * as protoLoader from "@grpc/proto-loader";
+import path from "path";
+import dotenv from "dotenv";
 
 dotenv.config();
-
-const PROTO_PATH = path.join(__dirname, '../../../../../protos/chat.proto');
-
+const PROTO_PATH = path.join(__dirname, "../../../../../protos/chat.proto");
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
-  longs:    String,
-  enums:    String,
+  longs: String,
+  enums: String,
   defaults: true,
-  oneofs:   true,
+  oneofs: true,
 });
 
 const chatProto = (grpc.loadPackageDefinition(packageDefinition) as any).chat;
-
-const CHAT_GRPC_URL = process.env.CHAT_GRPC_URL || 'localhost:50056';
+const CHAT_GRPC_URL = process.env.CHAT_GRPC_URL || "localhost:50056";
 
 const client = new chatProto.ChatService(
   CHAT_GRPC_URL,
-  grpc.credentials.createInsecure()
+  grpc.credentials.createInsecure(),
 );
 
 const promisify = <T>(fn: Function, request: object): Promise<T> =>
@@ -33,23 +30,78 @@ const promisify = <T>(fn: Function, request: object): Promise<T> =>
   });
 
 export const sendSystemMessage = (payload: {
-  sender_id:     string;
-  receiver_id:   string;
-  message_type:  string;
-  content:       string;
+  sender_id: string;
+  receiver_id: string;
+  message_type: string;
+  content: string;
   metadata_json: string;
 }): Promise<{
-  success:    boolean;
+  success: boolean;
   message_id: string;
-  chat_id:    string;
-  error:      string;
+  chat_id: string;
+  error: string;
 }> => promisify(client.SendSystemMessage, payload);
 
 export const getChatByParticipants = (
   userIdOne: string,
-  userIdTwo: string
+  userIdTwo: string,
 ): Promise<{ success: boolean; chat_id: string; error: string }> =>
   promisify(client.GetChatByParticipants, {
     user_id_one: userIdOne,
     user_id_two: userIdTwo,
+  });
+
+// Block / Unblock
+export const blockUser = (
+  blockerId: string,
+  blockedId: string,
+): Promise<{ success: boolean; error: string }> =>
+  promisify(client.BlockUser, {
+    blocker_id: blockerId,
+    blocked_id: blockedId,
+  });
+
+export const unblockUser = (
+  blockerId: string,
+  unblockedId: string,
+): Promise<{ success: boolean; error: string }> =>
+  promisify(client.UnblockUser, {
+    blocker_id: blockerId,
+    unblocked_id: unblockedId,
+  });
+
+export const checkBlockStatus = (
+  currentUserId: string,
+  otherUserId: string,
+): Promise<{
+  success: boolean;
+  i_blocked_them: boolean;
+  they_blocked_me: boolean;
+  error: string;
+}> =>
+  promisify(client.CheckBlockStatus, {
+    current_user_id: currentUserId,
+    other_user_id: otherUserId,
+  });
+
+// ── Report
+export const reportUser = (payload: {
+  reporter_id: string;
+  reported_id: string;
+  report_type: string;
+  reason: string;
+  chat_id?: string;
+  message_ids?: string[]; // will be JSON-stringified before sending
+}): Promise<{
+  success: boolean;
+  report_id: string;
+  error: string;
+}> =>
+  promisify(client.ReportUser, {
+    reporter_id: payload.reporter_id,
+    reported_id: payload.reported_id,
+    report_type: payload.report_type,
+    reason: payload.reason,
+    chat_id: payload.chat_id ?? "",
+    message_ids: JSON.stringify(payload.message_ids ?? []),
   });
