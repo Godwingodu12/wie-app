@@ -284,35 +284,42 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
                     </div>
                   </div>
                    {/* Quantity */}
-                  {(() => {
-                    // restrict_booking: true = allow multiple (up to 50), false/absent = 1 ticket only
-                    const multipleAllowed = event?.restrict_booking === true;
+                   {(() => {
+                    const multipleAllowed = event?.restrict_booking !== true;
                     const maxQty = multipleAllowed ? 50 : 1;
                     return (
                       <div className="space-y-2 flex flex-col items-center sm:items-start">
                         <label className={`text-[11px] font-bold uppercase tracking-widest px-1 ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>Quantity</label>
-                        <div className="flex items-center justify-center sm:justify-start gap-4 h-[48px]">
-                          <button
-                            onClick={() => setQuantity?.(Math.max(1, quantity - 1))}
-                            style={{ background: isDark ? '#0000001A' : '#ffffff' }}
-                            className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-white/5 hover:bg-white/5' : 'text-gray-900 border-black/10 hover:bg-gray-50'}`}
-                            disabled={isBooking}
-                          >
-                            <Minus className="w-4 sm:w-5 h-4 sm:h-5" />
-                          </button>
-                          <span className={`text-[20px] font-black w-8 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>{quantity}</span>
-                          <button
-                            onClick={() => setQuantity?.(Math.min(maxQty, quantity + 1))}
-                            style={{ background: isDark ? '#0000001A' : '#ffffff' }}
-                            className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${
-                              !multipleAllowed
-                                ? (isDark ? 'text-white/20 border-white/5 cursor-not-allowed' : 'text-gray-300 border-black/5 cursor-not-allowed')
-                                : (isDark ? 'text-white border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-white/5' : 'text-[#9575CD] border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-[#9575CD]/5')
-                            }`}
-                            disabled={isBooking || !multipleAllowed}
-                          >
-                            <Plus className="w-4 sm:w-5 h-4 sm:h-5" />
-                          </button>
+                        <div className="flex items-center justify-center sm:justify-start gap-4 h-[48px] w-full">
+                          {multipleAllowed ? (
+                            <>
+                              <button
+                                onClick={() => setQuantity?.(Math.max(1, quantity - 1))}
+                                style={{ background: isDark ? '#0000001A' : '#ffffff' }}
+                                className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-white/5 hover:bg-white/5' : 'text-gray-900 border-black/10 hover:bg-gray-50'}`}
+                                disabled={isBooking}
+                              >
+                                <Minus className="w-4 sm:w-5 h-4 sm:h-5" />
+                              </button>
+                              <span className={`text-[20px] font-black w-8 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>{quantity}</span>
+                              <button
+                                onClick={() => setQuantity?.(Math.min(maxQty, quantity + 1))}
+                                style={{ background: isDark ? '#0000001A' : '#ffffff' }}
+                                className={`w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-20 shadow-sm ${isDark ? 'text-white border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-white/5' : 'text-[#9575CD] border-[#9575CD]/30 ring-1 ring-[#9575CD]/20 hover:bg-[#9575CD]/5'}`}
+                                disabled={isBooking}
+                              >
+                                <Plus className="w-4 sm:w-5 h-4 sm:h-5" />
+                              </button>
+                            </>
+                          ) : (
+                            <div
+                              style={{ background: isDark ? '#0000001A' : '#ffffff' }}
+                              className={`w-full sm:w-auto min-w-[120px] h-[48px] px-5 rounded-xl border flex items-center justify-center sm:justify-start gap-2.5 shadow-sm ${isDark ? 'text-white border-white/5' : 'text-gray-900 border-black/10'}`}
+                            >
+                              <Ticket className="w-5 h-5 text-[#9575CD] shrink-0" />
+                              <span className={`text-[14px] font-bold ${isDark ? 'text-[#E2E8F0]' : 'text-gray-800'}`}>1 Ticket</span>
+                            </div>
+                          )}
                         </div>
                         {!multipleAllowed && (
                           <p className={`text-[11px] px-1 ${isDark ? 'text-[#64748B]' : 'text-gray-400'}`}>
