@@ -1,11 +1,11 @@
-import { prisma } from '../config/db';
-import { Interaction, InteractionType } from '../generated/prisma';
+import { prisma } from "../config/db";
+import { Interaction, InteractionType } from "../generated/prisma";
 
 export interface CreateInteractionData {
   userId: string;
   ticketId: string;
   interactionType: InteractionType;
-  metadata?: any;
+  metadata?: Record<string, any>;
 }
 
 export class InteractionModel {
@@ -18,7 +18,7 @@ export class InteractionModel {
         userId: data.userId,
         ticketId: data.ticketId,
         interactionType: data.interactionType,
-        metadata: data.metadata || null,
+        metadata: data.metadata ?? undefined,
       },
     });
   }
@@ -29,7 +29,7 @@ export class InteractionModel {
   static async findUnique(
     userId: string,
     ticketId: string,
-    interactionType: InteractionType
+    interactionType: InteractionType,
   ): Promise<Interaction | null> {
     return await prisma.interaction.findUnique({
       where: {
@@ -51,7 +51,7 @@ export class InteractionModel {
   static async deleteByCompositeKey(
     userId: string,
     ticketId: string,
-    interactionType: InteractionType
+    interactionType: InteractionType,
   ): Promise<Interaction | null> {
     try {
       return await prisma.interaction.delete({
@@ -64,9 +64,12 @@ export class InteractionModel {
         },
       });
     } catch (err: any) {
-      // P2025 = record not found — treat as already deleted, not an error
-      if (err.code === 'P2025') return null;
-      throw err;
+      if (err.code === "P2025") {
+        // Record not found, which is an expected scenario for deletion attempts
+        return null;
+      }
+      console.error("Error deleting interaction by composite key:", err); // Log the error
+      throw err; // Re-throw other errors
     }
   }
   static async findByUserId(
@@ -75,7 +78,7 @@ export class InteractionModel {
       type?: InteractionType;
       limit?: number;
       skip?: number;
-    }
+    },
   ): Promise<{ interactions: Interaction[]; total: number }> {
     const where: any = { userId };
 
@@ -86,7 +89,7 @@ export class InteractionModel {
     const [interactions, total] = await Promise.all([
       prisma.interaction.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: options?.limit || 50,
         skip: options?.skip || 0,
       }),
@@ -101,7 +104,7 @@ export class InteractionModel {
    */
   static async findByTicketId(
     ticketId: string,
-    interactionType?: InteractionType
+    interactionType?: InteractionType,
   ): Promise<Interaction[]> {
     const where: any = { ticketId };
 
@@ -111,14 +114,17 @@ export class InteractionModel {
 
     return await prisma.interaction.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
   /**
    * Count interactions by type
    */
-  static async countByType(ticketId: string, interactionType: InteractionType): Promise<number> {
+  static async countByType(
+    ticketId: string,
+    interactionType: InteractionType,
+  ): Promise<number> {
     return await prisma.interaction.count({
       where: {
         ticketId,
@@ -132,7 +138,7 @@ export class InteractionModel {
    */
   static async getTicketStatistics(ticketId: string) {
     const stats = await prisma.interaction.groupBy({
-      by: ['interactionType'],
+      by: ["interactionType"],
       where: { ticketId },
       _count: true,
     });
@@ -158,9 +164,13 @@ export class InteractionModel {
   static async hasUserInteracted(
     userId: string,
     ticketId: string,
-    interactionType: InteractionType
+    interactionType: InteractionType,
   ): Promise<boolean> {
-    const interaction = await this.findUnique(userId, ticketId, interactionType);
+    const interaction = await this.findUnique(
+      userId,
+      ticketId,
+      interactionType,
+    );
     return interaction !== null;
   }
 
@@ -169,15 +179,15 @@ export class InteractionModel {
    */
   static async getUserLikedTickets(
     userId: string,
-    options?: { limit?: number; skip?: number }
+    options?: { limit?: number; skip?: number },
   ): Promise<string[]> {
     const interactions = await prisma.interaction.findMany({
       where: {
         userId,
-        interactionType: 'LIKE',
+        interactionType: "LIKE",
       },
       select: { ticketId: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: options?.limit || 50,
       skip: options?.skip || 0,
     });
@@ -190,15 +200,15 @@ export class InteractionModel {
    */
   static async getUserSavedTickets(
     userId: string,
-    options?: { limit?: number; skip?: number }
+    options?: { limit?: number; skip?: number },
   ): Promise<string[]> {
     const interactions = await prisma.interaction.findMany({
       where: {
         userId,
-        interactionType: 'SAVE',
+        interactionType: "SAVE",
       },
       select: { ticketId: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: options?.limit || 50,
       skip: options?.skip || 0,
     });
@@ -211,17 +221,21 @@ export class InteractionModel {
    */
   static async getFeedback(
     ticketId: string,
-    options?: { limit?: number; skip?: number }
-  ): Promise<{ feedback: Interaction[]; total: number; averageRating: number }> {
+    options?: { limit?: number; skip?: number },
+  ): Promise<{
+    feedback: Interaction[];
+    total: number;
+    averageRating: number;
+  }> {
     const where = {
       ticketId,
-      interactionType: 'FEEDBACK' as InteractionType,
+      interactionType: "FEEDBACK" as InteractionType,
     };
 
     const [feedback, total] = await Promise.all([
       prisma.interaction.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: options?.limit || 50,
         skip: options?.skip || 0,
       }),
@@ -230,12 +244,13 @@ export class InteractionModel {
 
     // Calculate average rating
     const ratings = feedback
-      .map((f) => (f.metadata as any)?.rating)
-      .filter((r) => r !== undefined && r !== null);
+      .map((f) => (f.metadata as Record<string, any>)?.rating as number)
+      .filter((r): r is number => r !== undefined && r !== null);
 
     const averageRating =
       ratings.length > 0
-        ? ratings.reduce((sum: number, r: number) => sum + r, 0) / ratings.length
+        ? ratings.reduce((sum: number, r: number) => sum + r, 0) /
+          ratings.length
         : 0;
 
     return {
@@ -244,7 +259,10 @@ export class InteractionModel {
       averageRating: parseFloat(averageRating.toFixed(2)),
     };
   }
-  static async updateMetadata(id: string, metadata: any): Promise<Interaction> {
+  static async updateMetadata(
+    id: string,
+    metadata: Record<string, any>,
+  ): Promise<Interaction> {
     return await prisma.interaction.update({
       where: { id },
       data: { metadata },
@@ -260,14 +278,14 @@ export class InteractionModel {
         },
       },
       update: {
-        metadata: data.metadata || null,
+        metadata: data.metadata ?? undefined,
         createdAt: new Date(), // Update timestamp on each view
       },
       create: {
         userId: data.userId,
         ticketId: data.ticketId,
         interactionType: data.interactionType,
-        metadata: data.metadata || null,
+        metadata: data.metadata ?? undefined,
       },
     });
   }

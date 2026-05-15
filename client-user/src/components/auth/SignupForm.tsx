@@ -96,7 +96,7 @@ export const SignupForm: React.FC = () => {
       } else if (isPhoneNumber(trimmed)) {
         // Remove any non-digit characters from phone number
         const cleanPhone = trimmed.replace(/\D/g, '');
-        
+
         // Attach country phone code if available
         if (selectedCountry?.phone_code) {
           // Remove leading + from phone code for storage
@@ -135,38 +135,26 @@ export const SignupForm: React.FC = () => {
       <form onSubmit={handleSubmit} className="space-y-5">
 
         {/* EMAIL / PHONE + COUNTRY (pill + round button) */}
-<div className="flex items-center gap-3 w-full">
-
-  {/* Pill Input */}
-  <div className="flex-1">
-    <Input
-      type="text"
-      name="identifier"
-      value={formData.identifier}
-      onChange={handleChange}
-      placeholder="Email or phone number"
-      required
-      className="
-        h-[56px]
-        rounded-full
-        px-6
-        bg-[#0B0E14]
-        border border-[#1f2430]
-        text-white
-        placeholder:text-gray-400
-      "
-    />
-  </div>
-  {/* Country Circle */}
-  <CountrySelect
-    countries={countries}
-    value={formData.country_code}
-    onChange={(code) =>
-      setFormData(prev => ({ ...prev, country_code: code }))
-    }
-    required
-  />
-</div>
+        <div className="flex items-center gap-3 w-full">
+          <div className="flex-1">
+            <Input
+              type="text"
+              name="identifier"
+              value={formData.identifier}
+              onChange={handleChange}
+              placeholder="Email or phone number"
+              required
+            />
+          </div>
+          <CountrySelect
+            countries={countries}
+            value={formData.country_code}
+            onChange={(code) =>
+              setFormData(prev => ({ ...prev, country_code: code }))
+            }
+            required
+          />
+        </div>
 
         {/* PASSWORD */}
         <div className="relative">
@@ -183,7 +171,7 @@ export const SignupForm: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowPassword(p => !p)}
-            className="absolute right-5 top-1/2 -translate-y-1/2"
+            className="absolute right-5 top-1/2 -translate-y-1/2 z-20 opacity-70 hover:opacity-100 transition"
           >
             <Image src={EyeIcon} alt="Toggle password" width={20} height={20} />
           </button>
@@ -195,23 +183,23 @@ export const SignupForm: React.FC = () => {
           </div>
         )}
 
-        <p className="text-center text-sm text-white/60">
-          Already have an account?{' '}
-          <Link href="/login" className="text-[#8a63d7] hover:underline">
-            Login
-          </Link>
-        </p>
-
         <Button
           type="submit"
           loading={loading}
-          className="w-full h-[56px] rounded-full text-white bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]"
+          className="w-full h-[56px] rounded-full text-white bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] hover:brightness-110 active:scale-[0.98] transition-all duration-300 shadow-[0_0_20px_rgba(136,96,217,0.3)] hover:shadow-[0_0_30px_rgba(136,96,217,0.5)] font-semibold text-lg"
         >
           Register
         </Button>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-white/60 mt-4">
+          Already have an account?{' '}
+          <Link href="/login" className="text-[#8a63d7] hover:text-[#B3B8E2] transition-colors font-medium">
+            Login
+          </Link>
+        </p>
       </form>
     </div>
   );
 };
-
 export default SignupForm;

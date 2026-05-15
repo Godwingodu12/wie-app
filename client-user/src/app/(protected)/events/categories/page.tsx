@@ -181,14 +181,28 @@ export default function CategoryEventsPage() {
     ])
   );
 
-  // Initial load
   useEffect(() => {
     if (categoryFromUrl) {
       setSelectedCategory(categoryFromUrl);
       setHasActiveSearch(true);
-      searchByCategory(categoryFromUrl);
+      Promise.all([
+        searchByCategory(categoryFromUrl),
+        fetchPopularEvents(categoryFromUrl, 10),
+      ])
+        .then(([catResult, popularResult]) => {
+          const catCount = Object.values(
+            (catResult as any) ?? {},
+          ).flat().length;
+          if (catCount === 0) {
+            console.info(
+              `[categories] No location-nearby events for "${categoryFromUrl}" — backend fallback active`,
+            );
+          }
+        })
+        .catch(console.error);
     } else {
       fetchInitialEvents();
+      fetchPopularEvents(undefined, 10);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFromUrl]);
@@ -269,7 +283,6 @@ export default function CategoryEventsPage() {
     }
   };
 
-  // Advanced Filters Handler
   const handleApplyAdvancedFilters = async (
     response: any,
     filters: FilterEventsParams
@@ -286,13 +299,13 @@ export default function CategoryEventsPage() {
 
       await filterEvents(filters);
 
-      // Refresh popular events based on new filters
+      // Always use getCategoryBasedPopularEvents for banner consistency
       if (filters.category) {
-        fetchPopularEvents(filters.category);
+        fetchPopularEvents(filters.category, 10);       // category-specific popular
       } else if (filters.searchQuery) {
-        fetchPopularEvents(undefined, 10, filters.searchQuery);
+        fetchPopularEvents(undefined, 10, filters.searchQuery);  // query-based popular
       } else {
-        fetchPopularEvents();
+        fetchPopularEvents(undefined, 10);              // global popular
       }
 
       setIsFilterModalOpen(false);
@@ -327,45 +340,74 @@ export default function CategoryEventsPage() {
 
     let elements: JSX.Element[] = [];
 
-    // Popular Events Section (if category is selected or searched)
     if (popularEvents && popularEvents.length > 0) {
       const activeCategory = selectedCategory || activeFilters.category;
+      // Only show popular banner when a category is selected or a filter is active
+      // so the banner events are always relevant to what's being listed below
       const popularTitle = activeCategory
         ? `Popular in ${activeCategory}`
         : searchInput
           ? `Popular for "${searchInput}"`
-          : "Popular Events";
+          : isUsingAdvancedFilter
+            ? "Popular Events"
+            : null;  // null = don't show generic popular when no filter active
 
-      elements.push(
-        <PopularEventBanner
-          key="popular-events"
-          title={popularTitle}
-          events={popularEvents}
-          onViewAll={() => {
-            const category = selectedCategory || activeFilters.category;
-            if (category) {
-              router.push(`/events/categories?category=${encodeURIComponent(category)}`);
+      if (popularTitle) {
+        elements.push(
+          <PopularEventBanner
+            key="popular-events"
+            title={popularTitle}
+            events={popularEvents}
+            onViewAll={
+              activeCategory
+                ? () => router.push(`/events/categories?category=${encodeURIComponent(activeCategory)}`)
+                : undefined
             }
-          }}
-        />
-      );
+          />
+        );
+      }
     }
 
-    // Main Results
     if (hasMainResults) {
       Object.entries(displayEventsByCategoryWithSubEventLogic).forEach(
         ([category, events]) => {
+          // Merge popular events into this category list so banner & list are in sync
+          const popularIds = new Set(
+            (popularEvents ?? []).map((e: any) => e._id?.toString()),
+          );
+          const eventsArr = events as any[];
+          const eventsIds = new Set(eventsArr.map((e: any) => e._id?.toString()));
+          const popularNotInList = (popularEvents ?? []).filter(
+            (e: any) => !eventsIds.has(e._id?.toString()),
+          );
+          const mergedEvents = [...popularNotInList, ...eventsArr].filter(
+            // keep only same category
+            (e: any) =>
+              !selectedCategory ||
+              (e.event_category ?? "").toLowerCase() ===
+                selectedCategory.toLowerCase(),
+          );
+          const dedupedEvents = Array.from(
+            new Map(mergedEvents.map((e: any) => [e._id?.toString(), e])).values(),
+          );
+
           elements.push(
             <EventRow
               key={`main-${category}`}
-              title={`${category} (${(events as any[]).length})`}
-              events={events as any[]}
-              onSeeAll={selectedCategory ? undefined : () => {
-                router.push(`/events/categories?category=${encodeURIComponent(category)}`);
-              }}
-            />
+              title={`${category} (${dedupedEvents.length})`}
+              events={dedupedEvents}
+              onSeeAll={
+                selectedCategory
+                  ? undefined
+                  : () => {
+                      router.push(
+                        `/events/categories?category=${encodeURIComponent(category)}`,
+                      );
+                    }
+              }
+            />,
           );
-        }
+        },
       );
     }
 

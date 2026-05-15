@@ -17,6 +17,7 @@ import {
   searchEventsByLocation,
   saveUserLocationPreference,
   getSavedUserLocationPreference,
+  getCategoryBasedPopularEvents
 } from '@/services/ticketUserService';
 import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings, getUserRehostedBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
@@ -46,11 +47,13 @@ function bandLabel(band: number): string {
 }
 
 
+// AFTER
 function EventRow({
   title,
   events,
   onSeeAll,
   isGrid = false,
+  isWrappingGrid = false,
   likedIds = new Set<string>(),
   savedIds  = new Set<string>(),
 }: {
@@ -58,6 +61,7 @@ function EventRow({
   events: EventWithLocation[];
   onSeeAll?: () => void;
   isGrid?: boolean;
+  isWrappingGrid?: boolean;
   likedIds?: Set<string>;
   savedIds?:  Set<string>;
 }) {
@@ -90,7 +94,7 @@ function EventRow({
       </div>
 
       <div className="relative group">
-        {!isGrid && (
+        {!isGrid && !isWrappingGrid && (
           <>
             {/* Left arrow */}
             <button
@@ -114,9 +118,12 @@ function EventRow({
 
         <div
           ref={rowRef}
-          className={isGrid
-            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6"
-            : "flex gap-6 overflow-x-auto scrollbar-hide pb-1"
+          className={
+            isWrappingGrid
+              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-6"
+              : isGrid
+              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-5 gap-y-6"
+              : "flex gap-5 overflow-x-auto scrollbar-hide pb-2"
           }
         >
          {events.map((ev, idx) => (
@@ -451,6 +458,11 @@ export default function NearbyEventsPage() {
   const [locationDisplayName, setLocationDisplayName] = useState<string>('');
   const [manualLocationInput, setManualLocationInput] = useState<string>('');
   const [locationSource, setLocationSource] = useState<'gps' | 'manual' | 'none'>('none');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryEvents, setCategoryEvents] = useState<EventWithLocation[]>([]);
+  const [categoryPopularEvents, setCategoryPopularEvents] = useState<EventWithLocation[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  
   // ── Load everything on mount ──
   useEffect(() => {
     loadInitialData();
@@ -539,19 +551,22 @@ export default function NearbyEventsPage() {
         const popularRes = await getPopularEvents(12);
         const popularList = popularRes?.data?.events ?? [];
         if (popularList.length > 0) {
-          setPopularEvents(popularList);
-          const bandMap = new Map<number, NearbyEvent[]>();
-          popularList.forEach((ev: NearbyEvent) => {
-            const b = getBand((ev as any).distance ?? 9999);
-            if (!bandMap.has(b)) bandMap.set(b, []);
-            bandMap.get(b)!.push(ev);
+          const seen = new Set<string>();
+          const unique = popularList.filter((ev: NearbyEvent) => {
+            const id = ev._id?.toString() || '';
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
           });
+          setPopularEvents(unique.slice(0, 6));
+          const bandMap = new Map<number, NearbyEvent[]>();
+          bandMap.set(9999, unique);
           setNearbyByBand(bandMap);
         }
       } catch {
         try {
           const fallbackRes = await getAllEventsWithDistance({});
-          const fallbackEvents = deduplicateEvents(fallbackRes?.data?.events ?? []);
+          const fallbackEvents = deduplicateEvents((fallbackRes?.data?.events ?? []) as NearbyEvent[]);
           if (fallbackEvents.length > 0) {
             setPopularEvents(fallbackEvents.slice(0, 6));
             const bandMap = new Map<number, NearbyEvent[]>();
@@ -640,53 +655,54 @@ export default function NearbyEventsPage() {
     }
   };
 
-// FIND AND REPLACE the entire fetchAndDisplayEvents function:
-const fetchAndDisplayEvents = async (
-  coords?: { latitude: number; longitude: number },
-  manualLocation?: string
-) => {
-  try {
-    let allEvents: NearbyEvent[] = [];
+  const fetchAndDisplayEvents = async (
+    coords?: { latitude: number; longitude: number },
+    manualLocation?: string
+  ) => {
+    try {
+      let allEvents: NearbyEvent[] = [];
 
-    if (manualLocation) {
-      const res = await searchEventsByLocation({
-        location: manualLocation,
-        radius: 500,
-        ...(coords ?? {}),
+      if (manualLocation) {
+        const res = await searchEventsByLocation({
+          location: manualLocation,
+          radius: 500,
+          ...(coords ?? {}),
+        });
+        const byCategory = res.data?.eventsByCategory ?? {};
+        const suggestions = res.data?.suggestionsByCategory ?? {};
+        const combined = [
+          ...Object.values(byCategory).flat(),
+          ...Object.values(suggestions).flat(),
+        ] as NearbyEvent[];
+        allEvents = deduplicateEvents(combined);
+      } else {
+        const res = await getAllEventsWithDistance(coords ? coords : {});
+        allEvents = deduplicateEvents((res?.data?.events ?? []) as NearbyEvent[]);
+      }
+
+      if (allEvents.length === 0) return;
+
+      // ── Single global dedup before storing ──
+      const globalSeen = new Set<string>();
+      const uniqueEvents = allEvents.filter((ev) => {
+        const id = ev._id?.toString() || '';
+        if (!id || globalSeen.has(id)) return false;
+        globalSeen.add(id);
+        return true;
       });
-      const byCategory = res.data?.eventsByCategory ?? {};
-      const suggestions = res.data?.suggestionsByCategory ?? {};
-      const combined = [
-        ...Object.values(byCategory).flat(),
-        ...Object.values(suggestions).flat(),
-      ] as NearbyEvent[];
-      allEvents = deduplicateEvents(combined);
-    } else {
-      const res = await getAllEventsWithDistance(coords ? coords : {});
-      allEvents = deduplicateEvents(res?.data?.events ?? []);
+
+      setPopularEvents(uniqueEvents.slice(0, 6));
+
+      // ── Single band bucket: all events go into one "All Events" bucket ──
+      const bandMap = new Map<number, NearbyEvent[]>();
+      bandMap.set(9999, uniqueEvents);
+      setNearbyByBand(bandMap);
+
+      buildCategoryBreaks(uniqueEvents).catch(() => {});
+    } catch (err) {
+      console.error('fetchAndDisplayEvents error:', err);
     }
-
-    if (allEvents.length === 0) {
-      // Nothing returned — keep whatever is already displayed (popular fallback)
-      return;
-    }
-
-    setPopularEvents(allEvents.slice(0, 6));
-
-    const bandMap = new Map<number, NearbyEvent[]>();
-    allEvents.forEach((ev) => {
-      const b = getBand((ev as any).distance ?? 9999);
-      if (!bandMap.has(b)) bandMap.set(b, []);
-      bandMap.get(b)!.push(ev);
-    });
-    setNearbyByBand(bandMap);
-
-    buildCategoryBreaks(allEvents).catch(() => {});
-  } catch (err) {
-    console.error('fetchAndDisplayEvents error:', err);
-    // Don't clear existing events on error — keep showing what we have
-  }
-};
+  };
 
   const buildCategoryBreaks = async (events: NearbyEvent[]) => {
     // Get unique categories from loaded events
@@ -712,6 +728,46 @@ const fetchAndDisplayEvents = async (
       }
     }
     setCategoryBreaks(breaks);
+  };
+
+  const handleCategorySelect = async (category: string) => {
+    if (selectedCategory === category) {
+      setSelectedCategory(null);
+      setCategoryEvents([]);
+      setCategoryPopularEvents([]);
+      return;
+    }
+    setSelectedCategory(category);
+    setCategoryLoading(true);
+    try {
+      const [catRes, popularRes] = await Promise.all([
+        getCategoryBasedEvents({ category }).catch(() => null),
+        getCategoryBasedPopularEvents(category, 10).catch(() => null),
+      ]);
+
+      // Flatten all category buckets into one list
+      const catFlat = catRes
+        ? deduplicateEvents(
+            Object.values(catRes.data?.eventsByCategory ?? {}).flat() as NearbyEvent[],
+          )
+        : [];
+
+      const popularList: EventWithLocation[] = (popularRes?.data?.events ?? []) as EventWithLocation[];
+      // ── Merge popular into category list so banner events always appear below ──
+      // Popular events that aren't already in catFlat get appended at the front.
+      const catIds = new Set(catFlat.map((e) => e._id?.toString()));
+      const popularNotInCat = popularList.filter(
+        (e) => !catIds.has(e._id?.toString()),
+      );
+      const merged = deduplicateEvents([...popularNotInCat, ...catFlat]);
+
+      setCategoryEvents(merged as EventWithLocation[]);
+      setCategoryPopularEvents(popularList as EventWithLocation[]);
+    } catch (err) {
+      console.error('handleCategorySelect error:', err);
+    } finally {
+      setCategoryLoading(false);
+    }
   };
 
   const handleLocationGranted = async (coords: {
@@ -786,10 +842,10 @@ const fetchAndDisplayEvents = async (
     }
   };
 
-  const deduplicateEvents = (events: NearbyEvent[]): NearbyEvent[] => {
+  const deduplicateEvents = <T extends { _id?: string | { toString(): string } }>(events: T[]): T[] => {
     const seen = new Set<string>();
     return events.filter((ev) => {
-      const id = (ev as any)._id?.toString() || '';
+      const id = ev._id?.toString() || '';
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
@@ -860,40 +916,34 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
   setHasSearched(true);
 };
 
-  // ── Render distance band sections ──
   const renderBands = () => {
-    const bands = Array.from(nearbyByBand.keys()).sort((a, b) => a - b);
-    const elements: JSX.Element[] = [];
-    let bandCount = 0;
+    // Flatten all bands into one globally-deduped list
+    const globalSeen = new Set<string>();
+    const allEvs: EventWithLocation[] = [];
 
-    bands.forEach((band) => {
-      const evs = nearbyByBand.get(band) ?? [];
-      elements.push(
-        <EventRow
-          key={`band-${band}`}
-          title={bandLabel(band)}
-          events={evs as unknown as EventWithLocation[]}
-          onSeeAll={() => router.push(`/events/categories?radius=${band}`)}
-          likedIds={likedTicketIds}
-          savedIds={savedTicketIds}
-        />
-      );
-      bandCount++;
+    Array.from(nearbyByBand.keys())
+      .sort((a, b) => a - b)
+      .forEach((band) => {
+        (nearbyByBand.get(band) ?? []).forEach((ev) => {
+          const id = ev._id?.toString() || '';
+          if (!id || globalSeen.has(id)) return;
+          globalSeen.add(id);
+          allEvs.push(ev as unknown as EventWithLocation);
+        });
+      });
 
-      // Insert category break after every 2 bands
-      if (bandCount % 2 === 0 && categoryBreaks.has(band)) {
-        const brk = categoryBreaks.get(band)!;
-        elements.push(
-          <CategoryBreak
-            key={`break-${band}`}
-            category={brk.cat}
-            events={brk.events}
-          />
-        );
-      }
-    });
-
-    return elements;
+    if (!allEvs.length) return null;
+    return (
+      <EventRow
+        key="all-events"
+        title="Events Near You"
+        events={allEvs}
+        onSeeAll={() => router.push('/events/categories')}
+        isWrappingGrid
+        likedIds={likedTicketIds}
+        savedIds={savedTicketIds}
+      />
+    );
   };
 
   const sidebarWidth = isMobile ? 0 : isCollapsed ? 92 : 281;
@@ -1043,7 +1093,10 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
 
           {/* ── Event Categories ── */}
           <div className="mb-6">
-            <EventCategoryList />
+            <EventCategoryList
+              selectedCategory={selectedCategory ?? undefined}
+              onCategorySelect={(cat) => handleCategorySelect(cat)}
+            />
           </div>
 
           {/* ── Loading ── */}
@@ -1111,27 +1164,21 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
               )}
               {!hasSearched && (
                 <>
+                  {/* Cancelled bookings */}
                   {(() => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
-
                     const visibleCancelledBookings = userCancelledBookings.filter((booking) => {
-                      // Hide if refund already completed
                       if (booking.refundStatus === 'COMPLETED') return false;
-
-                      // Hide if event start date is already past
                       const eventStartDate =
                         booking.eventDetails?.startDate ||
                         booking.eventDetails?.event_start_date ||
                         booking.event_start_date;
-
                       if (eventStartDate) {
                         const startDate = new Date(eventStartDate);
                         startDate.setHours(0, 0, 0, 0);
                         if (startDate < today) return false;
                       }
-
-                      // Show only pending/processing refunds
                       return (
                         booking.refundStatus === 'PENDING' ||
                         booking.refundStatus === 'PROCESSING' ||
@@ -1139,49 +1186,95 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                         booking.refundStatus === undefined
                       );
                     });
-
                     return visibleCancelledBookings.length > 0 ? (
-                      <UserCancelledSection
-                        events={visibleCancelledBookings}
-                        router={router}
-                      />
+                      <UserCancelledSection events={visibleCancelledBookings} router={router} />
                     ) : null;
                   })()}
 
-                  {/* Popular event banner */}
-                  <PopularEventBanner
-                    events={popularEvents as unknown as EventWithLocation[]}
-                    onViewAll={() => router.push('/events/popular')}
-                  />
-
-                  {/* Re-hosted live events */}
-                  <RehostedEventsSection events={rehostedEvents} />
-
-                  {/* Nearby events by distance band + category breaks */}
-                  {nearbyByBand.size > 0 ? (
-                    renderBands()
-                  ) : (
-                    <div className="py-12 text-center">
-                      <div
-                        className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
-                        style={{ background: themeStyles.cardBg.includes('gradient') ? 'transparent' : themeStyles.cardBg, backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none', border: `1px solid ${themeStyles.border}` }}
-                      >
-                        <MapPin className="w-7 h-7 text-purple-400" />
+                  {/* ── Category selected view ── */}
+                  {selectedCategory ? (
+                    categoryLoading ? (
+                      <div className="flex justify-center py-12">
+                        <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
                       </div>
-                      <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
-                        Enable location access to find events near you.
-                      </p>
-                      <button
-                        onClick={() => setLocationModalOpen(true)}
-                        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
-                        style={{
-                          background: 'linear-gradient(135deg, #5B8DEF 0%, #8860D9 100%)',
-                          boxShadow: '0 4px 16px rgba(136,96,217,0.3)',
-                        }}
-                      >
-                        Enable Location
-                      </button>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Category popular banner */}
+                        {categoryPopularEvents.length > 0 && (
+                          <PopularEventBanner
+                            events={categoryPopularEvents}
+                            title={`Popular in ${selectedCategory}`}
+                            onViewAll={() =>
+                              router.push(`/events/categories?category=${encodeURIComponent(selectedCategory)}`)
+                            }
+                          />
+                        )}
+
+                        {/* Category events list */}
+                        {categoryEvents.length > 0 ? (
+                          <EventRow
+                            title={`${selectedCategory} Events (${categoryEvents.length})`}
+                            events={categoryEvents}
+                            onSeeAll={() =>
+                              router.push(`/events/categories?category=${encodeURIComponent(selectedCategory)}`)
+                            }
+                            likedIds={likedTicketIds}
+                            savedIds={savedTicketIds}
+                          />
+                        ) : (
+                          <div className="py-12 text-center">
+                            <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
+                              No events found for "{selectedCategory}"
+                            </p>
+                            <button
+                              onClick={() => { setSelectedCategory(null); setCategoryEvents([]); setCategoryPopularEvents([]); }}
+                              className="mt-3 text-xs text-purple-400 hover:text-purple-300"
+                            >
+                              ← Back to all events
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {/* Default view: popular banner + rehosted + bands */}
+                      <PopularEventBanner
+                        events={popularEvents as unknown as EventWithLocation[]}
+                        onViewAll={() => router.push('/events/popular')}
+                      />
+                      <RehostedEventsSection events={rehostedEvents} />
+
+                      {nearbyByBand.size > 0 ? (
+                        renderBands()
+                      ) : (
+                        <div className="py-12 text-center">
+                          <div
+                            className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
+                            style={{
+                              background: themeStyles.cardBg.includes('gradient') ? 'transparent' : themeStyles.cardBg,
+                              backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none',
+                              border: `1px solid ${themeStyles.border}`,
+                            }}
+                          >
+                            <MapPin className="w-7 h-7 text-purple-400" />
+                          </div>
+                          <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
+                            Enable location access to find events near you.
+                          </p>
+                          <button
+                            onClick={() => setLocationModalOpen(true)}
+                            className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+                            style={{
+                              background: 'linear-gradient(135deg, #5B8DEF 0%, #8860D9 100%)',
+                              boxShadow: '0 4px 16px rgba(136,96,217,0.3)',
+                            }}
+                          >
+                            Enable Location
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

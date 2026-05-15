@@ -73,9 +73,36 @@ export const TicketCard: React.FC<TicketCardProps> = ({
   const displayIsFree = isFree !== undefined ? isFree : (displayTotal === 0);
   const currencySymbol = (bookingData?.currency || currency) === "USD" ? "$" : "₹";
 
+  const displayBookingId = (bookingData?.id || bookingData?._id || bookingData?.bookingId || "TICKETX").toString();
+
+  const isOnlineOrRecorded = eventData?.location_type?.toLowerCase() === 'online' || eventData?.location_type?.toLowerCase() === 'recorded';
+  const isTBA = !mainVenue || 
+                mainVenue === 'TBA' || 
+                mainVenue === 'VIRTUAL/TBD' || 
+                mainVenue === 'LOCATION TBA' || 
+                mainVenue.includes('TBA') || 
+                mainVenue.includes('TBD');
+
+  const qrDataStr = React.useMemo(() => {
+    if (!showQR) return "";
+    return [
+      `Event: ${eventName}`,
+      `Date & Time: ${dateStr ? `${day} ${month} ${weekday}` : 'Date TBA'} at ${eventTime || 'Time TBA'}`,
+      `Quantity: ${displayQuantity} * ${ticketType || bookingData?.ticketType || bookingData?.ticket_type || "Pass"}`,
+      (isOnlineOrRecorded || isTBA) ? null : `Location: ${venueStr}`,
+      `Booked By: ${bookingData?.userDetails?.userName || bookingData?.userDetails?.name || bookingData?.user_details?.userName || bookingData?.user_details?.name || "Guest"}`
+    ].filter(Boolean).join('\n');
+  }, [showQR, eventName, dateStr, day, month, weekday, eventTime, displayQuantity, ticketType, bookingData, venueStr, isOnlineOrRecorded, isTBA]);
+
+  const qrCodeUrl = React.useMemo(() => {
+    if (!showQR || !qrDataStr) return "";
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${encodeURIComponent(qrDataStr)}`;
+  }, [showQR, qrDataStr]);
+
   return (
     <div
-      className="relative w-full max-w-[340px] shadow-xl drop-shadow-2xl overflow-hidden"
+      id="ticket-card-content"
+      className="relative w-full max-w-[340px] shadow-xl drop-shadow-2xl overflow-hidden bg-white"
       style={{
         borderRadius: "16px",
         maskImage: `radial-gradient(circle at 0 0, transparent 12px, black 13px),
@@ -97,7 +124,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({
       <div className="relative w-full h-full overflow-hidden" style={{ borderRadius: "16px" }}>
       {/* Top Image Section */}
       <div className="relative h-[250px] w-full bg-gray-300 overflow-hidden">
-        <img src={imageUrl || ""} alt={eventName} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={imageUrl || ""} alt={eventName} className="absolute inset-0 w-full h-full object-cover" crossOrigin="anonymous" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
         <div className="absolute bottom-6 left-6 right-6">
           <h2 className="text-[26px] font-bold text-white uppercase leading-[1.1] tracking-wide drop-shadow-md line-clamp-2">
@@ -178,13 +205,43 @@ export const TicketCard: React.FC<TicketCardProps> = ({
         </div>
 
         {/* Row 3: Location */}
-        <div className="flex flex-col w-full pb-1">
-          <span className="text-[9px] font-bold text-[#6A729A] uppercase tracking-widest mb-1">Location</span>
-          <span className="text-[14px] font-black leading-tight tracking-tight uppercase text-slate-900 line-clamp-2">
-            {mainVenue || "VENUE TBA"}
-          </span>
-          {subVenue && <span className="text-[10px] font-bold text-[#6A729A] uppercase mt-0.5 line-clamp-1 opacity-80">{subVenue}</span>}
-        </div>
+        {!isOnlineOrRecorded && !isTBA && (
+          <div className="flex flex-col w-full pb-1">
+            <span className="text-[9px] font-bold text-[#6A729A] uppercase tracking-widest mb-1">Location</span>
+            <span className="text-[14px] font-black leading-tight tracking-tight uppercase text-slate-900 line-clamp-2">
+              {mainVenue}
+            </span>
+            {subVenue && <span className="text-[10px] font-bold text-[#6A729A] uppercase mt-0.5 line-clamp-1 opacity-80">{subVenue}</span>}
+          </div>
+        )}
+
+        {/* Row 4: QR Section when showQR is true */}
+        {showQR && qrCodeUrl && (
+          <>
+            <div className="my-4 h-0 w-full z-10">
+              <div
+                className="w-full border-t-[2px] border-dashed"
+                style={{ borderColor: "rgba(0, 0, 0, 0.15)" }}
+              />
+            </div>
+            <div className="flex flex-row items-center justify-between w-full pt-2">
+              <div className="flex flex-col flex-1 min-w-0 pr-2">
+                <span className="text-[9px] font-bold text-[#6A729A] uppercase tracking-widest mb-1">Booked By</span>
+                <span className="text-[13px] font-black leading-tight tracking-tight uppercase text-slate-900 line-clamp-1 truncate mb-2">
+                  {bookingData?.userDetails?.userName || bookingData?.userDetails?.name || bookingData?.user_details?.userName || bookingData?.user_details?.name || "GUEST"}
+                </span>
+              </div>
+              <div className="p-1 rounded-lg bg-white border border-slate-200 shadow-sm shrink-0 qr-container-target">
+                <img
+                  src={qrCodeUrl}
+                  alt="QR Code"
+                  className="w-[72px] h-[72px] object-contain block"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   </div>

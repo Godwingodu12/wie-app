@@ -52,7 +52,12 @@ const CATEGORIES_DATA: Category[] = [
   { id: "Other",                           label: "Other",         image: OtherImg },
 ];
 
-export default function EventCategoryList() {
+interface EventCategoryListProps {
+  selectedCategory?: string;
+  onCategorySelect?: (categoryId: string) => void;
+}
+
+export default function EventCategoryList({ selectedCategory, onCategorySelect }: EventCategoryListProps) {
   const router = useRouter();
   const { themeStyles, isDark } = useTheme();
   const categoriesRef = useRef<HTMLDivElement>(null);
@@ -68,12 +73,17 @@ export default function EventCategoryList() {
     });
   };
   const handleCategoryClick = (cat: Category) => {
-    // Optimistic: highlight card immediately before route change
-    setActiveCategory(cat.id);
-    router.push(`/events/categories?category=${encodeURIComponent(cat.id)}`);
+    if (onCategorySelect) {
+      // Controlled mode: let the parent handle selection
+      onCategorySelect(cat.id);
+    } else {
+      // Standalone mode: navigate to category page
+      setActiveCategory(cat.id);
+      router.push(`/events/categories?category=${encodeURIComponent(cat.id)}`);
+    }
   };
   return (
-    <div className="relative mx-4 md:mx-[30px]">
+    <div className="relative">
       {/* Header */}
       <div className="flex justify-between items-end mb-3 px-1">
         <h2
@@ -97,7 +107,7 @@ export default function EventCategoryList() {
           onClick={() => scroll("left")}
           aria-label="Scroll left"
           className="
-            absolute left-0 top-1/2 -translate-y-1/2 z-20
+            absolute -left-3 sm:-left-4 top-1/2 -translate-y-1/2 z-20
             w-[32px] h-[32px] rounded-full
             border border-white/10 backdrop-blur-xl
             hidden sm:flex items-center justify-center
@@ -118,7 +128,7 @@ export default function EventCategoryList() {
           onClick={() => scroll("right")}
           aria-label="Scroll right"
           className="
-            absolute right-0 top-1/2 -translate-y-1/2 z-20
+            absolute -right-3 sm:-right-4 top-1/2 -translate-y-1/2 z-20
             w-[32px] h-[32px] rounded-full
             border border-white/10 backdrop-blur-xl
             hidden sm:flex items-center justify-center
@@ -153,7 +163,7 @@ export default function EventCategoryList() {
               ))
             : /* Real cards with optimistic active state */
               CATEGORIES_DATA.map((cat) => {
-                const isActiveCat = activeCategory === cat.id;
+                const isActiveCat = (selectedCategory ?? activeCategory) === cat.id;
                 return (
                   <button
                     key={cat.id}
