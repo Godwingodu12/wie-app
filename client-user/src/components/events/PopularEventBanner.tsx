@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, ArrowUpRight } from 'lucide-react';
+import { Calendar, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EventWithLocation } from '@/types/ticket';
 import { useTheme } from '@/components/home/ThemeContext';
 
 interface PopularEventBannerProps {
   events: EventWithLocation[];
-  onViewAll: () => void;
+  onViewAll?: () => void;
   title?: string;
 }
 
@@ -22,6 +22,38 @@ export default function PopularEventBanner({
   const { themeStyles } = useTheme();
   const [active, setActive] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pointerStartX = useRef<number | null>(null);
+  const pointerStartY = useRef<number | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartX.current = e.clientX;
+    pointerStartY.current = e.clientY;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (pointerStartX.current === null || pointerStartY.current === null) return;
+    const pointerEndX = e.clientX;
+    const pointerEndY = e.clientY;
+    const diffX = pointerStartX.current - pointerEndX;
+    const diffY = pointerStartY.current - pointerEndY;
+
+    if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX > 0) {
+        // Swiped left -> Next
+        setActive((p) => (p + 1) % events.length);
+      } else {
+        // Swiped right -> Prev
+        setActive((p) => (p - 1 + events.length) % events.length);
+      }
+      resetTimer();
+    } else if (Math.abs(diffX) < 10 && Math.abs(diffY) < 10) {
+      const id = currentEvent._id || (currentEvent as any).id;
+      if (id) router.push(`/events/${id}`);
+    }
+
+    pointerStartX.current = null;
+    pointerStartY.current = null;
+  };
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -54,24 +86,22 @@ export default function PopularEventBanner({
         <h2 className="font-semibold text-2xl sm:text-3xl tracking-tight" style={{ color: themeStyles.text }}>
           {title}
         </h2>
-        <button
+        {/* <button
           onClick={onViewAll}
           className="group flex items-center gap-2 text-xs font-semibold uppercase tracking-widest transition-all hover:opacity-70"
           style={{ color: '#8860D9' }}
         >
           Explore All
           <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
-        </button>
+        </button> */}
       </div>
 
-      {/* Hero Banner Container - Wider aspect for reduced height */}
+      {/* Hero Banner Container - Balanced aspect ratios to keep height sleek and details visible */}
       <div
-        className="relative w-full overflow-hidden cursor-pointer mx-auto bg-black group aspect-[2/1] sm:aspect-[3/1]"
-        style={{ borderRadius: 12, maxWidth: 1147 }}
-        onClick={() => {
-          const id = currentEvent._id || (currentEvent as any).id;
-          if (id) router.push(`/events/${id}`);
-        }}
+        className="relative w-full overflow-hidden cursor-pointer mx-auto bg-black group aspect-[16/10] xs:aspect-[16/9] sm:aspect-[2.4/1] md:aspect-[2.8/1] lg:aspect-[3.1/1] select-none"
+        style={{ borderRadius: 16, maxWidth: 1400, touchAction: 'pan-y' }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       >
         <AnimatePresence initial={false}>
           <motion.div
@@ -128,6 +158,38 @@ export default function PopularEventBanner({
             </div>
           </motion.div>
         </AnimatePresence>
+
+        {/* Navigation Arrows */}
+        {events.length > 1 && (
+          <>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActive((p) => (p - 1 + events.length) % events.length);
+                resetTimer();
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-white hover:text-black hover:scale-105 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center"
+              aria-label="Previous event"
+            >
+              <ChevronLeft size={20} className="sm:w-6 sm:h-6" />
+            </button>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActive((p) => (p + 1) % events.length);
+                resetTimer();
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-white hover:text-black hover:scale-105 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center"
+              aria-label="Next event"
+            >
+              <ChevronRight size={20} className="sm:w-6 sm:h-6" />
+            </button>
+          </>
+        )}
 
         {/* Minimalist Indicators (Dots instead of counts) */}
         <div className="absolute bottom-6 right-8 flex gap-2 z-10">
