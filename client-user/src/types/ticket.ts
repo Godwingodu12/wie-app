@@ -189,9 +189,9 @@ export interface SearchLocation {
 }
 
 export interface NearbyEvent extends Event {
-  distance: number;
-  distance_unit: string;
-  main_event_distance: number | null;
+  distance?: number;
+  distance_unit?: string;
+  main_event_distance?: number | null;
   is_main_event_nearby: boolean;
   has_nearby_sub_events: boolean;
   nearby_sub_events_count: number;
