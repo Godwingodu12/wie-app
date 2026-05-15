@@ -29,9 +29,10 @@ import {
 import { format } from 'date-fns';
 import CalendarIcon from '@/assets/Event/CalenderIcon.svg';
 import LocationIcon from '@/assets/Event/LocationIcon.svg';
-import DigitalTicketModal from '@/components/bookings/DigitalTicketModal';
 import BookingDetailSkeleton from '@/components/skeletons/BookingDetailSkeleton';
 import { getEventImage } from '@/utils/helpers';
+import { TicketCard } from '@/components/events/TicketCard';
+import { toPng } from 'html-to-image';
 
 const LAYOUT = {
   SIDEBAR_EXPANDED_WIDTH: '281px',
@@ -96,12 +97,37 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     }
   };
 
-  const downloadQRCode = () => {
-    if (!booking?.qrCode) return;
-    const link = document.createElement('a');
-    link.href = booking.qrCode;
-    link.download = `ticket-${bookingId.slice(-6)}.png`;
-    link.click();
+  const saveQR = async () => {
+    const ticketElement = document.getElementById('ticket-card-content');
+    if (!ticketElement) {
+      // Fallback to original QR save if TicketCard isn't found
+      if (!booking?.qrCode) return;
+      const link = document.createElement('a');
+      link.href = booking.qrCode;
+      link.download = `ticket-${bookingId.slice(-6)}.png`;
+      link.click();
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(ticketElement, {
+        cacheBust: true,
+        backgroundColor: isDark ? '#0C1014' : '#FFFFFF',
+      });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `ticket-${bookingId.slice(-6)}.png`;
+      link.click();
+    } catch (err) {
+      console.error('Error saving ticket:', err);
+      // Fallback
+      if (booking?.qrCode) {
+        const link = document.createElement('a');
+        link.href = booking.qrCode;
+        link.download = `ticket-${bookingId.slice(-6)}.png`;
+        link.click();
+      }
+    }
   };
 
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -301,17 +327,23 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
 
                     <div className="space-y-4 sm:space-y-5">
                       {/* Location */}
-                      <div className="flex items-center justify-between sm:justify-start gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
-                            <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                      {booking.eventDetails?.location_type?.toLowerCase() !== 'online' &&
+                       booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
+                       booking.eventDetails?.venue &&
+                       booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
+                       booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
+                        <div className="flex items-center justify-between sm:justify-start gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                              <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                            </div>
+                            <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Location</p>
                           </div>
-                          <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Location</p>
+                          <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto break-words max-w-[200px] sm:max-w-none text-right`}>
+                            {booking.eventDetails.venue || 'TBA'}
+                          </p>
                         </div>
-                        <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto break-words max-w-[200px] sm:max-w-none text-right`}>
-                          {booking.eventDetails.venue || 'TBA'}
-                        </p>
-                      </div>
+                      )}
 
                       {/* Tickets */}
                       <div className="flex items-center justify-between sm:justify-start gap-4">
@@ -427,6 +459,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                           src={booking.qrCode}
                           alt="Ticket QR Code"
                           className="w-40 h-40 object-contain"
+                          crossOrigin="anonymous"
                         />
                       </div>
                     </div>
@@ -434,7 +467,9 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
 
                   {/* ── Scan hint ── */}
                   <p className={`text-center text-[9px] font-bold uppercase tracking-widest mb-3 ${isDark ? 'text-white/25' : 'text-black/25'}`}>
-                    Show this QR at the venue entrance
+                    {booking.eventDetails?.location_type?.toLowerCase() === 'online' || booking.eventDetails?.location_type?.toLowerCase() === 'recorded'
+                      ? 'Keep this ticket for your records'
+                      : 'Show this QR at the venue entrance'}
                   </p>
 
                   {/* ── Tear line ── */}
@@ -520,16 +555,22 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     )}
 
                     {/* Venue */}
-                    <TicketRow
-                      isDark={isDark}
-                      label="Venue"
-                      value={
-                        booking.qrPayload?.venue ||
-                        booking.eventDetails?.venue ||
-                        booking.eventDetails?.location ||
-                        '—'
-                      }
-                    />
+                    {booking.eventDetails?.location_type?.toLowerCase() !== 'online' &&
+                     booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
+                     booking.eventDetails?.venue &&
+                     booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
+                     booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
+                      <TicketRow
+                        isDark={isDark}
+                        label="Venue"
+                        value={
+                          booking.qrPayload?.venue ||
+                          booking.eventDetails?.venue ||
+                          booking.eventDetails?.location ||
+                          '—'
+                        }
+                      />
+                    )}
 
                     {/* Online Code (Ticket Row) */}
                     {booking.event_code && (
@@ -763,13 +804,59 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
           </Card>
         </div>
       )}
+
       {/* Save Ticket Modal */}
-      {showSaveModal && (
-        <DigitalTicketModal
-          show={showSaveModal}
-          onClose={() => setShowSaveModal(false)}
-          booking={booking}
-        />
+      {showSaveModal && booking && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-300"
+          style={{
+            background: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(4px)",
+          }}
+          onClick={() => setShowSaveModal(false)}
+        >
+          <div
+            className="relative border rounded-3xl p-8 pt-6 w-full max-w-[420px] shadow-2xl flex flex-col items-center transition-all duration-500 transform scale-100 translate-y-0"
+            style={{
+              background: isDark ? "rgba(28, 32, 36, 0.4)" : "rgba(255, 255, 255, 0.3)",
+              backdropFilter: "blur(60px) saturate(180%)",
+              WebkitBackdropFilter: "blur(60px) saturate(180%)",
+              borderColor: isDark ? "rgba(149, 117, 205, 0.15)" : "rgba(149, 117, 205, 0.1)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-6 text-sm font-black uppercase tracking-[0.2em] text-white">
+              Digital Ticket
+            </p>
+
+            <TicketCard
+              booking={booking}
+              showQR={true}
+            />
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-8 w-full justify-center items-center">
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="flex-1 max-w-[145px] h-[42px] rounded-full text-[13px] font-bold transition-all flex items-center justify-center border border-white/20 bg-white/10 text-white hover:bg-white/20 active:scale-95"
+              >
+                Close
+              </button>
+              <button
+                onClick={saveQR}
+                style={{
+                  height: '42px',
+                  borderRadius: '21px',
+                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                }}
+                className="flex-1 max-w-[145px] text-white text-[13px] font-bold shadow-lg shadow-purple-500/10 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
