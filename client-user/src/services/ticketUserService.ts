@@ -452,11 +452,19 @@ export const getAllEventsWithDistance = async (
 
     const query = queryParams.toString();
     const res = await api.get(`/tickets/all-events${query ? `?${query}` : ""}`);
+    const rawEvents: NearbyEvent[] = res.data?.data?.events ?? [];
+    const seen = new Set<string>();
+    const uniqueEvents = rawEvents.filter((ev) => {
+      const id = ev._id?.toString() || "";
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
 
     return {
       data: {
-        events: res.data?.data?.events ?? [],
-        count: res.data?.data?.count ?? 0,
+        events: uniqueEvents,
+        count: uniqueEvents.length,
         search_location: res.data?.data?.search_location ?? null,
       },
     };
