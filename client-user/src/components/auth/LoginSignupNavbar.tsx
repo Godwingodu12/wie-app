@@ -6,7 +6,7 @@ import AdminIcon from '@/assets/Auth/Admin.svg';
 
 const LoginSignupNavbar = () => {
   return (
-    <nav className="w-full flex items-center justify-end px-3 sm:px-6 py-4">
+    <nav className="absolute top-0 left-0 right-0 w-full flex items-center justify-end px-3 sm:px-6 py-4 z-50">
       <div className="flex items-center gap-2 sm:gap-6 text-xs sm:text-sm text-white/70">
         
         {/* Privacy — desktop only */}
