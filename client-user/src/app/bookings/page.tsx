@@ -378,6 +378,7 @@ function BookingRow({ booking, type, getStyle, displayStatus, onClick }: any) {
   const isDark = theme === 'dark';
   const isCancelled = type === 'cancelled' || booking.bookingStatus === 'CANCELLED';
   const event = booking.eventDetails;
+  const isOnlineOrRecorded = event?.location_type?.toLowerCase() === 'online' || event?.location_type?.toLowerCase() === 'recorded';
 
   return (
     <div
@@ -427,15 +428,17 @@ function BookingRow({ booking, type, getStyle, displayStatus, onClick }: any) {
         </div>
 
         {/* Venue */}
-        <div className="col-span-2">
-          <div className="flex items-center gap-2 text-xs font-bold truncate" style={{ color: themeStyles.text }}>
-            <MapPin className="w-3.5 h-3.5 opacity-40 shrink-0" />
-            <span className="truncate">{event?.venue || 'Virtual/TBD'}</span>
+        {!isOnlineOrRecorded && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-2 text-xs font-bold truncate" style={{ color: themeStyles.text }}>
+              <MapPin className="w-3.5 h-3.5 opacity-40 shrink-0" />
+              <span className="truncate">{event?.venue || 'Virtual/TBD'}</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Ticket Type */}
-        <div className="col-span-1">
+        <div className={isOnlineOrRecorded ? "col-span-3" : "col-span-1"}>
           <span className="text-[10px] font-bold opacity-40" style={{ color: themeStyles.text }}>
             {booking.ticketType}
           </span>
@@ -491,12 +494,14 @@ function BookingRow({ booking, type, getStyle, displayStatus, onClick }: any) {
               {event?.eventDate} <span className="opacity-30 mx-1">•</span> {event?.eventTime || 'TBD'}
             </p>
           </div>
-          <div className="space-y-1 overflow-hidden">
-            <p className="text-[9px] font-bold opacity-40 uppercase tracking-widest">Venue</p>
-            <p className="text-xs font-bold truncate" style={{ color: themeStyles.text }}>
-              {event?.venue || 'Virtual/TBD'}
-            </p>
-          </div>
+          {!isOnlineOrRecorded && (
+            <div className="space-y-1 overflow-hidden">
+              <p className="text-[9px] font-bold opacity-40 uppercase tracking-widest">Venue</p>
+              <p className="text-xs font-bold truncate" style={{ color: themeStyles.text }}>
+                {event?.venue || 'Virtual/TBD'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-end pt-4 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
