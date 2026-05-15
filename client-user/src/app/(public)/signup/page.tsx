@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import SignupForm from '@/components/auth/SignupForm';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import WIEImage from '@/assets/Auth/WieLogo.svg';
+import WIEImage from '@/assets/Auth/WieLogo.png';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import {AppleAuthButton} from '@/components/auth/AppleAuthButton';
 import {MicrosoftAuthButton} from '@/components/auth/MicrosoftAuthButton';
@@ -42,12 +42,12 @@ function SignupContent() {
           <div className="flex items-center justify-center px-4 py-4 rounded-[28px] bg-[#2F2F2F] shadow-xl border border-white/5">
             <img
               src={WIEImage.src}
-              alt="Wiehive"
+              alt="Wie"
               className="w-12 h-12 sm:w-16 sm:h-16"
             />
           </div>
           <h1 className="mt-4 text-white text-3xl font-bold tracking-tight">
-            Wiehive
+            Wie
           </h1>
         </div>
 
