@@ -103,11 +103,20 @@ export default function EventDetailPage() {
     "about" | "details" | "guests" | "photos" | "hashtags" | "additional"
   >("about");
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const mediaItems = [
     event?.event_banner,
     event?.event_portrait,
     ...(event?.event_images?.map((img: any) => img.path) || []),
   ].filter(Boolean) as string[];
+
+  useEffect(() => {
+    if (mediaItems.length <= 1 || isHovered) return;
+    const interval = setInterval(() => {
+      setCurrentMediaIndex((prev) => (prev + 1) % mediaItems.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [mediaItems.length, isHovered]);
 
   const handleNextMedia = () => {
     setCurrentMediaIndex((prev) => (prev + 1) % mediaItems.length);
@@ -856,6 +865,8 @@ export default function EventDetailPage() {
             {/* Event Media Gallery / Banner */}
             {mediaItems.length > 0 && (
               <div
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
                 className="relative rounded-2xl md:rounded-3xl overflow-hidden text-white aspect-[3/4] xs:aspect-[4/5] sm:aspect-[3/2] md:aspect-video lg:aspect-[21/9] min-h-[250px] xs:min-h-[300px] sm:min-h-[350px] md:min-h-0 lg:min-h-0 group transition-all duration-500 hover:shadow-2xl shadow-xl border border-white/10"
               >
                 {/* Background Images / Slideshow */}
@@ -896,7 +907,7 @@ export default function EventDetailPage() {
                     </button>
 
                     {/* Indicators */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 group-hover:opacity-0 pointer-events-none transition-all duration-500 ease-in-out">
                       {mediaItems.map((_, idx) => (
                         <div
                           key={idx}
@@ -920,7 +931,7 @@ export default function EventDetailPage() {
                 {/* Content */}
                 <div className="absolute inset-0 z-10 w-full h-full flex flex-col justify-end p-3 xs:p-4 sm:p-5 md:p-6 lg:p-7">
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6">
-                    <div className="md:flex-1 min-w-0">
+                    <div className="md:flex-1 min-w-0 transition-all duration-500 ease-in-out group-hover:opacity-0 group-hover:pointer-events-none">
                       {/* LEFT CONTENT (text column) */}
                       <div className="max-w-full pl-0 md:pl-1">
                         {/* Meta Badge Row */}
