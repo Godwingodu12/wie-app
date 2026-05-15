@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import WIELogo from '@/assets/Auth/WieLogo.svg';
+import WIELogo from '@/assets/Auth/WieLogo.png';
 import AdminIcon from '@/assets/Auth/Admin.svg';
 
 export const NavBar = () => {
