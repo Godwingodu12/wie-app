@@ -1205,7 +1205,6 @@ export const getCategoryBasedEvents = async (
 
     let mainResults: any[] = [];
     let suggestions: any[] = [];
-
     // Apply location-based filtering if coordinates available
     if (userLat && userLng) {
       const eventsWithDistance = events.map((event: any) => {
@@ -1229,7 +1228,7 @@ export const getCategoryBasedEvents = async (
       });
 
       // Main results within DEFAULT_SEARCH_RADIUS_KM
-      mainResults = eventsWithDistance
+      const withinRadius = eventsWithDistance
         .filter(
           (e: any) =>
             e.distance !== null && e.distance <= DEFAULT_SEARCH_RADIUS_KM,
@@ -1238,8 +1237,25 @@ export const getCategoryBasedEvents = async (
           (a: any, b: any) => (a.distance || 999999) - (b.distance || 999999),
         );
 
-      // If no main results but category is specified, get suggestions up to MAX radius
-      if (mainResults.length === 0 && category) {
+      if (withinRadius.length > 0) {
+        mainResults = withinRadius;
+      } else if (category) {
+        // ── KEY FIX: no nearby results for this category ──
+        // Fall back to ALL events in the category (sorted by popularity score
+        // so the list matches what getCategoryBasedPopularEvents returns).
+        mainResults = eventsWithDistance.sort((a: any, b: any) => {
+          const scoreA =
+            (a.totalBookings ?? 0) * 3 +
+            (a.like ?? 0) * 2 +
+            (a.totalTicketsSold ?? 0);
+          const scoreB =
+            (b.totalBookings ?? 0) * 3 +
+            (b.like ?? 0) * 2 +
+            (b.totalTicketsSold ?? 0);
+          return scoreB - scoreA;
+        });
+      } else {
+        // No category — try suggestions within MAX radius
         suggestions = eventsWithDistance
           .filter(
             (e: any) =>
@@ -1251,18 +1267,20 @@ export const getCategoryBasedEvents = async (
           .slice(0, 10);
       }
     } else if (userCountryName) {
-      // Filter by country
       const countryLower = userCountryName.toLowerCase();
-      mainResults = events.filter((event: any) => {
+      const countryFiltered = events.filter((event: any) => {
         const address = (event.exact_map_location?.address || "").toLowerCase();
         const locationField = (event.location || "").toLowerCase();
         return (
           address.includes(countryLower) || locationField.includes(countryLower)
         );
       });
+
+      // ── Same fix for country filter ──
+      mainResults = countryFiltered.length > 0 ? countryFiltered : events;
       locationSource = "country";
     } else {
-      // No location - return all events (filtered by category if provided)
+      // No location at all — return all events (filtered by category if provided)
       mainResults = events;
     }
 
