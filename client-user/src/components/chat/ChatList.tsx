@@ -67,6 +67,16 @@ export function getLastMessagePreview(chat: any, currentUserId?: string): string
     const name = parsed?.sharerName ?? '';
     return name ? `↗ ${name} shared a Flux` : '↗ shared a Flux';
   }
+  // Detect post_share
+  const isPostShare =
+    messageType === 'post_share' ||
+    (parsed?.type === 'post_share');
+
+  if (isPostShare) {
+    if (isSender) return '📤 You sent a post';
+    const name = parsed?.sharerName ?? '';
+    return name ? `📤 ${name} sent a post` : '📤 sent a post';
+  }
   // View once
   const isViewOnce =
     lm.viewMode === 'view_once' ||
@@ -492,7 +502,6 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
           />
         )}
       </div>
-
       <NewChatModal
         isOpen={showNewChatModal}
         onClose={() => setShowNewChatModal(false)}
