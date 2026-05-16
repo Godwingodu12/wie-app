@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
 import Image from "next/image";
 import { X, Send, Heart, ChevronDown, Loader2 } from "lucide-react";
 import { useTheme } from "@/components/home/ThemeContext";
@@ -9,18 +10,18 @@ import {
 import type { PostComment, PostCommentReply } from "@/types/post";
 
 interface CommentSheetProps {
-  postId:           string;
-  isOpen:           boolean;
-  onClose:          () => void;
-  commentCount:     number;
-  onCommentAdded:   () => void;
-  currentUserId?:   string;
+  postId:         string;
+  isOpen:         boolean;
+  onClose:        () => void;
+  commentCount:   number;
+  onCommentAdded: () => void;
+  currentUserId?: string;
 }
 
 const timeAgo = (iso: string): string => {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
+  if (m < 1)  return "just now";
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
@@ -37,7 +38,11 @@ export default function CommentSheet({
   const [submitting,    setSubmitting]    = useState(false);
   const [replyTo,       setReplyTo]       = useState<{ commentId: string; name: string } | null>(null);
   const [expandedReply, setExpandedReply] = useState<Set<string>>(new Set());
+  const [mounted,       setMounted]       = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Ensure we're on the client before using portals
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -52,14 +57,22 @@ export default function CommentSheet({
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 300);
   }, [isOpen, replyTo]);
 
+  // Lock body scroll when open
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
   const handleSubmit = async () => {
     if (!text.trim() || submitting) return;
     setSubmitting(true);
     try {
       if (replyTo) {
         const reply = await replyToComment(postId, replyTo.commentId, text.trim());
-        setComments((prev) =>
-          prev.map((c) =>
+        setComments(prev =>
+          prev.map(c =>
             c._id === replyTo.commentId
               ? { ...c, replies: [...(c.replies ?? []), reply] }
               : c,
@@ -68,7 +81,7 @@ export default function CommentSheet({
         setReplyTo(null);
       } else {
         const newComment = await addComment(postId, text.trim());
-        setComments((prev) => [newComment, ...prev]);
+        setComments(prev => [newComment, ...prev]);
         onCommentAdded();
       }
       setText("");
@@ -80,18 +93,17 @@ export default function CommentSheet({
   };
 
   const handleLikeComment = async (commentId: string) => {
-    const prev = comments.find((c) => c._id === commentId);
+    const prev = comments.find(c => c._id === commentId);
     if (!prev) return;
     const alreadyLiked = prev.likes.includes(currentUserId ?? "");
-
-    setComments((c) =>
-      c.map((comment) =>
+    setComments(c =>
+      c.map(comment =>
         comment._id === commentId
           ? {
               ...comment,
               likeCount: alreadyLiked ? comment.likeCount - 1 : comment.likeCount + 1,
               likes: alreadyLiked
-                ? comment.likes.filter((id) => id !== currentUserId)
+                ? comment.likes.filter(id => id !== currentUserId)
                 : [...comment.likes, currentUserId ?? ""],
             }
           : comment,
@@ -100,44 +112,58 @@ export default function CommentSheet({
     try {
       await likeComment(postId, commentId);
     } catch {
-      // rollback
-      setComments((c) =>
-        c.map((comment) => (comment._id === commentId ? prev : comment)),
-      );
+      setComments(c => c.map(comment => (comment._id === commentId ? prev : comment)));
     }
   };
 
   const toggleReplies = (commentId: string) => {
-    setExpandedReply((prev) => {
+    setExpandedReply(prev => {
       const next = new Set(prev);
       next.has(commentId) ? next.delete(commentId) : next.add(commentId);
       return next;
     });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  const sheet = (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — portaled to body so it covers full viewport */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+        style={{
+          position:        "fixed",
+          inset:           0,
+          zIndex:          9998,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          backdropFilter:  "blur(4px)",
+        }}
         onClick={onClose}
       />
-      {/* Sheet */}
+
+      {/* Sheet — anchored to real viewport bottom */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 flex flex-col"
         style={{
+          position:     "fixed",
+          bottom:       0,
+          left:         0,
+          right:        0,
+          zIndex:       9999,
           maxHeight:    "80vh",
+          display:      "flex",
+          flexDirection:"column",
           background:   themeStyles.cardBg,
           borderRadius: "24px 24px 0 0",
           border:       `1px solid ${themeStyles.border}`,
           borderBottom: "none",
+          boxShadow:    "0 -8px 40px rgba(0,0,0,0.4)",
         }}
       >
         {/* Handle + header */}
         <div className="flex flex-col items-center pt-3 pb-2 px-4">
-          <div className="w-10 h-1 rounded-full mb-3" style={{ background: themeStyles.border }} />
+          <div
+            className="w-10 h-1 rounded-full mb-3"
+            style={{ background: themeStyles.border }}
+          />
           <div className="flex items-center justify-between w-full">
             <h3 className="text-[15px] font-semibold" style={{ color: themeStyles.text }}>
               Comments {commentCount > 0 && `· ${commentCount}`}
@@ -166,10 +192,11 @@ export default function CommentSheet({
               </p>
             </div>
           ) : (
-           comments.map((comment) => (
-                <div key={comment._id ?? `c-${Math.random()}`} className="flex gap-3">
+            comments.map(comment => (
+              <div key={comment._id ?? `c-${Math.random()}`} className="flex gap-3">
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 relative"
+                <div
+                  className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 relative"
                   style={{ border: `1px solid ${themeStyles.border}` }}
                 >
                   {comment.profile_picture ? (
@@ -192,7 +219,6 @@ export default function CommentSheet({
                       </span>
                       <span style={{ color: themeStyles.text }}>{comment.text}</span>
                     </div>
-                    {/* Like comment */}
                     <button
                       className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0"
                       onClick={() => handleLikeComment(comment._id)}
@@ -210,7 +236,7 @@ export default function CommentSheet({
                     </button>
                   </div>
 
-                  {/* Comment meta */}
+                  {/* Meta */}
                   <div className="flex items-center gap-3 mt-1 ml-1">
                     <span className="text-[11px]" style={{ color: themeStyles.textSecondary }}>
                       {timeAgo(comment.createdAt)}
@@ -233,11 +259,11 @@ export default function CommentSheet({
                         <ChevronDown
                           size={12}
                           style={{
-                            transform: expandedReply.has(comment._id) ? "rotate(180deg)" : "rotate(0)",
+                            transform:  expandedReply.has(comment._id) ? "rotate(180deg)" : "rotate(0)",
                             transition: "transform 0.2s",
                           }}
                         />
-                        {expandedReply.has(comment._id) ? "Hide" : `${comment.replies.length}`} replies
+                        {expandedReply.has(comment._id) ? "Hide" : comment.replies.length} replies
                       </button>
                     )}
                   </div>
@@ -245,11 +271,12 @@ export default function CommentSheet({
                   {/* Replies */}
                   {expandedReply.has(comment._id) &&
                     (comment.replies ?? []).map((reply: PostCommentReply, replyIdx: number) => (
+                      <div
+                        key={reply._id ?? `${comment._id}-reply-${replyIdx}`}
+                        className="flex gap-2 mt-3 ml-2"
+                      >
                         <div
-                            key={reply._id ?? `${comment._id}-reply-${replyIdx}`}
-                            className="flex gap-2 mt-3 ml-2"
-                        >
-                        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 relative"
+                          className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 relative"
                           style={{ border: `1px solid ${themeStyles.border}` }}
                         >
                           {reply.profile_picture ? (
@@ -270,7 +297,8 @@ export default function CommentSheet({
                           <span style={{ color: themeStyles.text }}>{reply.text}</span>
                         </div>
                       </div>
-                    ))}
+                    ))
+                  }
                 </div>
               </div>
             ))
@@ -279,30 +307,33 @@ export default function CommentSheet({
 
         {/* Input */}
         <div
-          className="flex items-center gap-3 px-4 py-3"
+          className="relative flex items-center gap-3 px-4 py-3"
           style={{
-            borderTop: `1px solid ${themeStyles.border}`,
+            borderTop:     `1px solid ${themeStyles.border}`,
             paddingBottom: "max(12px, env(safe-area-inset-bottom))",
           }}
         >
+          {/* Reply-to pill */}
           {replyTo && (
             <div
-              className="absolute bottom-[68px] left-4 right-4 flex items-center justify-between px-3 py-1.5 rounded-xl text-xs"
+              className="absolute -top-9 left-4 right-4 flex items-center justify-between px-3 py-1.5 rounded-xl text-xs"
               style={{ background: themeStyles.pillBg }}
             >
               <span style={{ color: themeStyles.textSecondary }}>
-                Replying to <span className="font-semibold text-[#8860D9]">@{replyTo.name}</span>
+                Replying to{" "}
+                <span className="font-semibold text-[#8860D9]">@{replyTo.name}</span>
               </span>
               <button onClick={() => setReplyTo(null)}>
                 <X size={12} style={{ color: themeStyles.textSecondary }} />
               </button>
             </div>
           )}
+
           <input
             ref={inputRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSubmit()}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSubmit()}
             placeholder={replyTo ? `Reply to ${replyTo.name}…` : "Add a comment…"}
             className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: themeStyles.text }}
@@ -317,11 +348,13 @@ export default function CommentSheet({
           >
             {submitting
               ? <Loader2 size={14} className="text-white animate-spin" />
-              : <Send size={14} className="text-white" />
+              : <Send    size={14} className="text-white" />
             }
           </button>
         </div>
       </div>
     </>
   );
+  // Portal mounts directly on document.body — completely outside the post card DOM tree
+  return ReactDOM.createPortal(sheet, document.body);
 }
