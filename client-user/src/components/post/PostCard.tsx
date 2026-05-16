@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -11,7 +12,7 @@ import { useTheme } from "@/components/home/ThemeContext";
 import { toggleLike, toggleSave } from "@/services/postService";
 import type { Post, ReactionEmoji } from "@/types/post";
 import CommentSheet from "./CommentSheet";
-
+import PostShareBar from "./actions/PostShareBar";
 interface PostCardProps {
   post:           Post;
   currentUserId?: string;
@@ -71,18 +72,18 @@ export default function PostCard({
   // ── Caption expand ─────────────────────────────────────
   const [expanded, setExpanded] = useState(false);
 
-  // ── Video state ────────────────────────────────────────
+  // ── Video state 
   const videoRef  = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [muted,   setMuted]   = useState(true);
 
-  // ── Comment sheet ──────────────────────────────────────
+  // ── Comment sheet 
   const [showComments, setShowComments] = useState(false);
 
-  // ── Menu ───────────────────────────────────────────────
+  // ── Menu 
   const [showMenu, setShowMenu] = useState(false);
-
-  // ── Handlers ───────────────────────────────────────────
+  const [showShareModal, setShowShareModal] = useState(false);
+  // ── Handlers 
   const handleLike = useCallback(async (emoji: ReactionEmoji = "❤️") => {
     const prevLiked = liked;
     const prevCount = likeCount;
@@ -472,11 +473,9 @@ export default function PostCard({
               {formatCount(commentCount)}
             </span>
           </button>
-
-          {/* Share — opens comment sheet which has share CTA */}
           <button
             className="flex items-center gap-1.5 active:scale-90 transition-transform"
-            onClick={() => setShowComments(true)}
+            onClick={() => setShowShareModal(true)}
           >
             <Send size={20} style={{ color: themeStyles.textSecondary }} />
             {shareCount > 0 && (
@@ -534,7 +533,7 @@ export default function PostCard({
         </div>
       )}
 
-      {/* ── Comment Sheet ───────────────────────────────── */}
+      {/* ── Comment Sheet  */}
       <CommentSheet
         postId={post._id}
         isOpen={showComments}
@@ -543,7 +542,25 @@ export default function PostCard({
         onCommentAdded={() => setCommentCount((c) => c + 1)}
         currentUserId={currentUserId}
       />
-
+      {/* Share Modal */}
+      {showShareModal && typeof document !== "undefined" &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 9999, backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+            onClick={() => setShowShareModal(false)}
+          >
+            <div onClick={e => e.stopPropagation()}>
+              <PostShareBar
+                postId={post._id}
+                postOwnerId={post.userId}
+                onClose={() => setShowShareModal(false)}
+              />
+            </div>
+          </div>,
+          document.body
+        )
+      }
       <style jsx global>{`
         @keyframes heartPop {
           0%   { transform: scale(0);   opacity: 1; }
