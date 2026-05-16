@@ -31,6 +31,7 @@ import Image from 'next/image';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useTheme } from "@/components/home/ThemeContext";
 import TopAlert from "@/components/ui/TopAlert";
+import PreviewPost from '@/components/post/PreviewPost';
 import { ChatMessage, Chat } from '@/types/chat';
 interface ChatWindowProps {
   onBack?: () => void;
@@ -111,10 +112,12 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const isFetchingMore = useRef(false);
+  const [previewPostId, setPreviewPostId] = useState<string | null>(null);
   const [blockStatus, setBlockStatus] = useState<{
     iBlockedThem: boolean;
     theyBlockedMe: boolean;
-  } | null>(null);    
+  } | null>(null);   
+
 
   const isOtherUserTyping = currentChat ? typingUsers[currentChat._id] || false : false;
 
@@ -638,6 +641,7 @@ const handleEmojiSelect = (emoji: string) => {
               if (parsed?.type === 'flux_mention')   return { ...base, messageType: 'flux_mention'   };
               if (parsed?.type === 'flux_remention') return { ...base, messageType: 'flux_remention' };
               if (parsed?.type === 'flux_reply')     return { ...base, messageType: 'flux_reply'     };
+              if (parsed?.type === 'post_share')     return { ...base, messageType: 'post_share'     };
             } catch {}
           }
 
@@ -2430,6 +2434,129 @@ const handleEmojiSelect = (emoji: string) => {
                                 </div>
                               );
                             })()
+                            ) : (message.messageType as string) === 'post_share' ? (
+                            (() => {
+                              let meta: any = {};
+                              try {
+                                meta = typeof message.content === 'string' && message.content.startsWith('{')
+                                  ? JSON.parse(message.content)
+                                  : {};
+                              } catch { meta = {}; }
+
+                              if (!meta.postId && (message as any).metadata) {
+                                try {
+                                  const md = typeof (message as any).metadata === 'string'
+                                    ? JSON.parse((message as any).metadata)
+                                    : (message as any).metadata;
+                                  meta = { ...md, ...meta };
+                                } catch {}
+                              }
+
+                              const postId       = meta.postId;
+                              const thumbUrl     = meta.postMediaUrl ?? meta.thumbnailUrl ?? meta.mediaUrl;
+                              const isVideo      = meta.postMediaType === 'video' || meta.isReel === true;
+                              const isSenderView = message.sender === user?.id;
+                              const sharerName   = meta.sharerName ?? currentChat.participant?.name ?? 'Someone';
+                              const isReel       = meta.isReel === true || meta.postMediaType === 'video';
+                              const label        = isSenderView
+                                ? (meta.senderLabel ?? (isReel ? 'You sent a Reel' : 'You sent a post'))
+                                : (isReel ? `${sharerName} sent a Reel` : `${sharerName} sent a post`);
+
+                              return (
+                                <div
+                                  onDoubleClick={(e) => e.stopPropagation()}
+                                  onContextMenu={(e) => e.stopPropagation()}
+                                  onClick={(e) => { e.stopPropagation(); if (postId) setPreviewPostId(postId); }}
+                                  style={{
+                                    borderRadius: 14,
+                                    overflow:     'hidden',
+                                    border:       '1px solid rgba(84,148,255,0.3)',
+                                    maxWidth:     220,
+                                    background:   isSenderView
+                                      ? 'rgba(0,0,0,0.28)'
+                                      : isDark
+                                        ? 'rgba(255,255,255,0.05)'
+                                        : 'rgba(0,0,0,0.03)',
+                                    cursor: postId ? 'pointer' : 'default',
+                                  }}
+                                >
+                                  <div style={{ position: 'relative', width: '100%', height: 170, overflow: 'hidden', background: '#0a0a0a' }}>
+                                    {thumbUrl ? (
+                                      isVideo ? (
+                                        <video
+                                          src={thumbUrl}
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          muted playsInline
+                                        />
+                                      ) : (
+                                        <img
+                                          src={thumbUrl}
+                                          alt="post preview"
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                          }}
+                                        />
+                                      )
+                                    ) : (
+                                      <div style={{
+                                        width: '100%', height: '100%',
+                                        background: 'linear-gradient(135deg,#0d1b3e,#1a3a6e)',
+                                        display: 'flex', flexDirection: 'column',
+                                        alignItems: 'center', justifyContent: 'center', gap: 8,
+                                      }}>
+                                        <span style={{ fontSize: 36 }}>{isReel ? '🎬' : '🖼️'}</span>
+                                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                                          {isReel ? 'Reel' : 'Post'}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {/* Gradient overlay at bottom */}
+                                    <div style={{
+                                      position: 'absolute', bottom: 0, left: 0, right: 0, height: 48,
+                                      background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
+                                    }} />
+                                    {/* Badge */}
+                                    <div style={{
+                                      position: 'absolute', top: 7, left: 7,
+                                      background: 'rgba(84,148,255,0.88)',
+                                      borderRadius: 8, padding: '2px 8px',
+                                      fontSize: 10, color: '#fff', fontWeight: 700,
+                                      backdropFilter: 'blur(4px)',
+                                    }}>
+                                      {isReel ? '🎬 Reel' : '📤 Post'}
+                                    </div>
+                                    {/* Tap hint overlay */}
+                                    {postId && (
+                                      <div style={{
+                                        position: 'absolute', bottom: 6, right: 8,
+                                        fontSize: 10, color: 'rgba(255,255,255,0.6)',
+                                        fontWeight: 500,
+                                      }}>
+                                        Tap to view
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Label row */}
+                                  <div style={{ padding: '8px 10px 10px' }}>
+                                    <p style={{
+                                      color:      isSenderView ? '#fff' : themeStyles.text,
+                                      fontSize:   12, fontWeight: 500,
+                                      lineHeight: 1.4, margin: 0,
+                                      opacity:    0.9,
+                                    }}>
+                                      {label}
+                                    </p>
+                                    {!postId && (
+                                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+                                        Post unavailable
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()
                             /*  Flux Mention / Re-mention  */
                             ) : (message.messageType as string) === 'flux_mention' ||
                                 (message.messageType as string) === 'flux_remention' ? (
@@ -2564,7 +2691,8 @@ const handleEmojiSelect = (emoji: string) => {
                                 {/* ✅ Never render raw JSON — show fallback if content looks like a flux JSON object */}
                                 {message.content?.startsWith('{') && (
                                     message.content.includes('"flux') ||
-                                    message.content.includes('"type":"flux_reply')
+                                    message.content.includes('"type":"flux_reply') ||
+                                    message.content.includes('"type":"post_share')
                                   )
                                   ? null
                                   : message.content}
@@ -2857,6 +2985,12 @@ const handleEmojiSelect = (emoji: string) => {
         onClose={() => setShowEventModal(false)}
         onSend={handleEventSend}
       />
+      {previewPostId && (
+        <PreviewPost
+          postId={previewPostId}
+          onClose={() => setPreviewPostId(null)}
+        />
+      )}
     </div>
   );
 }
