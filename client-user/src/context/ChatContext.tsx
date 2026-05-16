@@ -273,6 +273,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           else if (parsed?.type === 'flux_mention')   parsedMessage = { ...parsedMessage, messageType: 'flux_mention'   as any };
           else if (parsed?.type === 'flux_remention') parsedMessage = { ...parsedMessage, messageType: 'flux_remention' as any };
           else if (parsed?.type === 'flux_reply') parsedMessage = { ...parsedMessage, messageType: 'flux_reply' as any };
+          else if (parsed?.type === 'post_share')     parsedMessage = { ...parsedMessage, messageType: 'post_share'     as any };
         } catch {}
       }
     }
@@ -519,7 +520,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isCurrentChatOpen && data.message) {
           const rawNotif = data.message;
           // Skip if already in messages (sender already added optimistically — but system messages aren't optimistic)
-          const isSystemMessage = ['flux_share', 'flux_mention', 'flux_remention', 'flux_reply'].includes(rawNotif.messageType);          
+          const isSystemMessage = ['flux_share', 'flux_mention', 'flux_remention', 'flux_reply', 'post_share'].includes(rawNotif.messageType);          
           if (!isOwnMessage || isSystemMessage) {
             let newMessage: ChatMessage = {
               _id: rawNotif._id,
@@ -1135,6 +1136,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (parsed?.type === 'flux_mention')  return { ...msg, messageType: 'flux_mention'  as any };
                 if (parsed?.type === 'flux_remention')return { ...msg, messageType: 'flux_remention'as any };
                 if (parsed?.type === 'flux_reply') return { ...msg, messageType: 'flux_reply' as any };
+                if (parsed?.type === 'post_share')    return { ...msg, messageType: 'post_share'    as any };
               } catch {}
             }
             return msg;
@@ -1421,7 +1423,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 .map((m: any) => {
                   // Already typed as a system message — keep as-is
                   if (
-                    ['flux_share', 'flux_mention', 'flux_remention','flux_reply'].includes(
+                    ['flux_share', 'flux_mention', 'flux_remention','flux_reply','post_share'].includes(
                       m.messageType,
                     )
                   ) {
@@ -1432,7 +1434,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     try {
                       const parsed = JSON.parse(m.content);
                       if (
-                        ['flux_share', 'flux_mention', 'flux_remention','flux_reply'].includes(
+                        ['flux_share', 'flux_mention', 'flux_remention','flux_reply','post_share'].includes(
                           parsed?.type,
                         )
                       ) {
