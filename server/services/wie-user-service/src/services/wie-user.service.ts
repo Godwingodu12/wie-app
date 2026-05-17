@@ -28,6 +28,7 @@ import {
   validateEmail,
   validateContactNo,
   validatePassword,
+  getPasswordError,
   validateName,
 } from "../utils/validation.js";
 import { createClient } from "redis";
@@ -86,10 +87,9 @@ export const signupSendOtp = async (
     const { email, contact_no, password, country_code } = req.body;
 
     // Validation
-    if (!password || !validatePassword(password)) {
-      res
-        .status(400)
-        .json({ message: "Password must be at least 6 characters" });
+    const pwError = getPasswordError(password);
+    if (pwError) {
+      res.status(400).json({ message: pwError });
       return;
     }
 
@@ -103,14 +103,21 @@ export const signupSendOtp = async (
       return;
     }
 
-    if (email && !validateEmail(email)) {
-      res.status(400).json({ message: "Invalid email format" });
-      return;
+    // validateEmail returns null if valid, error string if invalid
+    if (email) {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        res.status(400).json({ message: emailError });
+        return;
+      }
     }
 
-    if (contact_no && !validateContactNo(contact_no)) {
-      res.status(400).json({ message: "Invalid contact number format" });
-      return;
+    if (contact_no) {
+      const contactError = validateContactNo(contact_no);
+      if (contactError) {
+        res.status(400).json({ message: contactError });
+        return;
+      }
     }
 
     // Validate country exists
@@ -266,6 +273,80 @@ export const signupVerifyOtp = async (
       .json({ message: "Registration failed", error: error.message });
   }
 };
+export const setupProfile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { username } = req.body;
+    let profilePicture: string | null = null;
+    if ((req as any).file) {
+      try {
+        profilePicture = await uploadProfileImage((req as any).file.path);
+      } catch {
+        profilePicture = (req as any).file.path ?? null;
+      }
+    }
+    if (!username || username.trim().length < 4) {
+      res
+        .status(400)
+        .json({ message: "Username must be at least 4 characters" });
+      return;
+    }
+
+    // Only allow small letters, numbers, underscores, dots
+    if (!/^[a-z0-9._]+$/.test(username.trim())) {
+      res.status(400).json({
+        message: "Username can only contain small letters, numbers, . and _",
+      });
+      return;
+    }
+
+    // Check uniqueness
+    const existing = await WIEUSER.findByUsername(
+      username.trim().toLowerCase(),
+    );
+    if (existing && existing.id !== userId) {
+      res.status(400).json({ message: "Username is already taken" });
+      return;
+    }
+
+    const updateData: any = { username: username.trim().toLowerCase() };
+    if (profilePicture) updateData.profile_picture = profilePicture;
+
+    const updatedUser = await WIEUSER.updateProfile(userId, updateData);
+
+    res.status(200).json({
+      message: "Profile setup complete",
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        contact_no: updatedUser.contact_no,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        profile_picture: updatedUser.profile_picture,
+        country_id: updatedUser.country_id,
+        role: updatedUser.role,
+        status: updatedUser.status,
+        is_blocked: updatedUser.is_blocked,
+        is_verified: updatedUser.is_verified,
+        created_at: updatedUser.created_at,
+        updated_at: updatedUser.updated_at,
+      },
+    });
+  } catch (error: any) {
+    console.error("Setup profile error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to setup profile", error: error.message });
+  }
+};
 export const googleAuth = async (
   req: Request,
   res: Response,
@@ -286,6 +367,7 @@ export const googleAuth = async (
     });
   }
 };
+
 export const googleCallback = async (
   req: Request,
   res: Response,
@@ -700,7 +782,8 @@ export const setPasswordForGoogleUser = async (
     // Validate password
     if (!password || !validatePassword(password)) {
       res.status(400).json({
-        message: "Password must be at least 6 characters",
+        message:
+          "Password must be at least 6 characters and include uppercase, lowercase, number, and symbol (e.g. @#$!)",
       });
       return;
     }
@@ -759,18 +842,22 @@ export const setPasswordForGoogleUser = async (
     });
   }
 };
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      res
-        .status(400)
-        .json({ message: "Email/Contact number and password are required" });
+      res.status(400).json({
+        message: "Email, username or phone number and password are required",
+      });
       return;
     }
 
-    const user = await WIEUSER.findByEmailOrContactNo(identifier);
+    let user = await WIEUSER.findByEmailOrContactNo(identifier);
+    if (!user) {
+      user = await WIEUSER.findByUsername(identifier.toLowerCase());
+    }
     if (!user) {
       res.status(401).json({ message: "Invalid credentials" });
       return;
@@ -1082,13 +1169,19 @@ export const updatePersonalDetails = async (
     const { email, contact_no, dob } = req.body;
 
     // Validation
-    if (email && !validateEmail(email)) {
-      res.status(400).json({ message: "Invalid email format" });
-      return;
+    if (email) {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        res.status(400).json({ message: emailError });
+        return;
+      }
     }
-    if (contact_no && !validateContactNo(contact_no)) {
-      res.status(400).json({ message: "Invalid contact number format" });
-      return;
+    if (contact_no) {
+      const contactError = validateContactNo(contact_no);
+      if (contactError) {
+        res.status(400).json({ message: contactError });
+        return;
+      }
     }
 
     // Check if email or contact_no already taken by someone else
@@ -1267,13 +1360,13 @@ export const forgotPassword = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { email, contact_no } = req.body;
+    const { email, username, contact_no } = req.body;
 
     // Validate input
-    if (!email && !contact_no) {
+    if (!email && !contact_no && !username) {
       res.status(400).json({
         success: false,
-        message: "Please provide either email or contact number",
+        message: "Please provide email, username or phone number",
       });
       return;
     }
@@ -1284,6 +1377,8 @@ export const forgotPassword = async (
       user = await WIEUSER.findByEmail(email);
     } else if (contact_no) {
       user = await WIEUSER.findByContactNo(contact_no);
+    } else if (username) {
+      user = await WIEUSER.findByUsername(username);
     }
 
     if (!user) {
@@ -1454,12 +1549,9 @@ export const resetPassword = async (
       return;
     }
 
-    // Validate password strength
-    if (newPassword.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters long",
-      });
+    const pwError = getPasswordError(newPassword);
+    if (pwError) {
+      res.status(400).json({ success: false, message: pwError });
       return;
     }
 
@@ -1517,7 +1609,8 @@ export const changePassword = async (
     }
     if (!newPassword || !validatePassword(newPassword)) {
       res.status(400).json({
-        message: "New password must be at least 6 characters",
+        message:
+          "New password must be at least 6 characters long and include uppercase, lowercase, number, and symbol (e.g. @#$!)",
       });
       return;
     }
