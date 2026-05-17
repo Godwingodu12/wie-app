@@ -1,419 +1,274 @@
-'use client';
+"use client";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Search, X, Play, Calendar, Users } from "lucide-react";
+import SideBar from "@/components/home/SideBar";
+import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from "@/components/home/ThemeContext";
+import { searchUsers } from "@/services/wieUserService";
+import { followUser, unfollowUser, getDetailedFollowStatus, cancelFollowRequest } from "@/services/followService";
+import { getExplorePosts } from "@/services/postService";
+import { searchEventsByName, getLiveEvents } from "@/services/ticketUserService";
+import type { Post } from "@/types/post";
+import { User } from "@/types";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { Search, Loader2, UserPlus, UserCheck, Clock, X } from 'lucide-react';
-import SideBar from '@/components/home/SideBar';
-import { useSidebar } from '@/context/SidebarContext';
-import { useTheme } from '@/components/home/ThemeContext';
-import { searchUsers } from '@/services/wieUserService';
-import { 
-  followUser, 
-  unfollowUser, 
-  getDetailedFollowStatus,
-  cancelFollowRequest 
-} from '@/services/followService';
-import { User } from '@/types';
-import DefaultAvatar from '@/assets/Home/Ellipse 14.png';
+import ExploreAllTab    from "@/components/explore/ExploreAllTab";
+import ExploreReelGrid  from "@/components/explore/ExploreReelGrid";
+import ExploreEventGrid from "@/components/explore/ExploreEventGrid";
+import ExploreUserGrid  from "@/components/explore/ExploreUserGrid";
 
-interface FollowStatus {
-  isFollowing: boolean;
-  isPending: boolean;
-  status: 'active' | 'pending' | 'none';
-}
+type Tab = "all" | "reels" | "events" | "people";
+interface FollowStatus { isFollowing: boolean; isPending: boolean; status: "active" | "pending" | "none"; }
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: "all",    label: "All",    icon: null },
+  { id: "reels",  label: "Reels",  icon: <Play size={13} className="fill-current" /> },
+  { id: "events", label: "Events", icon: <Calendar size={13} /> },
+  { id: "people", label: "People", icon: <Users size={13} /> },
+];
 
 export default function ExplorePage() {
-  const { isCollapsed, isMobile } = useSidebar();
-  const { themeStyles } = useTheme();
-  const router = useRouter();
+  const { isMobile, isCollapsed } = useSidebar();
+  const { themeStyles, isDark }   = useTheme();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [followStatus, setFollowStatus] = useState<Record<string, FollowStatus>>({});
+  const [tab,         setTab]         = useState<Tab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQ,  setDebouncedQ]  = useState("");
+  const searchTimer                   = useRef<ReturnType<typeof setTimeout>>();
+
+  // Posts & reels
+  const [posts,        setPosts]        = useState<Post[]>([]);
+  const [reels,        setReels]        = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [reelsLoading, setReelsLoading] = useState(true);
+  const [postsPage,    setPostsPage]    = useState(1);
+  const [postsMore,    setPostsMore]    = useState(true);
+
+  // Events
+  const [events,        setEvents]        = useState<any[]>([]);
+  const [liveEvents,    setLiveEvents]    = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const eventsLoaded                      = useRef(false);
+
+  // People
+  const [users,         setUsers]         = useState<User[]>([]);
+  const [usersLoading,  setUsersLoading]  = useState(false);
+  const [followStatus,  setFollowStatus]  = useState<Record<string, FollowStatus>>({});
   const [followLoading, setFollowLoading] = useState<Record<string, boolean>>({});
+  const [usersPage,     setUsersPage]     = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
 
-  const marginLeft = isMobile ? '0' : (isCollapsed ? '80px' : '281px');
+  const marginLeft = isMobile ? "0" : (isCollapsed ? "80px" : "281px");
 
+  // Debounce
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const debounceTimer = setTimeout(() => {
-        handleSearch();
-      }, 500);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedQ(searchQuery), 400);
+    return () => clearTimeout(searchTimer.current);
+  }, [searchQuery]);
 
-      return () => clearTimeout(debounceTimer);
-    } else {
-      setUsers([]);
-      setFollowStatus({});
-    }
-  }, [searchQuery, page]);
+  // Load posts once
+  useEffect(() => {
+    (async () => {
+      setPostsLoading(true);
+      setReelsLoading(true);
+      try {
+        const res = await getExplorePosts(1, 50);
+        const all = res.data ?? [];
+        setPosts(all.filter((p: Post) => !(p.mediaItems?.every(m => m.type === "video"))));
+        setReels(all.filter((p: Post) => p.mediaItems?.some(m => m.type === "video")));
+        setPostsMore(res.pagination?.hasMore ?? false);
+      } catch {}
+      finally { setPostsLoading(false); setReelsLoading(false); }
+    })();
+  }, []);
 
-  const handleSearch = async () => {
-    try {
-      setLoading(true);
-      const result = await searchUsers(searchQuery, page, 20);
-      setUsers(result.users);
-      setTotalPages(result.totalPages);
-
-      // Check detailed follow status for all users
-      const statusChecks = await Promise.all(
-        result.users.map(async (user: User) => {
-          try {
-            const status = await getDetailedFollowStatus(user.id);
-            return { 
-              userId: user.id, 
-              status: {
-                isFollowing: status.isFollowing,
-                isPending: status.isPending,
-                status: status.status
-              }
-            };
-          } catch (error) {
-            console.error(`Error fetching status for user ${user.id}:`, error);
-            return { 
-              userId: user.id, 
-              status: {
-                isFollowing: false,
-                isPending: false,
-                status: 'none' as const
-              }
-            };
-          }
-        })
-      );
-
-      const statusMap: Record<string, FollowStatus> = {};
-      statusChecks.forEach(({ userId, status }) => {
-        statusMap[userId] = status;
-      });
-      setFollowStatus(statusMap);
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFollowToggle = async (userId: string, isPrivate: boolean) => {
-    try {
-      setFollowLoading({ ...followLoading, [userId]: true });
-
-      const currentStatus = followStatus[userId];
-
-      if (currentStatus?.isFollowing) {
-        // Unfollow user
-        await unfollowUser(userId);
-        setFollowStatus({
-          ...followStatus,
-          [userId]: { isFollowing: false, isPending: false, status: 'none' }
-        });
-      } else if (currentStatus?.isPending) {
-        // Cancel pending request
-        await cancelFollowRequest(userId);
-        setFollowStatus({
-          ...followStatus,
-          [userId]: { isFollowing: false, isPending: false, status: 'none' }
-        });
-      } else {
-        // Follow user (will be pending if private)
-        const response = await followUser(userId);
-        
-        if (response.status === 'pending') {
-          // Private account - request sent
-          setFollowStatus({
-            ...followStatus,
-            [userId]: { isFollowing: false, isPending: true, status: 'pending' }
-          });
-        } else {
-          // Public account - following immediately
-          setFollowStatus({
-            ...followStatus,
-            [userId]: { isFollowing: true, isPending: false, status: 'active' }
-          });
+  // Load events once (for all tab) or on events tab
+  useEffect(() => {
+    if (tab !== "events" && tab !== "all") return;
+    if (eventsLoaded.current && tab === "all") return;
+    (async () => {
+      setEventsLoading(true);
+      try {
+        const [evRes, liveRes] = await Promise.allSettled([
+          searchEventsByName({ searchQuery: debouncedQ || "" }),
+          getLiveEvents(),
+        ]);
+        if (evRes.status === "fulfilled") {
+          const byCategory = evRes.value?.data?.eventsByCategory ?? {};
+          setEvents(Object.values(byCategory).flat());
         }
+        if (liveRes.status === "fulfilled") {
+          setLiveEvents(liveRes.value?.data?.tickets ?? []);
+        }
+        eventsLoaded.current = true;
+      } catch {}
+      finally { setEventsLoading(false); }
+    })();
+  }, [tab, debouncedQ]);
+
+  // People search
+  useEffect(() => {
+    if (tab !== "people") return;
+    if (!debouncedQ.trim()) { setUsers([]); return; }
+    (async () => {
+      setUsersLoading(true);
+      try {
+        const res = await searchUsers(debouncedQ, usersPage, 20);
+        setUsers(res.users ?? []);
+        setUsersTotalPages(res.totalPages ?? 1);
+        const checks = await Promise.all(
+          (res.users ?? []).map(async (u: User) => {
+            try { const s = await getDetailedFollowStatus(u.id); return { id: u.id, status: { isFollowing: s.isFollowing, isPending: s.isPending, status: s.status } }; }
+            catch { return { id: u.id, status: { isFollowing: false, isPending: false, status: "none" as const } }; }
+          })
+        );
+        const map: Record<string, FollowStatus> = {};
+        checks.forEach(c => { map[c.id] = c.status; });
+        setFollowStatus(map);
+      } catch {}
+      finally { setUsersLoading(false); }
+    })();
+  }, [tab, debouncedQ, usersPage]);
+
+  const loadMorePosts = async () => {
+    const next = postsPage + 1;
+    setPostsPage(next);
+    try {
+      const res = await getExplorePosts(next, 50);
+      const all = res.data ?? [];
+      setPosts(prev => [...prev, ...all.filter((p: Post) => !(p.mediaItems?.every(m => m.type === "video")))]);
+      setReels(prev => [...prev, ...all.filter((p: Post) => p.mediaItems?.some(m => m.type === "video"))]);
+      setPostsMore(res.pagination?.hasMore ?? false);
+    } catch {}
+  };
+
+  const handleFollowToggle = useCallback(async (userId: string, isPrivate: boolean) => {
+    setFollowLoading(p => ({ ...p, [userId]: true }));
+    try {
+      const cur = followStatus[userId];
+      if (cur?.isFollowing) { await unfollowUser(userId); setFollowStatus(p => ({ ...p, [userId]: { isFollowing: false, isPending: false, status: "none" } })); }
+      else if (cur?.isPending) { await cancelFollowRequest(userId); setFollowStatus(p => ({ ...p, [userId]: { isFollowing: false, isPending: false, status: "none" } })); }
+      else {
+        const r = await followUser(userId);
+        if (r.status === "pending") { setFollowStatus(p => ({ ...p, [userId]: { isFollowing: false, isPending: true, status: "pending" } })); }
+        else { setFollowStatus(p => ({ ...p, [userId]: { isFollowing: true, isPending: false, status: "active" } })); }
       }
-    } catch (error) {
-      console.error('Follow toggle error:', error);
-    } finally {
-      setFollowLoading({ ...followLoading, [userId]: false });
-    }
-  };
+    } catch {}
+    finally { setFollowLoading(p => ({ ...p, [userId]: false })); }
+  }, [followStatus]);
 
-  const handleUserClick = (userId: string) => {
-    router.push(`/profile/${userId}`);
-  };
-
-  const getFollowButtonContent = (userId: string) => {
-    const status = followStatus[userId];
-    const isLoading = followLoading[userId];
-
-    if (isLoading) {
-      return (
-        <>
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Loading...</span>
-        </>
-      );
-    }
-
-    if (status?.isFollowing) {
-      return (
-        <>
-          <UserCheck className="w-4 h-4" />
-          <span>Following</span>
-        </>
-      );
-    }
-
-    if (status?.isPending) {
-      return (
-        <>
-          <Clock className="w-4 h-4" />
-          <span>Requested</span>
-        </>
-      );
-    }
-
-    return (
-      <>
-        <UserPlus className="w-4 h-4" />
-        <span>Follow</span>
-      </>
-    );
-  };
-
-  const getFollowButtonStyle = (userId: string) => {
-    const status = followStatus[userId];
-    const isLoading = followLoading[userId];
-
-    if (status?.isFollowing || status?.isPending) {
-      return {
-        background: themeStyles.pillBg,
-        color: themeStyles.text,
-        border: `1px solid ${themeStyles.border}`
-      };
-    }
-
-    return {};
-  };
-
-  const shouldShowFollowCounts = (user: User, userId: string) => {
-    const status = followStatus[userId];
-    // Show counts if: public account OR private but following
-    return user.accountPrivacy === 'public' || status?.isFollowing;
-  };
+  const showSearch = tab === "people" || tab === "events";
+  const allEvents  = [...liveEvents.map(e => ({ ...e, isLive: true })), ...events];
 
   return (
     <div className="min-h-screen" style={{ background: themeStyles.background }}>
       <SideBar />
 
       <main
-        className={`transition-all duration-300 ease-in-out ${isMobile ? 'pb-24' : ''}`}
+        className={`transition-all duration-300 ${isMobile ? "pb-24" : ""}`}
         style={{ marginLeft }}
       >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2" style={{ color: themeStyles.text }}>
-              Explore
-            </h1>
-            <p style={{ color: themeStyles.textSecondary }}>
-              Discover and connect with people
-            </p>
-          </div>
+        <div className="max-w-2xl lg:max-w-5xl mx-auto px-3 sm:px-5 pt-4 pb-10">
 
-          {/* Search Bar */}
-          <div className="relative mb-8">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          {/* ── Sticky search + tabs header ── */}
+          <div
+            className="sticky top-0 z-40 pb-3 pt-2"
+            style={{ background: themeStyles.background }}
+          >
+            {/* Search bar */}
+            <div className="relative mb-3">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: themeStyles.textSecondary }} />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search users by name, username, or email..."
-                className="w-full pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8860D9] focus:border-transparent placeholder-gray-500"
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search events, people, posts..."
+                className="w-full pl-11 pr-10 py-3 rounded-2xl outline-none text-sm"
                 style={{
-                  background: themeStyles.cardBg,
+                  background: isDark ? "rgba(255,255,255,0.07)" : themeStyles.cardBg,
                   border: `1px solid ${themeStyles.border}`,
-                  color: themeStyles.text
+                  color: themeStyles.text,
                 }}
               />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: themeStyles.textSecondary }}>
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Tab pills */}
+            <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              {TABS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => { setTab(t.id); if (t.id !== "people" && t.id !== "events") setSearchQuery(""); }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold transition-all flex-shrink-0"
+                  style={
+                    tab === t.id
+                      ? { background: "linear-gradient(147.67deg,#2979FF 13.16%,#6B9CF0 54.09%,#9DC1FF 100.03%)", color: "#fff", boxShadow: "0 2px 12px rgba(41,121,255,0.3)" }
+                      : { background: isDark ? "rgba(255,255,255,0.07)" : themeStyles.cardBg, color: themeStyles.text, border: `1px solid ${themeStyles.border}` }
+                  }
+                >
+                  {t.icon}
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Loading */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="w-8 h-8 text-[#8860D9] animate-spin" />
-            </div>
+          {/* ── Tab content ── */}
+          {tab === "all" && (
+            <ExploreAllTab
+              posts={posts} reels={reels}
+              events={events} liveEvents={liveEvents}
+              postsLoading={postsLoading} reelsLoading={reelsLoading}
+              eventsLoading={eventsLoading}
+              onLoadMore={loadMorePosts}
+              postsHasMore={postsMore}
+            />
           )}
 
-          {/* Results */}
-          {!loading && users.length > 0 && (
-            <div className="space-y-4">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="rounded-xl p-4 transition-colors"
-                  style={{
-                    background: themeStyles.cardBg,
-                    border: `1px solid ${themeStyles.border}`
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeStyles.hoverBg}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = themeStyles.cardBg}
-                >
-                  <div className="flex items-center justify-between">
-                    <div
-                      className="flex items-center gap-4 flex-1 cursor-pointer"
-                      onClick={() => handleUserClick(user.id)}
-                    >
-                      {/* Avatar */}
-                      <div className="relative w-14 h-14 rounded-full overflow-hidden bg-[#2a2a2a] flex-shrink-0">
-                        {user.profile_picture ? (
-                          <Image
-                            src={user.profile_picture}
-                            alt={user.name || 'User'}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <Image
-                            src={DefaultAvatar}
-                            alt="Default"
-                            fill
-                            className="object-cover"
-                          />
-                        )}
-                      </div>
+          {tab === "reels" && (
+            <ExploreReelGrid reels={reels} loading={reelsLoading} />
+          )}
 
-                      {/* User Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold truncate" style={{ color: themeStyles.text }}>
-                            {user.name || user.username || 'User'}
-                          </h3>
-                          {user.is_verified && (
-                            <div className="bg-blue-500 rounded-full p-[2px] w-4 h-4 flex items-center justify-center flex-shrink-0">
-                              <svg
-                                className="w-2.5 h-2.5 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                          {user.accountPrivacy === 'private' && (
-                            <div 
-                              className="text-xs px-2 py-0.5 rounded-full"
-                              style={{
-                                background: themeStyles.pillBg,
-                                color: themeStyles.textSecondary
-                              }}
-                            >
-                              Private
-                            </div>
-                          )}
-                        </div>
-                        {user.username && (
-                          <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
-                            @{user.username}
-                          </p>
-                        )}
-                        {user.bio && (
-                          <p className="text-sm mt-1 truncate" style={{ color: themeStyles.textSecondary }}>
-                            {user.bio}
-                          </p>
-                        )}
-                        {shouldShowFollowCounts(user, user.id) && (
-                          <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: themeStyles.textSecondary }}>
-                            <span>{user.followers_count || 0} followers</span>
-                            <span>{user.following_count || 0} following</span>
-                          </div>
-                        )}
-                      </div>
+          {tab === "events" && (
+            <ExploreEventGrid events={allEvents} loading={eventsLoading} />
+          )}
+
+          {tab === "people" && (
+            <>
+              {!debouncedQ.trim() ? (
+                <div className="flex flex-col items-center py-20 gap-3">
+                  <Search size={44} style={{ color: themeStyles.textSecondary }} />
+                  <p className="text-sm" style={{ color: themeStyles.textSecondary }}>Search for people to connect with</p>
+                </div>
+              ) : (
+                <>
+                  <ExploreUserGrid
+                    users={users} loading={usersLoading}
+                    followStatus={followStatus} followLoading={followLoading}
+                    onFollowToggle={handleFollowToggle}
+                  />
+                  {usersTotalPages > 1 && (
+                    <div className="flex justify-center items-center gap-3 mt-5">
+                      <button onClick={() => setUsersPage(p => Math.max(1, p - 1))} disabled={usersPage === 1}
+                        className="px-4 py-2 rounded-xl text-sm disabled:opacity-40"
+                        style={{ background: themeStyles.cardBg, color: themeStyles.text, border: `1px solid ${themeStyles.border}` }}>
+                        Prev
+                      </button>
+                      <span className="text-sm" style={{ color: themeStyles.textSecondary }}>{usersPage}/{usersTotalPages}</span>
+                      <button onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))} disabled={usersPage === usersTotalPages}
+                        className="px-4 py-2 rounded-xl text-sm disabled:opacity-40"
+                        style={{ background: themeStyles.cardBg, color: themeStyles.text, border: `1px solid ${themeStyles.border}` }}>
+                        Next
+                      </button>
                     </div>
-
-                    {/* Follow Button */}
-                    <button
-                      onClick={() => handleFollowToggle(user.id, user.accountPrivacy === 'private')}
-                      disabled={followLoading[user.id]}
-                      className={`
-                        px-6 py-2 rounded-full font-semibold text-sm transition-all flex items-center gap-2 flex-shrink-0
-                        ${
-                          followStatus[user.id]?.isFollowing || followStatus[user.id]?.isPending
-                            ? 'hover:opacity-80'
-                            : 'bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white hover:opacity-90'
-                        }
-                        ${followLoading[user.id] ? 'opacity-50 cursor-not-allowed' : ''}
-                      `}
-                      style={getFollowButtonStyle(user.id)}
-                    >
-                      {getFollowButtonContent(user.id)}
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-8">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 transition-colors"
-                    style={{
-                      background: themeStyles.cardBg,
-                      color: themeStyles.text,
-                      border: `1px solid ${themeStyles.border}`
-                    }}
-                  >
-                    Previous
-                  </button>
-                  <span className="text-gray-400">
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 transition-colors"
-                    style={{
-                      background: themeStyles.cardBg,
-                      color: themeStyles.text,
-                      border: `1px solid ${themeStyles.border}`
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
+                  )}
+                </>
               )}
-            </div>
-          )}
-
-          {/* No Results */}
-          {!loading && searchQuery && users.length === 0 && (
-            <div className="text-center py-12">
-              <p style={{ color: themeStyles.textSecondary }}>
-                No users found matching "{searchQuery}"
-              </p>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && !searchQuery && (
-            <div className="text-center py-12">
-              <Search className="w-16 h-16 mx-auto mb-4" style={{ color: themeStyles.textSecondary }} />
-              <p style={{ color: themeStyles.textSecondary }}>
-                Start typing to search for users
-              </p>
-            </div>
+            </>
           )}
         </div>
       </main>

@@ -14,7 +14,7 @@ import {
   createNotification,
   emitMentionEvent,
 } from "../utils/notificationHelper";
-import { shouldSendLikeNotif, onUnlike } from '../utils/likeNotifCooldown';
+import { shouldSendLikeNotif, onUnlike } from "../utils/likeNotifCooldown";
 
 // ── Helpers
 
@@ -222,82 +222,108 @@ export const getPostFeed = async (
 ): Promise<void> => {
   try {
     const viewerId = req.userId!.toString();
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
     const skip = (page - 1) * limit;
+    const [publicPosts, totalPublic] = await Promise.all([
+      PostModel.find({
+        isDeleted: false,
+        visibility: { $in: ["public", "everyone"] },
+        userId: { $ne: viewerId }, // exclude own posts from this query
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit * 4) // fetch extra to account for private account filtering
+        .lean(),
+      PostModel.countDocuments({
+        isDeleted: false,
+        visibility: { $in: ["public", "everyone"] },
+        userId: { $ne: viewerId },
+      }),
+    ]);
 
-    // Get following IDs
-    const { followingIds } = await getFollowingIds(viewerId).catch(() => ({
-      followingIds: [] as string[],
-    }));
-    const authorIds = [...new Set([viewerId, ...followingIds])];
-
-    const posts = await PostModel.find({
-      userId: { $in: authorIds },
+    // ── 3. Fetch own posts (always visible regardless of visibility) ──
+    const ownPosts = await PostModel.find({
+      userId: viewerId,
       isDeleted: false,
-      $or: [
-        { userId: viewerId },
-        { visibility: { $in: ["public", "followers"] } },
-      ],
     })
-      .sort({ isPinned: -1, createdAt: -1 })
-      .skip(skip)
+      .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
-    const total = await PostModel.countDocuments({
-      userId: { $in: authorIds },
-      isDeleted: false,
-      $or: [
-        { userId: viewerId },
-        { visibility: { $in: ["public", "followers"] } },
-      ],
-    });
-
-    // Enrich with user info
-    const uniqueUserIds: string[] = [
-      ...new Set(posts.map((p) => p.userId.toString())),
+    // ── 4. Enrich with user info to check account_privacy ──
+    const allOwnerIds = [
+      ...new Set([
+        ...publicPosts.map((p: any) => p.userId.toString()),
+        viewerId,
+      ]),
     ];
-    const usersResp = uniqueUserIds.length
-      ? await wieUserClient
-          .getUsersByIds(uniqueUserIds)
-          .catch(() => ({ users: [] }))
-      : { users: [] };
+
+    const usersResp = await wieUserClient
+      .getUsersByIds(allOwnerIds)
+      .catch(() => ({ users: [] }));
+
     const userMap = new Map<string, any>(
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    const enriched = posts.map((p: any) => {
-      const user = userMap.get(p.userId.toString());
-      return {
-        ...p,
-        likeCount:    (p.likes    ?? []).length,
-        commentCount: (p.comments ?? []).length,
-        shareCount:   p.shareCount ?? 0,
-        hasLiked: (p.likes ?? []).some(
-          (l: any) => l.userId?.toString() === viewerId,   // ← was callerId
-        ),
-        hasSaved: (p.saves ?? []).some(
-          (s: any) => s.userId?.toString() === viewerId,   // ← was callerId
-        ),
-        owner: user
-          ? {
-              id:              (user._id ?? user.id).toString(),
-              username:        user.username  ?? "",
-              name:            user.name      ?? "",
-              profile_picture: user.profile_picture ?? null,
-              is_verified:     user.is_verified     ?? false,
-            }
-          : undefined,
-      };
+    // ── 5. Filter: only keep posts from public accounts ──
+    const filteredPublicPosts = publicPosts.filter((post: any) => {
+      const ownerId = post.userId.toString();
+      const owner = userMap.get(ownerId);
+      if (!owner) return false;
+      const privacy = owner.account_privacy ?? owner.accountPrivacy ?? "public";
+      return privacy === "public" || privacy === "everyone";
     });
 
-    res.json({
+    // ── 6. Merge own posts + filtered public posts, deduplicate ──
+    const postMap = new Map<string, any>();
+    for (const p of [...ownPosts, ...filteredPublicPosts]) {
+      postMap.set(p._id.toString(), p);
+    }
+
+    const mergedSorted = Array.from(postMap.values())
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, limit);
+
+    if (mergedSorted.length === 0) {
+      res.status(200).json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0, hasMore: false },
+      });
+      return;
+    }
+
+    // ── 7. Enrich merged posts ───────────────────────────
+    const enriched = await Promise.all(
+      mergedSorted.map((post: any) => enrichPostWithUser(post, userMap)),
+    );
+
+    // ── 8. Add viewer-specific flags ─────────────────────
+    const withFlags = enriched.map((post: any) => ({
+      ...post,
+      hasLiked: (post.likes ?? []).some(
+        (l: any) => l.userId?.toString() === viewerId,
+      ),
+      hasSaved: (post.saves ?? []).some(
+        (s: any) => s.userId?.toString() === viewerId,
+      ),
+    }));
+
+    const total = totalPublic + ownPosts.length;
+    const hasMore = skip + mergedSorted.length < total;
+
+    res.status(200).json({
       success: true,
-      data: enriched,
-      pagination: { page, limit, total, hasMore: skip + posts.length < total },
+      data: withFlags,
+      pagination: { page, limit, total, hasMore },
     });
   } catch (err: any) {
+    console.error("getPostFeed error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -314,7 +340,6 @@ export const getExplorePosts = async (
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const skip = (page - 1) * limit;
-
     const posts = await PostModel.find({
       isDeleted: false,
       visibility: "public",
@@ -375,17 +400,19 @@ export const getUserPosts = async (
 ): Promise<void> => {
   try {
     const viewerId = req.userId!.toString();
-    const ownerId  = req.params.userId;
+    const ownerId = req.params.userId;
 
     const canView = await canViewPosts(ownerId, viewerId);
     if (!canView) {
-      res.status(403).json({ success: false, message: "This account is private" });
+      res
+        .status(403)
+        .json({ success: false, message: "This account is private" });
       return;
     }
 
-    const page  = Math.max(1, Number(req.query.page  ?? 1));
+    const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 12)));
-    const skip  = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const visibilityFilter =
       viewerId === ownerId
@@ -398,13 +425,19 @@ export const getUserPosts = async (
         .skip(skip)
         .limit(limit)
         .lean(),
-      PostModel.countDocuments({ userId: ownerId, isDeleted: false, ...visibilityFilter }),
+      PostModel.countDocuments({
+        userId: ownerId,
+        isDeleted: false,
+        ...visibilityFilter,
+      }),
     ]);
 
     // ── Enrich with owner info ─────────────────────────────
     const uniqueUserIds = [...new Set(posts.map((p) => p.userId.toString()))];
     const usersResp = uniqueUserIds.length
-      ? await wieUserClient.getUsersByIds(uniqueUserIds).catch(() => ({ users: [] }))
+      ? await wieUserClient
+          .getUsersByIds(uniqueUserIds)
+          .catch(() => ({ users: [] }))
       : { users: [] };
     const userMap = new Map<string, any>(
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
@@ -415,10 +448,10 @@ export const getUserPosts = async (
       return {
         ...p,
         // ── Computed counts ──────────────────────────────
-        likeCount:    (p.likes    ?? []).length,
+        likeCount: (p.likes ?? []).length,
         commentCount: (p.comments ?? []).length,
-        shareCount:   p.shareCount ?? 0,
-        saveCount:    (p.saves    ?? []).length,
+        shareCount: p.shareCount ?? 0,
+        saveCount: (p.saves ?? []).length,
         // ── Per-viewer state ─────────────────────────────
         hasLiked: (p.likes ?? []).some(
           (l: any) => l.userId?.toString() === viewerId,
@@ -429,11 +462,11 @@ export const getUserPosts = async (
         // ── Owner info ───────────────────────────────────
         owner: user
           ? {
-              id:              (user._id ?? user.id).toString(),
-              username:        user.username        ?? "",
-              name:            user.name            ?? "",
+              id: (user._id ?? user.id).toString(),
+              username: user.username ?? "",
+              name: user.name ?? "",
               profile_picture: user.profile_picture ?? null,
-              is_verified:     user.is_verified     ?? false,
+              is_verified: user.is_verified ?? false,
             }
           : undefined,
       };
@@ -441,7 +474,7 @@ export const getUserPosts = async (
 
     res.status(200).json({
       success: true,
-      data:    enriched,
+      data: enriched,
       pagination: {
         page,
         limit,
@@ -549,7 +582,9 @@ export const getPostById = async (
       (s: any) => s.userId?.toString() === viewerId,
     );
 
-    res.json({ success: true, data: { ...enriched, hasLiked, hasSaved } });
+    res
+      .status(200)
+      .json({ success: true, data: { ...enriched, hasLiked, hasSaved } });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -679,7 +714,9 @@ export const toggleLike = async (
         isFollowing: false,
       }));
       if (!follow.isFollowing) {
-        res.status(403).json({ success: false, message: "Follow this user to interact" });
+        res
+          .status(403)
+          .json({ success: false, message: "Follow this user to interact" });
         return;
       }
     }
@@ -696,8 +733,8 @@ export const toggleLike = async (
       onUnlike(callerId, postId); // no-op but keeps intent explicit
 
       res.json({
-        success:   true,
-        liked:     false,
+        success: true,
+        liked: false,
         likeCount: post.likes.length,
       });
       return;
@@ -705,7 +742,7 @@ export const toggleLike = async (
 
     // ── Like ─────────────────────────────────────────────
     (post.likes as any[]).push({
-      userId:    callerId,
+      userId: callerId,
       emoji,
       createdAt: new Date(),
     });
@@ -717,20 +754,20 @@ export const toggleLike = async (
       const likerResp = await wieUserClient
         .getUsersByIds([callerId])
         .catch(() => ({ users: [] }));
-      const liker     = (likerResp.users ?? [])[0];
+      const liker = (likerResp.users ?? [])[0];
       const likerName = liker?.username ?? liker?.name ?? "Someone";
       const isReaction = emoji !== "❤️";
 
       await createNotification({
-        userId:      ownerId,
-        type:        isReaction ? "post_reacted" : "post_liked",
-        title:       isReaction
+        userId: ownerId,
+        type: isReaction ? "post_reacted" : "post_liked",
+        title: isReaction
           ? `${likerName} reacted ${emoji} to your post`
           : `${likerName} liked your post`,
-        message:     isReaction
+        message: isReaction
           ? `${likerName} reacted ${emoji} to your post`
           : `${likerName} liked your post ❤️`,
-        fromUserId:  callerId,
+        fromUserId: callerId,
         metadata: {
           postId,
           likerName,
@@ -941,7 +978,7 @@ export const getPostComments = async (
     const enriched = sliced.map((c: any) => {
       const user = userMap.get(c.userId?.toString());
       return {
-        _id: c._id?.toString() ?? `comment-${Math.random()}`,        
+        _id: c._id?.toString() ?? `comment-${Math.random()}`,
         userId: c.userId?.toString(),
         text: c.text,
         likes: c.likes ?? [],
@@ -949,14 +986,14 @@ export const getPostComments = async (
         replies: (c.replies ?? []).map((r: any) => {
           const ru = userMap.get(r.userId?.toString());
           return {
-            _id:             r._id?.toString() ?? `reply-${Math.random()}`,
-            userId:          r.userId?.toString(),
-            text:            r.text,
-            likes:           r.likes ?? [],
-            likeCount:       (r.likes ?? []).length,
-            createdAt:       r.createdAt,
-            name:            ru?.name ?? ru?.username ?? "Someone",
-            username:        ru?.username ?? "",
+            _id: r._id?.toString() ?? `reply-${Math.random()}`,
+            userId: r.userId?.toString(),
+            text: r.text,
+            likes: r.likes ?? [],
+            likeCount: (r.likes ?? []).length,
+            createdAt: r.createdAt,
+            name: ru?.name ?? ru?.username ?? "Someone",
+            username: ru?.username ?? "",
             profile_picture: ru?.profile_picture ?? null,
           };
         }),
@@ -1099,21 +1136,21 @@ export const likeComment = async (
         const likerResp = await wieUserClient
           .getUsersByIds([callerId])
           .catch(() => ({ users: [] }));
-        const liker     = (likerResp.users ?? [])[0];
+        const liker = (likerResp.users ?? [])[0];
         const likerName = liker?.username ?? liker?.name ?? "Someone";
 
         await createNotification({
-          userId:     commentAuthorId,
-          type:       "comment_liked",
-          title:      `${likerName} liked your comment`,
-          message:    `${likerName} liked your comment: "${(comment.text ?? "").slice(0, 60)}${comment.text?.length > 60 ? "…" : ""}"`,
+          userId: commentAuthorId,
+          type: "comment_liked",
+          title: `${likerName} liked your comment`,
+          message: `${likerName} liked your comment: "${(comment.text ?? "").slice(0, 60)}${comment.text?.length > 60 ? "…" : ""}"`,
           fromUserId: callerId,
           metadata: {
             postId,
             commentId,
             likerName,
-            likerAvatar:  liker?.profile_picture ?? null,
-            commentText:  comment.text,
+            likerAvatar: liker?.profile_picture ?? null,
+            commentText: comment.text,
           },
           link: `/post/${postId}`,
         }).catch(() => {});

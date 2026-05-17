@@ -85,7 +85,7 @@ export default function HomePage() {
     const next = postsPage + 1;
     setPostsPage(next);
     try {
-      const res = await getPostFeed(next, 20);
+      const res = await getPostFeed(next, 50);
       setPosts((prev) => [...prev, ...res.data]);
       setPostsHasMore(res.pagination.hasMore);
     } catch (e) {
@@ -142,7 +142,7 @@ export default function HomePage() {
 
     const fetchPosts = async () => {
       try {
-        const res = await getPostFeed(1, 20);
+        const res = await getPostFeed(1, 50);
         setPosts(res.data);
         setPostsHasMore(res.pagination.hasMore);
       } catch (e) {
