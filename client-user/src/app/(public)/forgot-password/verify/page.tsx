@@ -14,7 +14,7 @@ function VerifyContent() {
     const router = useRouter();
   return (
     <div className="min-h-screen bg-[#0a0b0d] text-white flex flex-col">
-      
+
       {/* Navbar at top */}
       <NavBar />
       {/* Back button row (hidden on small screens) */}
@@ -49,7 +49,7 @@ function VerifyContent() {
 <p className="text-gray-400 text-sm mb-8">
   Please enter your code we sent to
   <br />
-  your email or phone to verify your account.
+  your email to verify your account.
 </p>
 
 
