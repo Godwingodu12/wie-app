@@ -30,22 +30,11 @@ import EventCategoryList from '@/components/events/Eventcategorylist';
 import FilterSearchEvents from '@/components/events/FilterSearchEvents';
 import PopularEventBanner from '@/components/events/PopularEventBanner';
 import { useTheme } from '@/components/home/ThemeContext';
+import NearbyEventCard from '@/components/events/NearbyEventCard';
+
 // Asset imports — adjust paths if your assets differ
 import SearchIcon from '@/assets/Event/serachIcon.png';
 import FilterButtonIcon from '@/assets/Event/FilterButton.png';
-const DISTANCE_BANDS = [5, 10, 50, 100, 150, 200, 300, 400, 500,600,700,800,900,1000,9999];
-
-function getBand(dist: number): number {
-  for (const b of DISTANCE_BANDS) {
-    if (dist <= b) return b;
-  }
-  return 9999;
-}
-
-function bandLabel(band: number): string {
-  return band === 9999 ? 'All Events' : `Within ${band} km`;
-}
-
 
 // AFTER
 function EventRow({
@@ -54,6 +43,7 @@ function EventRow({
   onSeeAll,
   isGrid = false,
   isWrappingGrid = false,
+  isNearby = false,
   likedIds = new Set<string>(),
   savedIds  = new Set<string>(),
 }: {
@@ -62,6 +52,7 @@ function EventRow({
   onSeeAll?: () => void;
   isGrid?: boolean;
   isWrappingGrid?: boolean;
+  isNearby?: boolean;
   likedIds?: Set<string>;
   savedIds?:  Set<string>;
 }) {
@@ -94,7 +85,7 @@ function EventRow({
       </div>
 
       <div className="relative group">
-        {!isGrid && !isWrappingGrid && (
+        {!isGrid && !isWrappingGrid && !isNearby && (
           <>
             {/* Left arrow */}
             <button
@@ -119,22 +110,33 @@ function EventRow({
         <div
           ref={rowRef}
           className={
-            isWrappingGrid
+            isNearby
+              ? "grid grid-cols-1 xl:grid-cols-2 gap-6"
+              : isWrappingGrid
               ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-6"
               : isGrid
               ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-5 gap-y-6"
               : "flex gap-5 overflow-x-auto scrollbar-hide pb-2"
           }
         >
-         {events.map((ev, idx) => (
-            <EventCard
-              key={`${ev._id ?? 'ev'}-${idx}`}
-              event={ev}
-              showDistance
-              isLiked={likedIds.has(ev._id)}
-              isSaved={savedIds.has(ev._id)}
-            />
-          ))}
+         {events.map((ev, idx) =>
+            isNearby ? (
+              <NearbyEventCard
+                key={`${ev._id ?? 'ev'}-${idx}`}
+                event={ev}
+                isLiked={likedIds.has(ev._id)}
+                isSaved={savedIds.has(ev._id)}
+              />
+            ) : (
+              <EventCard
+                key={`${ev._id ?? 'ev'}-${idx}`}
+                event={ev}
+                showDistance
+                isLiked={likedIds.has(ev._id)}
+                isSaved={savedIds.has(ev._id)}
+              />
+            )
+          )}
         </div>
       </div>
     </div>
@@ -441,8 +443,7 @@ export default function NearbyEventsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [popularEvents, setPopularEvents] = useState<NearbyEvent[]>([]);
-  const [nearbyByBand, setNearbyByBand] = useState<Map<number, NearbyEvent[]>>(new Map());
-  const [categoryBreaks, setCategoryBreaks] = useState<Map<number, { cat: string; events: EventWithLocation[] }>>(new Map());
+  const [nearbyEvents, setNearbyEvents] = useState<EventWithLocation[]>([]);
   const [searchResults, setSearchResults] = useState<EventWithLocation[] | null>(null);
   const [filterResults, setFilterResults] = useState<EventWithLocation[] | null>(null);
   const [filterResultsByCategory, setFilterResultsByCategory] = useState<Record<string, EventWithLocation[]>>({});
@@ -462,7 +463,7 @@ export default function NearbyEventsPage() {
   const [categoryEvents, setCategoryEvents] = useState<EventWithLocation[]>([]);
   const [categoryPopularEvents, setCategoryPopularEvents] = useState<EventWithLocation[]>([]);
   const [categoryLoading, setCategoryLoading] = useState(false);
-  
+
   // ── Load everything on mount ──
   useEffect(() => {
     loadInitialData();
@@ -559,9 +560,7 @@ export default function NearbyEventsPage() {
             return true;
           });
           setPopularEvents(unique.slice(0, 6));
-          const bandMap = new Map<number, NearbyEvent[]>();
-          bandMap.set(9999, unique);
-          setNearbyByBand(bandMap);
+          setNearbyEvents(unique as unknown as EventWithLocation[]);
         }
       } catch {
         try {
@@ -569,13 +568,7 @@ export default function NearbyEventsPage() {
           const fallbackEvents = deduplicateEvents((fallbackRes?.data?.events ?? []) as NearbyEvent[]);
           if (fallbackEvents.length > 0) {
             setPopularEvents(fallbackEvents.slice(0, 6));
-            const bandMap = new Map<number, NearbyEvent[]>();
-            fallbackEvents.forEach((ev) => {
-              const b = getBand((ev as any).distance ?? 9999);
-              if (!bandMap.has(b)) bandMap.set(b, []);
-              bandMap.get(b)!.push(ev);
-            });
-            setNearbyByBand(bandMap);
+            setNearbyEvents(fallbackEvents as unknown as EventWithLocation[]);
           }
         } catch { /* silent */ }
       }
@@ -692,42 +685,11 @@ export default function NearbyEventsPage() {
       });
 
       setPopularEvents(uniqueEvents.slice(0, 6));
+      setNearbyEvents(uniqueEvents as unknown as EventWithLocation[]);
 
-      // ── Single band bucket: all events go into one "All Events" bucket ──
-      const bandMap = new Map<number, NearbyEvent[]>();
-      bandMap.set(9999, uniqueEvents);
-      setNearbyByBand(bandMap);
-
-      buildCategoryBreaks(uniqueEvents).catch(() => {});
-    } catch (err) {
-      console.error('fetchAndDisplayEvents error:', err);
+    } catch (error) {
+      console.error('❌ fetchAndDisplayEvents error:', error);
     }
-  };
-
-  const buildCategoryBreaks = async (events: NearbyEvent[]) => {
-    // Get unique categories from loaded events
-    const cats = Array.from(new Set(events.map((e) => e.event_category).filter(Boolean) as string[]));
-    const breaks = new Map<number, { cat: string; events: EventWithLocation[] }>();
-
-    // After every 2 distance bands, insert a category break
-    const bandsSorted = DISTANCE_BANDS.filter((b) =>
-      events.some((e) => getBand(e.distance ?? 999) <= b)
-    );
-
-    for (let i = 0; i < bandsSorted.length; i += 2) {
-      const cat = cats[Math.floor(i / 2) % cats.length];
-      if (!cat) continue;
-      try {
-        const catRes = await getCategoryBasedEvents({ category: cat });
-        const catEvents = Object.values(catRes.data.eventsByCategory).flat() as EventWithLocation[];
-        if (catEvents.length > 0) {
-          breaks.set(bandsSorted[i], { cat, events: catEvents.slice(0, 6) });
-        }
-      } catch {
-        // skip
-      }
-    }
-    setCategoryBreaks(breaks);
   };
 
   const handleCategorySelect = async (category: string) => {
@@ -916,30 +878,14 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
   setHasSearched(true);
 };
 
-  const renderBands = () => {
-    // Flatten all bands into one globally-deduped list
-    const globalSeen = new Set<string>();
-    const allEvs: EventWithLocation[] = [];
-
-    Array.from(nearbyByBand.keys())
-      .sort((a, b) => a - b)
-      .forEach((band) => {
-        (nearbyByBand.get(band) ?? []).forEach((ev) => {
-          const id = ev._id?.toString() || '';
-          if (!id || globalSeen.has(id)) return;
-          globalSeen.add(id);
-          allEvs.push(ev as unknown as EventWithLocation);
-        });
-      });
-
-    if (!allEvs.length) return null;
+  const renderEventsSection = () => {
+    if (!nearbyEvents.length) return null;
     return (
       <EventRow
         key="all-events"
         title="Events Near You"
-        events={allEvs}
-        onSeeAll={() => router.push('/events/categories')}
-        isWrappingGrid
+        events={nearbyEvents}
+        isNearby
         likedIds={likedTicketIds}
         savedIds={savedTicketIds}
       />
@@ -1148,9 +1094,6 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                       key={cat}
                       title={cat}
                       events={evs as EventWithLocation[]}
-                      onSeeAll={() =>
-                        router.push(`/events/categories?category=${encodeURIComponent(cat)}`)
-                      }
                       likedIds={likedTicketIds}
                       savedIds={savedTicketIds}
                     />
@@ -1215,9 +1158,6 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                           <EventRow
                             title={`${selectedCategory} Events (${categoryEvents.length})`}
                             events={categoryEvents}
-                            onSeeAll={() =>
-                              router.push(`/events/categories?category=${encodeURIComponent(selectedCategory)}`)
-                            }
                             likedIds={likedTicketIds}
                             savedIds={savedTicketIds}
                           />
@@ -1245,8 +1185,8 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                       />
                       <RehostedEventsSection events={rehostedEvents} />
 
-                      {nearbyByBand.size > 0 ? (
-                        renderBands()
+                      {nearbyEvents.length > 0 ? (
+                        renderEventsSection()
                       ) : (
                         <div className="py-12 text-center">
                           <div
