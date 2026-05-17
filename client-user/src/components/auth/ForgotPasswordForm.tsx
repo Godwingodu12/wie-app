@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import { forgotPassword } from '@/services/wieUserService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { Alert } from '../ui/Alert';
 import Link from 'next/link';
 
 export const ForgotPasswordForm: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
+  const [alertVisible, setAlertVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -18,7 +20,8 @@ export const ForgotPasswordForm: React.FC = () => {
     setError('');
 
     if (!identifier) {
-      setError('Please enter your email or phone number');
+      setError('Please enter your email');
+      setAlertVisible(true);
       return;
     }
 
@@ -26,10 +29,7 @@ export const ForgotPasswordForm: React.FC = () => {
       setLoading(true);
 
       // Determine if input is email or phone number
-      const isEmail = identifier.includes('@');
-      const payload = isEmail 
-        ? { email: identifier } 
-        : { contact_no: identifier };
+      const payload = { email: identifier };
 
       const response = await forgotPassword(payload);
 
@@ -40,6 +40,7 @@ export const ForgotPasswordForm: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to send OTP';
       setError(errorMessage);
+      setAlertVisible(true);
     } finally {
       setLoading(false);
     }
@@ -50,24 +51,25 @@ export const ForgotPasswordForm: React.FC = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="text-center mb-6">
           <p className="text-gray-600">
-            Enter your email or phone number to receive an OTP for password reset
+            Enter your email to receive an OTP for password reset
           </p>
         </div>
 
         <Input
-          label="Email or Phone Number"
+          label="Email"
           type="text"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="Enter email or phone number"
+          placeholder="Enter email"
           required
         />
 
-        {error && (
-          <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
-            {error}
-          </div>
-        )}
+        <Alert
+          message={error}
+          visible={alertVisible}
+          onClose={() => setAlertVisible(false)}
+          type="error"
+        />
 
         <Button type="submit" loading={loading} className="w-full">
           Send OTP
