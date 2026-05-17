@@ -1,4 +1,4 @@
-import api from './userAxios';
+import api from "./userAxios";
 import {
   ApiResponse,
   LoginRequest,
@@ -14,25 +14,24 @@ import {
   CheckPasswordResponse,
   Country,
   User,
-} from '@/types';
+} from "@/types";
 export const getIndex = async (): Promise<ApiResponse> => {
   try {
-    const res = await api.get('/user');
-    console.log('getIndex is working:', res.data);
+    const res = await api.get("/user");
     return res.data;
   } catch (err) {
-    console.error('getIndex error:', err);
+    console.error("getIndex error:", err);
     throw err;
   }
 };
-export interface AccountPrivacyResponse{
+export interface AccountPrivacyResponse {
   success: boolean;
   accountPrivacy: string;
 }
-export interface UpdateAccountPrivacyRequest{
-  accountPrivacy: 'public' | 'private';
+export interface UpdateAccountPrivacyRequest {
+  accountPrivacy: "public" | "private";
 }
-export interface UpdatePersonalDetailsRequest{
+export interface UpdatePersonalDetailsRequest {
   email?: string;
   contact_no?: string;
   gender?: string;
@@ -40,184 +39,221 @@ export interface UpdatePersonalDetailsRequest{
 }
 export const getCountries = async (): Promise<Country[]> => {
   try {
-    const res = await api.get<ApiResponse<Country[]>>('/user/countries');
+    const res = await api.get<ApiResponse<Country[]>>("/user/countries");
     // Backend returns { success: true, data: [...] }
     return res.data.data || [];
   } catch (err) {
-    console.error('getCountries error:', err);
+    console.error("getCountries error:", err);
     throw err;
   }
 };
 export const signupSendOtp = async (
-  data: SignupSendOtpRequest
+  data: SignupSendOtpRequest,
 ): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/signup/send-otp', data);
-    // Backend returns { message: "...", tempUserId: "...", expiresIn: "..." }
+    console.log("[signupSendOtp] payload:", JSON.stringify(data));
+    const res = await api.post<ApiResponse>("/user/signup/send-otp", data);
     return res.data;
-  } catch (err) {
-    console.error('signupSendOtp error:', err);
+  } catch (err: any) {
+    console.error(
+      "[signupSendOtp] error:",
+      err?.response?.data || err?.message,
+    );
     throw err;
   }
 };
 export const signupVerifyOtp = async (
-  data: SignupVerifyOtpRequest
+  data: SignupVerifyOtpRequest,
 ): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/signup/verify-otp', data);
+    const res = await api.post<ApiResponse>("/user/signup/verify-otp", data);
     // Backend returns { message: "...", token: "...", user: {...} }
     return res.data;
   } catch (err) {
-    console.error('signupVerifyOtp error:', err);
+    console.error("signupVerifyOtp error:", err);
+    throw err;
+  }
+};
+export const setupProfile = async (data: {
+  username: string;
+  profile_picture?: File | null;
+}): Promise<ApiResponse> => {
+  try {
+    const formData = new FormData();
+    formData.append("username", data.username);
+    if (data.profile_picture) {
+      formData.append("profile_picture", data.profile_picture);
+    }
+    const res = await api.post<ApiResponse>("/user/setup-profile", formData);
+    return res.data;
+  } catch (err: any) {
+    console.error("[setupProfile] error:", err?.response?.data || err?.message);
     throw err;
   }
 };
 export const checkCanSetPassword = async (): Promise<CheckPasswordResponse> => {
   try {
-    const res = await api.get<CheckPasswordResponse>('/user/check-can-set-password');
+    const res = await api.get<CheckPasswordResponse>(
+      "/user/check-can-set-password",
+    );
     return res.data; // NOT res.data.data
   } catch (err) {
-    console.error('checkCanSetPassword error:', err);
+    console.error("checkCanSetPassword error:", err);
     throw err;
   }
 };
-export const setPasswordForGoogleUser = async (data: SetPasswordRequest): Promise<ApiResponse> => {
+export const setPasswordForGoogleUser = async (
+  data: SetPasswordRequest,
+): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/set-password-for-google-user', data);
+    const res = await api.post<ApiResponse>(
+      "/user/set-password-for-google-user",
+      data,
+    );
     return res.data;
   } catch (err) {
-    console.error('setPasswordForGoogleUser error:', err);
+    console.error("setPasswordForGoogleUser error:", err);
     throw err;
   }
 };
 export const getMicrosoftAuthUrl = async (): Promise<string> => {
   try {
     const res = await api.get<ApiResponse<{ authUrl: string }>>(
-      '/user/microsoft-auth'
+      "/user/microsoft-auth",
     );
-    return res.data.data?.authUrl || '';
+    return res.data.data?.authUrl || "";
   } catch (err) {
-    console.error('getMicrosoftAuthUrl error:', err);
+    console.error("getMicrosoftAuthUrl error:", err);
     throw err;
-  } 
+  }
 };
 export const getAppleAuthUrl = async (): Promise<string> => {
   try {
-    const res = await api.get<ApiResponse<{ authUrl: string }>>(
-      '/user/apple-auth'
-    );
-    return res.data.data?.authUrl || '';
+    const res =
+      await api.get<ApiResponse<{ authUrl: string }>>("/user/apple-auth");
+    return res.data.data?.authUrl || "";
   } catch (err) {
-    console.error('getAppleAuthUrl error:', err);
+    console.error("getAppleAuthUrl error:", err);
     throw err;
   }
 };
 export const login = async (data: LoginRequest): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/login', data);
+    const res = await api.post<ApiResponse>("/user/login", data);
     // Backend returns { message: "...", token: "...", user: {...} }
     return res.data;
   } catch (err) {
-    console.error('login error:', err);
+    console.error("login error:", err);
     throw err;
   }
 };
 export const logout = async (): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/logout');
+    const res = await api.post<ApiResponse>("/user/logout");
     return res.data;
   } catch (err) {
-    console.error('logout error:', err);
+    console.error("logout error:", err);
     throw err;
   }
 };
 export const resendOtp = async (
-  data: ResendOtpRequest
+  data: ResendOtpRequest,
 ): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/resend-otp', data);
+    const res = await api.post<ApiResponse>("/user/resend-otp", data);
     // Backend returns { message: "...", expiresIn: "..." }
     return res.data;
   } catch (err) {
-    console.error('resendOtp error:', err);
+    console.error("resendOtp error:", err);
     throw err;
   }
 };
 export const getProfile = async (): Promise<User> => {
   try {
-    const res = await api.get<ApiResponse>('/user/get-profile');
+    const res = await api.get<ApiResponse>("/user/get-profile");
     if (!res.data.user) {
-      throw new Error('User data not found in response');
+      throw new Error("User data not found in response");
     }
     return res.data.user;
   } catch (err) {
-    console.error('getProfile error:', err);
+    console.error("getProfile error:", err);
     throw err;
   }
 };
 export const updateProfile = async (
-  data: UpdateProfileRequest | FormData
+  data: UpdateProfileRequest | FormData,
 ): Promise<User> => {
   try {
     const headers: Record<string, string> = {};
     if (data instanceof FormData) {
-      headers['Content-Type'] = 'multipart/form-data';
+      headers["Content-Type"] = "multipart/form-data";
     }
-    const res = await api.put<ApiResponse>('/user/update-profile', data, {
+    const res = await api.put<ApiResponse>("/user/update-profile", data, {
       headers,
     });
     if (!res.data.user) {
-      throw new Error('User data not found in response');
+      throw new Error("User data not found in response");
     }
     return res.data.user;
   } catch (err) {
-    console.error('updateProfile error:', err);
+    console.error("updateProfile error:", err);
     throw err;
   }
 };
 // Google OAuth
 export const getGoogleAuthUrl = async (): Promise<string> => {
   try {
-    const res = await api.get<ApiResponse<{ authUrl: string }>>(
-      '/user/google/auth'
-    );
-    return res.data.data?.authUrl || '';
+    const res =
+      await api.get<ApiResponse<{ authUrl: string }>>("/user/google/auth");
+    return res.data.data?.authUrl || "";
   } catch (err) {
-    console.error('getGoogleAuthUrl error:', err);
+    console.error("getGoogleAuthUrl error:", err);
     throw err;
   }
 };
 // Forgot Password APIs
-export const forgotPassword = async (identifier: { email?: string; contact_no?: string }): Promise<ApiResponse> => {
+export const forgotPassword = async (identifier: {
+  email?: string;
+  contact_no?: string;
+}): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/forgot-password', identifier);
+    const res = await api.post<ApiResponse>(
+      "/user/forgot-password",
+      identifier,
+    );
     return res.data;
   } catch (err) {
-    console.error('forgotPassword error:', err);
+    console.error("forgotPassword error:", err);
     throw err;
   }
 };
-export const verifyResetOTP = async (userId: string, otp: string): Promise<ApiResponse> => {
+export const verifyResetOTP = async (
+  userId: string,
+  otp: string,
+): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/verify-reset-otp', {
+    const res = await api.post<ApiResponse>("/user/verify-reset-otp", {
       userId,
       otp,
     });
     return res.data;
   } catch (err) {
-    console.error('verifyResetOTP error:', err);
+    console.error("verifyResetOTP error:", err);
     throw err;
   }
 };
-export const resetPassword = async (userId: string, newPassword: string): Promise<ApiResponse> => {
+export const resetPassword = async (
+  userId: string,
+  newPassword: string,
+): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/reset-password', {
+    const res = await api.post<ApiResponse>("/user/reset-password", {
       userId,
       newPassword,
     });
     return res.data;
   } catch (err) {
-    console.error('resetPassword error:', err);
+    console.error("resetPassword error:", err);
     throw err;
   }
 };
@@ -229,23 +265,23 @@ export const updateUserLocation = async (data: {
   try {
     // Only send fields that are explicitly set
     const payload: Record<string, any> = {};
-    
+
     if (data.location !== undefined) {
       payload.location = data.location;
     }
-    
+
     if (data.latitude !== undefined) {
       payload.latitude = data.latitude;
     }
-    
+
     if (data.longitude !== undefined) {
       payload.longitude = data.longitude;
     }
 
-    const res = await api.put<ApiResponse>('/user/update-location', payload);
+    const res = await api.put<ApiResponse>("/user/update-location", payload);
     return res.data;
   } catch (err) {
-    console.error('updateUserLocation error:', err);
+    console.error("updateUserLocation error:", err);
     throw err;
   }
 };
@@ -255,32 +291,36 @@ export const getUserLocation = async (): Promise<{
   longitude: number | null;
 }> => {
   try {
-    const res = await api.get<ApiResponse>('/user/get-location');
+    const res = await api.get<ApiResponse>("/user/get-location");
     return res.data.data;
   } catch (err) {
-    console.error('getUserLocation error:', err);
+    console.error("getUserLocation error:", err);
     throw err;
   }
 };
 export const changePassword = async (
-  payload: ChangePasswordRequest
+  payload: ChangePasswordRequest,
 ): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/change-password', payload);
+    const res = await api.post<ApiResponse>("/user/change-password", payload);
     return res.data;
   } catch (err) {
-    console.error('changePassword error:', err);
+    console.error("changePassword error:", err);
     throw err;
   }
 };
-export const searchUsers = async (query: string, page: number = 1, limit: number = 20): Promise<any> => {
+export const searchUsers = async (
+  query: string,
+  page: number = 1,
+  limit: number = 20,
+): Promise<any> => {
   try {
-    const res = await api.get('/user/search', {
-      params: { query, page, limit }
+    const res = await api.get("/user/search", {
+      params: { query, page, limit },
     });
     return res.data;
   } catch (err) {
-    console.error('searchUsers error:', err);
+    console.error("searchUsers error:", err);
     throw err;
   }
 };
@@ -289,101 +329,116 @@ export const getUserById = async (userId: string): Promise<User> => {
     const res = await api.get(`/user/${userId}`);
     return res.data.user;
   } catch (err) {
-    console.error('getUserById error:', err);
+    console.error("getUserById error:", err);
     throw err;
   }
 };
-export const getSuggestedUsers = async (limit: number = 10): Promise<User[]> => {
+export const getSuggestedUsers = async (
+  limit: number = 10,
+): Promise<User[]> => {
   try {
-    const res = await api.get('/user/suggested', {
-      params: { limit }
+    const res = await api.get("/user/suggested", {
+      params: { limit },
     });
     return res.data.users;
   } catch (err) {
-    console.error('getSuggestedUsers error:', err);
+    console.error("getSuggestedUsers error:", err);
     throw err;
   }
 };
 export const updateHeartbeat = async (): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/heartbeat');
+    const res = await api.post<ApiResponse>("/user/heartbeat");
     return res.data;
   } catch (err) {
-    console.error('updateHeartbeat error:', err);
+    console.error("updateHeartbeat error:", err);
     throw err;
   }
 };
 export const getAccountPrivacy = async (): Promise<AccountPrivacyResponse> => {
   try {
-    const res = await api.get<AccountPrivacyResponse>('/user/account-privacy');
+    const res = await api.get<AccountPrivacyResponse>("/user/account-privacy");
     return res.data;
   } catch (err) {
-    console.error('getAccountPrivacy error:', err);
+    console.error("getAccountPrivacy error:", err);
     throw err;
   }
 };
 
 export const updateAccountPrivacy = async (
-  data: UpdateAccountPrivacyRequest
+  data: UpdateAccountPrivacyRequest,
 ): Promise<AccountPrivacyResponse> => {
   try {
-    const res = await api.put<AccountPrivacyResponse>('/user/account-privacy', data);
+    const res = await api.put<AccountPrivacyResponse>(
+      "/user/account-privacy",
+      data,
+    );
     return res.data;
   } catch (err) {
-    console.error('updateAccountPrivacy error:', err);
+    console.error("updateAccountPrivacy error:", err);
     throw err;
   }
 };
 export const muteUser = async (userId: string): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/mute', { userId });
+    const res = await api.post<ApiResponse>("/user/mute", { userId });
     return res.data;
   } catch (err) {
-    console.error('muteUser error:', err);
+    console.error("muteUser error:", err);
     throw err;
   }
 };
-export const unmuteUser = async(userId: string): Promise<ApiResponse> => {
+export const unmuteUser = async (userId: string): Promise<ApiResponse> => {
   try {
-    const res = await api.post<ApiResponse>('/user/unmute',{userId});
+    const res = await api.post<ApiResponse>("/user/unmute", { userId });
     return res.data;
-  }catch (err){
-    console.error("unmute error:",err);
+  } catch (err) {
+    console.error("unmute error:", err);
     throw err;
   }
 };
 export const updatePersonalDetails = async (
-  data: UpdatePersonalDetailsRequest
+  data: UpdatePersonalDetailsRequest,
 ): Promise<User> => {
   try {
-    const res = await api.put<ApiResponse>('/user/update-personal-details', data);
+    const res = await api.put<ApiResponse>(
+      "/user/update-personal-details",
+      data,
+    );
     if (!res.data.user) {
-      throw new Error('User data not found in response');
+      throw new Error("User data not found in response");
     }
     return res.data.user;
   } catch (err) {
-    console.error('updatePersonalDetails error:', err);
+    console.error("updatePersonalDetails error:", err);
     throw err;
   }
 };
 
-export const updateShowBadge = async (showBadge: boolean): Promise<ApiResponse> => {
+export const updateShowBadge = async (
+  showBadge: boolean,
+): Promise<ApiResponse> => {
   try {
-    const res = await api.put<ApiResponse>('/user/update-show-badge', { show_badge: showBadge });
+    const res = await api.put<ApiResponse>("/user/update-show-badge", {
+      show_badge: showBadge,
+    });
     return res.data;
   } catch (err) {
-    console.error('updateShowBadge error:', err);
+    console.error("updateShowBadge error:", err);
     throw err;
   }
 };
 
-export const updateShowSuggestion = async (showSuggestion: boolean): Promise<ApiResponse> => {
+export const updateShowSuggestion = async (
+  showSuggestion: boolean,
+): Promise<ApiResponse> => {
   try {
-    const res = await api.put<ApiResponse>('/user/update-show-suggestion', { show_suggestion: showSuggestion });
+    const res = await api.put<ApiResponse>("/user/update-show-suggestion", {
+      show_suggestion: showSuggestion,
+    });
     return res.data;
   } catch (err) {
-    console.error('updateShowSuggestion error:', err);
+    console.error("updateShowSuggestion error:", err);
     throw err;
   }
 };
-

@@ -26,7 +26,9 @@ import { useSidebar }   from "@/context/SidebarContext";
 import { useTheme }     from "@/components/home/ThemeContext";
 import HomeSkeleton     from "@/components/home/HomeSkeleton";
 import EventCategoryList from "@/components/events/Eventcategorylist";
-
+import { UsernameSave } from '@/components/home/UsernameSave';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/features/store';
 // ── Static mock data (kept for sidebar widgets) 
 const suggestedProfiles = [
   { id: 1, name: "san_geeth__palliyal", handle: "follows you" },
@@ -44,28 +46,30 @@ const popularEvents = [
 
 const suggestedReels = [1, 2, 3, 4, 5, 6];
 
-// ── Component ─────────────────────────────────────────────
+// Component
 export default function HomePage() {
   const { isCollapsed, isMobile } = useSidebar();
   const { themeStyles, isDark }   = useTheme();
   const router                    = useRouter();
   const storiesRef                = useRef<HTMLDivElement>(null);
+  // Username modal 
+  const authUser = useSelector((state: RootState) => state.auth.user);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
 
-  // ── Profile ──────────────────────────────────────────────
+  // Profile 
   const [userProfile, setUserProfile] = useState<any>(null);
-
-  // ── Flux / Stories ───────────────────────────────────────
+  // Flux
   const [myFluxes,   setMyFluxes]   = useState<Flux[]>([]);
   const [feedGroups, setFeedGroups] = useState<FeedFluxGroup[]>([]);
   const [fluxLoading, setFluxLoading] = useState(true);
 
-  // ── Posts ────────────────────────────────────────────────
+  // Posts
   const [posts,        setPosts]        = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage,    setPostsPage]    = useState(1);
   const [postsHasMore, setPostsHasMore] = useState(true);
 
-  // ── Viewed flux IDs (persisted) ───────────────────────────
+  // Viewed flux IDs (persisted) 
   const [viewedFluxIds, setViewedFluxIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("viewedFluxIds");
@@ -89,14 +93,21 @@ export default function HomePage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
-  //  Initial data fetch
-  // ─────────────────────────────────────────────────────────
+// Show username modal if user has no username yet
+  useEffect(() => {
+    if (authUser && !authUser.username) {
+      setShowUsernameModal(true);
+    }
+  }, [authUser]);
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const profile = await getProfile();
         setUserProfile(profile);
+        // Also check from fetched profile (handles page refresh)
+        if (!profile?.username) {
+          setShowUsernameModal(true);
+        }
       } catch (e) {
         console.error("Error fetching profile:", e);
       }
@@ -195,11 +206,19 @@ export default function HomePage() {
       `}</style>
 
       <SideBar />
-
+      {/* Unskippable username setup modal */}
+      {showUsernameModal && (
+        <UsernameSave
+          onComplete={(updatedUser) => {
+            setUserProfile((prev: any) => ({ ...prev, ...updatedUser }));
+            setShowUsernameModal(false);
+          }}
+        />
+      )}
       <main className="transition-all duration-300 ease-in-out" style={{ marginLeft }}>
         <div className="w-full max-w-[1600px] mx-auto flex justify-center xl:justify-between gap-10 pt-4 px-4 md:px-12 xl:px-20">
 
-          {/* ── LEFT / CENTER FEED ──────────────────────── */}
+          {/* ── LEFT / CENTER FEED  */}
           <div className="flex-1 max-w-[700px] min-w-0 flex flex-col gap-8">
             {fluxLoading ? (
               <HomeSkeleton />

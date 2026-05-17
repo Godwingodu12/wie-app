@@ -48,7 +48,7 @@ function OTPContent() {
           <p className="text-gray-400 text-sm mb-8">
             Please enter your code we sent to
             <br />
-            your email or phone to verify your account.
+            your email to verify your account.
           </p>
 
           {/* OTP Form */}

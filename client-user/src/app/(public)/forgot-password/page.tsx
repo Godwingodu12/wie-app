@@ -38,10 +38,7 @@ const ForgotPassword = () => {
     setShowAlert(false);
 
     try {
-      const isEmail = inputValue.includes("@");
-      const payload = isEmail
-        ? { email: inputValue.trim() }
-        : { contact_no: inputValue.trim() };
+      const payload = { email: inputValue.trim() };
 
       const response = await forgotPassword(payload);
 
@@ -114,7 +111,7 @@ const ForgotPassword = () => {
           <p className="text-center text-sm sm:text-base text-gray-400
                         mb-6 sm:mb-8 leading-relaxed px-2">
             <span className="block">
-              Please enter your registered email or phone number.
+              Please enter your registered email.
             </span>
             <span className="block">
               A verification code will be sent to verify your account.
@@ -127,7 +124,7 @@ const ForgotPassword = () => {
             className="w-full flex flex-col gap-4 sm:gap-5"
           >
             <Input
-              placeholder="Email or phone number"
+              placeholder="Enter your email"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
             />

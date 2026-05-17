@@ -11,6 +11,7 @@ import {
 import { login } from "@/services/wieUserService";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
+import { Alert } from "../ui/Alert";
 import Link from "next/link";
 import Image from "next/image";
 import EyeIcon from "@/assets/Auth/Eye.svg";
@@ -22,6 +23,7 @@ export const LoginForm: React.FC = () => {
   });
 
   const [error, setError] = useState("");
+  const [alertVisible, setAlertVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -38,6 +40,7 @@ export const LoginForm: React.FC = () => {
 
     if (!formData.identifier || !formData.password) {
       setError("Please fill in all fields");
+      setAlertVisible(true);
       return;
     }
 
@@ -59,7 +62,9 @@ export const LoginForm: React.FC = () => {
         throw new Error();
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Login failed");
+      const msg = err.response?.data?.message || "Login failed";
+      setError(msg === "Invalid credentials" ? "Invalid email or password" : msg);
+      setAlertVisible(true);
       dispatch(loginFailure());
     } finally {
       setLoading(false);
@@ -69,13 +74,13 @@ export const LoginForm: React.FC = () => {
   return (
     <div className="w-full flex flex-col">
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Email / Phone */}
+        {/* Email */}
         <Input
           type="text"
           name="identifier"
           value={formData.identifier}
           onChange={handleChange}
-          placeholder="Email or phone number"
+           placeholder="Email or username"
           required
         />
 
@@ -86,7 +91,7 @@ export const LoginForm: React.FC = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Password"
+            placeholder="Enter your password"
             required
             className="pr-14"
           />
@@ -117,11 +122,12 @@ export const LoginForm: React.FC = () => {
         </div>
 
         {/* Error */}
-        {error && (
-          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
-            {error}
-          </div>
-        )}
+        <Alert
+          message={error}
+          visible={alertVisible}
+          onClose={() => setAlertVisible(false)}
+          type="error"
+        />
 
         {/* Login button */}
         <Button

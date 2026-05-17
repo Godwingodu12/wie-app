@@ -13,7 +13,7 @@ export interface User {
   role?: string;
   status?: string;
   bio?: string | null;
-  followRequestStatus?: 'pending' | 'active' | 'none'; 
+  followRequestStatus?: "pending" | "active" | "none";
   accountPrivacy?: string | null;
   locationSource?: string | null;
   followers_count?: number;
@@ -61,21 +61,21 @@ export interface SignupSendOtpRequest {
   email?: string;
   contact_no?: string;
   password: string;
-  country_id: string; 
+  country_code: string;
 }
 export interface SignupVerifyOtpRequest {
-  tempUserId: string;  
+  tempUserId: string;
   otp: string;
-  name?: string;  
+  name?: string;
 }
 export interface ResendOtpRequest {
-  userId: string; 
+  userId: string;
 }
 
 export interface Country {
   id: string;
-  country_code: string;  
-  country_name: string;  
+  country_code: string;
+  country_name: string;
   phone_code: string | null;
   created_at: string;
 }
@@ -85,7 +85,7 @@ export interface ApiResponse<T = any> {
   data?: T;
   token?: string;
   user?: User;
-  tempUserId?: string;  
+  tempUserId?: string;
   remainingAttempts?: number;
   expiresIn?: string;
   error?: string;
@@ -115,7 +115,7 @@ export interface VerifyResetOTPRequest {
 export interface ResetPasswordRequest {
   userId: string;
   newPassword: string;
-} 
+}
 // Add to existing file
 export interface FollowUser {
   userId: string;
@@ -154,14 +154,14 @@ export interface FollowResponse {
   message: string;
   followerId?: string;
   followingId?: string;
-  status?: 'active' | 'pending' | 'none';
+  status?: "active" | "pending" | "none";
   isPrivateAccount?: boolean;
 }
 export interface FollowStatusResponse {
   success: boolean;
   isFollowing: boolean;
   isPending: boolean;
-  status: 'active' | 'pending' | 'none';
+  status: "active" | "pending" | "none";
 }
 export interface FollowRequestUser {
   id: string;
@@ -183,5 +183,5 @@ export interface AccountPrivacyResponse {
   accountPrivacy: string;
 }
 export interface UpdateAccountPrivacyRequest {
-  accountPrivacy: 'public' | 'private';
+  accountPrivacy: "public" | "private";
 }
