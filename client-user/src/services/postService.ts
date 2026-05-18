@@ -78,9 +78,10 @@ export const getPostFeed = async (
 export const getExplorePosts = async (
   page = 1,
   limit = 20,
+  contentType?: "post" | "reel",
 ): Promise<PostFeedResponse> => {
   const res = await postApi.get<PostFeedResponse>("/post/explore", {
-    params: { page, limit },
+    params: { page, limit, ...(contentType ? { contentType } : {}) },
   });
   return res.data;
 };
@@ -89,8 +90,19 @@ export const getUserPosts = async (
   userId: string,
   page = 1,
   limit = 12,
+  contentType?: "post" | "reel",
 ): Promise<PostFeedResponse> => {
   const res = await postApi.get<PostFeedResponse>(`/post/user/${userId}`, {
+    params: { page, limit, ...(contentType ? { contentType } : {}) },
+  });
+  return res.data;
+};
+
+export const getReelsFeed = async (
+  page = 1,
+  limit = 20,
+): Promise<PostFeedResponse> => {
+  const res = await postApi.get<PostFeedResponse>("/post/reels", {
     params: { page, limit },
   });
   return res.data;
@@ -150,15 +162,27 @@ export const getPostLikes = async (postId: string) => {
   const res = await postApi.get(`/post/${postId}/likes`);
   return res.data;
 };
+// ── Giphy proxy
+export const searchGiphy = async (
+  q: string,
+  type: "gifs" | "stickers" = "gifs",
+  offset = 0,
+): Promise<{ id: string; title: string; preview: string; url: string }[]> => {
+  const res = await postApi.get("/post/giphy/search", {
+    params: { q, type, offset },
+  });
+  return res.data.data ?? [];
+};
 
-// ── Comments
 export const addComment = async (
   postId: string,
   text: string,
+  gifUrl?: string,
+  stickerUrl?: string,
 ): Promise<PostComment> => {
   const res = await postApi.post<{ success: boolean; comment: PostComment }>(
     `/post/${postId}/comments`,
-    { text },
+    { text, gifUrl, stickerUrl },
   );
   return res.data.comment;
 };
@@ -180,10 +204,12 @@ export const replyToComment = async (
   postId: string,
   commentId: string,
   text: string,
+  gifUrl?: string,
+  stickerUrl?: string,
 ): Promise<PostCommentReply> => {
   const res = await postApi.post<{ success: boolean; reply: PostCommentReply }>(
     `/post/${postId}/comments/${commentId}/reply`,
-    { text },
+    { text, gifUrl, stickerUrl },
   );
   return res.data.reply;
 };
