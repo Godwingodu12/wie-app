@@ -1,41 +1,62 @@
 import { Response } from "express";
 import { AuthRequest } from "../middlewares/auth";
 import PostModel, { PostVisibility } from "../models/post.model";
+import LikeModel from "../models/like.model";
+import CommentModel from "../models/comment.model";
+import SaveModel from "../models/save.model";
+import ShareModel from "../models/share.model";
 import {
-  upload,
   uploadToCloudinary,
   deleteFromCloudinary,
   detectMediaType,
 } from "../middlewares/upload";
-import { getFollowingIds, isFollowing } from "../grpc/clients/followClient";
+import { isFollowing } from "../grpc/clients/followClient";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import * as chatClient from "../grpc/clients/chatClient";
-import {
-  createNotification,
-  emitMentionEvent,
-} from "../utils/notificationHelper";
+import { createNotification } from "../utils/notificationHelper";
 import { shouldSendLikeNotif, onUnlike } from "../utils/likeNotifCooldown";
 
-// ── Helpers
+// ── Giphy types
+interface GiphyImage {
+  url: string;
+}
+interface GiphyImages {
+  fixed_width_small?: GiphyImage;
+  preview_gif?: GiphyImage;
+  fixed_width?: GiphyImage;
+  downsized?: GiphyImage;
+  original?: GiphyImage;
+}
+interface GiphyItem {
+  id: string;
+  title: string;
+  images: GiphyImages;
+}
+interface GiphyPagination {
+  total_count: number;
+  count: number;
+  offset: number;
+}
+interface GiphyResponse {
+  data: GiphyItem[];
+  pagination: GiphyPagination;
+}
 
-/** Extract unique @mentioned userIds from a caption string */
+// ── Helpers ──────────────────────────────────────────────────────────
 const parseMentions = (caption: string): string[] => {
-  // Expects userIds embedded as @<userId> — adjust if your app uses @username lookup
   const matches = caption.match(/@([a-f0-9]{24})/g) ?? [];
   return [...new Set(matches.map((m) => m.slice(1)))];
 };
 
-/** Compute aspect ratio label from width × height */
 const computeAspectRatio = (w?: number, h?: number): string => {
   if (!w || !h) return "1:1";
-  const ratio = w / h;
-  if (ratio > 1.7) return "16:9";
-  if (ratio > 1.2) return "1.91:1";
-  if (ratio > 0.9) return "1:1";
+  const r = w / h;
+  if (r > 1.7) return "16:9";
+  if (r > 1.2) return "1.91:1";
+  if (r > 0.9) return "1:1";
   return "4:5";
 };
 
-/** Check whether the viewer can see the owner's posts (privacy gate) */
 const canViewPosts = async (
   ownerId: string,
   viewerId: string,
@@ -51,7 +72,6 @@ const canViewPosts = async (
   return follow.isFollowing;
 };
 
-/** Enrich a post or array of posts with owner user info */
 const enrichPostWithUser = async (post: any, userMap: Map<string, any>) => {
   const uid = post.userId?.toString();
   const user = userMap.get(uid);
@@ -62,24 +82,40 @@ const enrichPostWithUser = async (post: any, userMap: Map<string, any>) => {
           id: uid,
           username: user.username ?? "",
           name: user.name ?? user.username ?? "",
-          profile_picture: user.profile_picture ?? user.profilePicture ?? null,
+          profile_picture: user.profile_picture ?? null,
           is_verified: user.is_verified ?? false,
         }
       : null,
   };
 };
 
-//  POST CRUD
-/**
- * POST /api/post/create
- * Body (multipart/form-data):
- *   media[]       — up to 10 files (images or videos)
- *   caption       — string (optional)
- *   visibility    — "public" | "followers" | "only_me" (default: "public")
- *   taggedUsers   — JSON string: [{ userId, x, y, mediaIndex }]
- *   locationLabel — string
- *   locationPlaceId, locationLat, locationLng
- */
+/** Attach hasLiked / hasSaved flags by querying separate tables */
+const attachViewerFlags = async (
+  posts: any[],
+  viewerId: string,
+): Promise<any[]> => {
+  if (posts.length === 0) return posts;
+  const postIds = posts.map((p) => p._id?.toString() ?? p.id?.toString());
+
+  const [likedDocs, savedDocs] = await Promise.all([
+    LikeModel.find({ postId: { $in: postIds }, userId: viewerId })
+      .select("postId")
+      .lean(),
+    SaveModel.find({ postId: { $in: postIds }, userId: viewerId })
+      .select("postId")
+      .lean(),
+  ]);
+
+  const likedSet = new Set(likedDocs.map((l) => l.postId.toString()));
+  const savedSet = new Set(savedDocs.map((s) => s.postId.toString()));
+
+  return posts.map((p) => {
+    const id = p._id?.toString() ?? p.id?.toString();
+    return { ...p, hasLiked: likedSet.has(id), hasSaved: savedSet.has(id) };
+  });
+};
+
+// ── CREATE ───────────────────────────────────────────────────────────
 export const createPost = async (
   req: AuthRequest,
   res: Response,
@@ -87,7 +123,6 @@ export const createPost = async (
   try {
     const callerId = req.userId!.toString();
     const files = (req.files as Express.Multer.File[]) ?? [];
-
     if (files.length === 0) {
       res.status(400).json({
         success: false,
@@ -96,7 +131,6 @@ export const createPost = async (
       return;
     }
 
-    // Upload all files to Cloudinary in parallel
     const uploadResults = await Promise.all(
       files.map((file, idx) =>
         uploadToCloudinary(file.buffer, {
@@ -117,17 +151,17 @@ export const createPost = async (
       ),
     );
 
-    // Parse body fields
-    const caption: string = (req.body.caption ?? "").trim();
+    const caption = (req.body.caption ?? "").trim();
     const visibility = (req.body.visibility ?? "public") as PostVisibility;
-    const locationLabel = req.body.locationLabel ?? undefined;
-    const locationPlaceId = req.body.locationPlaceId ?? undefined;
-    const locationLat = req.body.locationLat
-      ? Number(req.body.locationLat)
-      : undefined;
-    const locationLng = req.body.locationLng
-      ? Number(req.body.locationLng)
-      : undefined;
+    const hasVideo = files.some((f) => f.mimetype.startsWith("video/"));
+    const bodyType = req.body.contentType as string | undefined;
+    const contentType =
+      bodyType === "reel" || bodyType === "post"
+        ? bodyType
+        : hasVideo
+          ? "reel"
+          : "post";
+    const mentionedIds = parseMentions(caption);
 
     let taggedUsers: {
       userId: string;
@@ -140,29 +174,30 @@ export const createPost = async (
       if (raw) taggedUsers = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch {}
 
-    // Extract @mentions from caption
-    const mentionedUserIds = parseMentions(caption);
-
     const post = await PostModel.create({
       userId: callerId,
       mediaItems: uploadResults,
       caption: caption || undefined,
       visibility,
-      locationLabel,
-      locationPlaceId,
-      locationLat,
-      locationLng,
+      contentType,
+      locationLabel: req.body.locationLabel,
+      locationPlaceId: req.body.locationPlaceId,
+      locationLat: req.body.locationLat
+        ? Number(req.body.locationLat)
+        : undefined,
+      locationLng: req.body.locationLng
+        ? Number(req.body.locationLng)
+        : undefined,
       taggedUsers,
-      mentions: mentionedUserIds,
+      mentions: mentionedIds,
     });
 
-    // Fire-and-forget: notify tagged + mentioned users
-    if (taggedUsers.length > 0 || mentionedUserIds.length > 0) {
+    if (taggedUsers.length > 0 || mentionedIds.length > 0) {
       processPostNotifications(
         post._id.toString(),
         callerId,
         taggedUsers.map((t) => t.userId),
-        mentionedUserIds,
+        mentionedIds,
       ).catch((err) =>
         console.error("❌ processPostNotifications failed:", err),
       );
@@ -175,30 +210,25 @@ export const createPost = async (
   }
 };
 
-/** Send tag + mention notifications after post creation */
 async function processPostNotifications(
   postId: string,
   callerId: string,
   taggedUserIds: string[],
   mentionedUserIds: string[],
-): Promise<void> {
+) {
   const callerResp = await wieUserClient
     .getUsersByIds([callerId])
     .catch(() => ({ users: [] }));
   const caller = (callerResp.users ?? [])[0];
   const callerName = caller?.name ?? caller?.username ?? "Someone";
-
   const allTargets = [
     ...new Set([...taggedUserIds, ...mentionedUserIds]),
   ].filter((id) => id !== callerId);
-
   for (const targetId of allTargets) {
     const isTag = taggedUserIds.includes(targetId);
-    const isMention = mentionedUserIds.includes(targetId);
-
     await createNotification({
       userId: targetId,
-      type: isTag ? "mention" : "mention",
+      type: "mention",
       title: isTag
         ? `${callerName} tagged you in a post`
         : `${callerName} mentioned you in a post`,
@@ -206,16 +236,13 @@ async function processPostNotifications(
         ? `${callerName} tagged you in a post`
         : `${callerName} mentioned you in a post`,
       fromUserId: callerId,
-      metadata: { postId, callerName, isTag, isMention },
+      metadata: { postId, callerName, isTag },
       link: `/post/${postId}`,
     }).catch(() => {});
   }
 }
 
-/**
- * GET /api/post/feed?page=1&limit=20
- * Returns posts from followed users + self
- */
+// ── FEED ─────────────────────────────────────────────────────────────
 export const getPostFeed = async (
   req: AuthRequest,
   res: Response,
@@ -225,15 +252,16 @@ export const getPostFeed = async (
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
     const skip = (page - 1) * limit;
+
     const [publicPosts, totalPublic] = await Promise.all([
       PostModel.find({
         isDeleted: false,
         visibility: { $in: ["public", "everyone"] },
-        userId: { $ne: viewerId }, // exclude own posts from this query
+        userId: { $ne: viewerId },
       })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit * 4) // fetch extra to account for private account filtering
+        .limit(limit * 4)
         .lean(),
       PostModel.countDocuments({
         isDeleted: false,
@@ -242,7 +270,6 @@ export const getPostFeed = async (
       }),
     ]);
 
-    // ── 3. Fetch own posts (always visible regardless of visibility) ──
     const ownPosts = await PostModel.find({
       userId: viewerId,
       isDeleted: false,
@@ -251,45 +278,38 @@ export const getPostFeed = async (
       .limit(limit)
       .lean();
 
-    // ── 4. Enrich with user info to check account_privacy ──
     const allOwnerIds = [
       ...new Set([
         ...publicPosts.map((p: any) => p.userId.toString()),
         viewerId,
       ]),
     ];
-
     const usersResp = await wieUserClient
       .getUsersByIds(allOwnerIds)
       .catch(() => ({ users: [] }));
-
     const userMap = new Map<string, any>(
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    // ── 5. Filter: only keep posts from public accounts ──
-    const filteredPublicPosts = publicPosts.filter((post: any) => {
-      const ownerId = post.userId.toString();
-      const owner = userMap.get(ownerId);
+    const filteredPublic = publicPosts.filter((p: any) => {
+      const owner = userMap.get(p.userId.toString());
       if (!owner) return false;
       const privacy = owner.account_privacy ?? owner.accountPrivacy ?? "public";
       return privacy === "public" || privacy === "everyone";
     });
 
-    // ── 6. Merge own posts + filtered public posts, deduplicate ──
     const postMap = new Map<string, any>();
-    for (const p of [...ownPosts, ...filteredPublicPosts]) {
+    for (const p of [...ownPosts, ...filteredPublic])
       postMap.set(p._id.toString(), p);
-    }
 
-    const mergedSorted = Array.from(postMap.values())
+    const merged = Array.from(postMap.values())
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
       .slice(0, limit);
 
-    if (mergedSorted.length === 0) {
+    if (merged.length === 0) {
       res.status(200).json({
         success: true,
         data: [],
@@ -298,39 +318,28 @@ export const getPostFeed = async (
       return;
     }
 
-    // ── 7. Enrich merged posts ───────────────────────────
     const enriched = await Promise.all(
-      mergedSorted.map((post: any) => enrichPostWithUser(post, userMap)),
+      merged.map((p) => enrichPostWithUser(p, userMap)),
     );
-
-    // ── 8. Add viewer-specific flags ─────────────────────
-    const withFlags = enriched.map((post: any) => ({
-      ...post,
-      hasLiked: (post.likes ?? []).some(
-        (l: any) => l.userId?.toString() === viewerId,
-      ),
-      hasSaved: (post.saves ?? []).some(
-        (s: any) => s.userId?.toString() === viewerId,
-      ),
-    }));
-
-    const total = totalPublic + ownPosts.length;
-    const hasMore = skip + mergedSorted.length < total;
+    const withFlags = await attachViewerFlags(enriched, viewerId);
 
     res.status(200).json({
       success: true,
       data: withFlags,
-      pagination: { page, limit, total, hasMore },
+      pagination: {
+        page,
+        limit,
+        total: totalPublic + ownPosts.length,
+        hasMore: skip + merged.length < totalPublic + ownPosts.length,
+      },
     });
   } catch (err: any) {
     console.error("getPostFeed error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
-/**
- * GET /api/post/explore?page=1&limit=20
- * Returns all public posts (from public accounts)
- */
+
+// ── EXPLORE ──────────────────────────────────────────────────────────
 export const getExplorePosts = async (
   req: AuthRequest,
   res: Response,
@@ -340,60 +349,151 @@ export const getExplorePosts = async (
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const skip = (page - 1) * limit;
-    const posts = await PostModel.find({
+    const contentTypeFilter = req.query.contentType
+      ? { contentType: req.query.contentType as string }
+      : {};
+
+    const query = {
       isDeleted: false,
-      visibility: "public",
-      userId: { $ne: viewerId }, // exclude own posts (already in feed)
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+      ...contentTypeFilter,
+      $or: [{ userId: viewerId }, { visibility: "public" }],
+    };
+    const [posts, total] = await Promise.all([
+      PostModel.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      PostModel.countDocuments(query),
+    ]);
 
-    const total = await PostModel.countDocuments({
-      isDeleted: false,
-      visibility: "public",
-      userId: { $ne: viewerId },
-    });
+    if (posts.length === 0) {
+      res.status(200).json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0, hasMore: false },
+      });
+      return;
+    }
 
-    // Filter out posts from private accounts
-    const uniqueUserIds: string[] = [
-      ...new Set(posts.map((p) => p.userId.toString())),
-    ];
-    const usersResp = uniqueUserIds.length
-      ? await wieUserClient
-          .getUsersByIds(uniqueUserIds)
-          .catch(() => ({ users: [] }))
-      : { users: [] };
-
+    const uniqueUserIds = [...new Set(posts.map((p) => p.userId.toString()))];
+    const usersResp = await wieUserClient
+      .getUsersByIds(uniqueUserIds)
+      .catch(() => ({ users: [] }));
     const userMap = new Map<string, any>(
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    // Only include posts from public accounts
     const filtered = posts.filter((p) => {
+      if (p.userId.toString() === viewerId) return true;
       const user = userMap.get(p.userId.toString());
-      return !user?.isPrivate && user?.accountPrivacy !== "private";
+      const privacy = user?.account_privacy ?? user?.accountPrivacy ?? "public";
+      return privacy !== "private";
     });
 
     const enriched = await Promise.all(
       filtered.map((p) => enrichPostWithUser(p, userMap)),
     );
+    const withFlags = await attachViewerFlags(enriched, viewerId);
 
-    res.json({
+    res.status(200).json({
       success: true,
-      data: enriched,
+      data: withFlags,
       pagination: { page, limit, total, hasMore: skip + posts.length < total },
     });
   } catch (err: any) {
+    console.error("getExplorePosts error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * GET /api/post/user/:userId?page=1&limit=12
- * Returns a user's posts (respects privacy)
- */
+// ── REELS ────────────────────────────────────────────────────────────
+export const getReelsFeed = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const viewerId = req.userId!.toString();
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
+    const skip = (page - 1) * limit;
+
+    const reelQuery = {
+      isDeleted: false,
+      $and: [
+        {
+          $or: [
+            { contentType: "reel" },
+            { contentType: { $exists: false }, "mediaItems.0.type": "video" },
+            { contentType: "post", "mediaItems.0.type": "video" },
+          ],
+        },
+        {
+          $or: [
+            { userId: viewerId },
+            { visibility: { $in: ["public", "everyone"] } },
+          ],
+        },
+      ],
+    };
+
+    const [reels, total] = await Promise.all([
+      PostModel.find(reelQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      PostModel.countDocuments(reelQuery),
+    ]);
+
+    if (reels.length === 0) {
+      res.status(200).json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0, hasMore: false },
+      });
+      return;
+    }
+
+    const uniqueUserIds = [...new Set(reels.map((r) => r.userId.toString()))];
+    const usersResp = await wieUserClient
+      .getUsersByIds(uniqueUserIds)
+      .catch(() => ({ users: [] }));
+    const userMap = new Map<string, any>(
+      (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
+    );
+
+    const filtered = reels.filter((r) => {
+      if (r.userId.toString() === viewerId) return true;
+      const user = userMap.get(r.userId.toString());
+      const privacy = user?.account_privacy ?? user?.accountPrivacy ?? "public";
+      return privacy !== "private";
+    });
+
+    const enriched = await Promise.all(
+      filtered.map((r) => enrichPostWithUser(r, userMap)),
+    );
+    const withFlags = await attachViewerFlags(enriched, viewerId);
+
+    const result = withFlags.map((r) => ({ ...r, contentType: "reel" }));
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: skip + filtered.length < total,
+      },
+    });
+  } catch (err: any) {
+    console.error("getReelsFeed error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── USER POSTS ───────────────────────────────────────────────────────
 export const getUserPosts = async (
   req: AuthRequest,
   res: Response,
@@ -401,7 +501,6 @@ export const getUserPosts = async (
   try {
     const viewerId = req.userId!.toString();
     const ownerId = req.params.userId;
-
     const canView = await canViewPosts(ownerId, viewerId);
     if (!canView) {
       res
@@ -413,14 +512,21 @@ export const getUserPosts = async (
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 12)));
     const skip = (page - 1) * limit;
-
     const visibilityFilter =
       viewerId === ownerId
         ? {}
         : { visibility: { $in: ["public", "followers"] } };
+    const contentTypeFilter = req.query.contentType
+      ? { contentType: req.query.contentType as string }
+      : {};
 
     const [posts, total] = await Promise.all([
-      PostModel.find({ userId: ownerId, isDeleted: false, ...visibilityFilter })
+      PostModel.find({
+        userId: ownerId,
+        isDeleted: false,
+        ...visibilityFilter,
+        ...contentTypeFilter,
+      })
         .sort({ isPinned: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -429,10 +535,10 @@ export const getUserPosts = async (
         userId: ownerId,
         isDeleted: false,
         ...visibilityFilter,
+        ...contentTypeFilter,
       }),
     ]);
 
-    // ── Enrich with owner info ─────────────────────────────
     const uniqueUserIds = [...new Set(posts.map((p) => p.userId.toString()))];
     const usersResp = uniqueUserIds.length
       ? await wieUserClient
@@ -443,38 +549,14 @@ export const getUserPosts = async (
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    const enriched = posts.map((p: any) => {
-      const user = userMap.get(p.userId.toString());
-      return {
-        ...p,
-        // ── Computed counts ──────────────────────────────
-        likeCount: (p.likes ?? []).length,
-        commentCount: (p.comments ?? []).length,
-        shareCount: p.shareCount ?? 0,
-        saveCount: (p.saves ?? []).length,
-        // ── Per-viewer state ─────────────────────────────
-        hasLiked: (p.likes ?? []).some(
-          (l: any) => l.userId?.toString() === viewerId,
-        ),
-        hasSaved: (p.saves ?? []).some(
-          (s: any) => s.userId?.toString() === viewerId,
-        ),
-        // ── Owner info ───────────────────────────────────
-        owner: user
-          ? {
-              id: (user._id ?? user.id).toString(),
-              username: user.username ?? "",
-              name: user.name ?? "",
-              profile_picture: user.profile_picture ?? null,
-              is_verified: user.is_verified ?? false,
-            }
-          : undefined,
-      };
-    });
+    const enriched = await Promise.all(
+      posts.map((p) => enrichPostWithUser(p, userMap)),
+    );
+    const withFlags = await attachViewerFlags(enriched, viewerId);
 
     res.status(200).json({
       success: true,
-      data: enriched,
+      data: withFlags,
       pagination: {
         page,
         limit,
@@ -487,10 +569,7 @@ export const getUserPosts = async (
   }
 };
 
-/**
- * GET /api/post/saved
- * Returns the authenticated user's saved posts
- */
+// ── SAVED POSTS ──────────────────────────────────────────────────────
 export const getSavedPosts = async (
   req: AuthRequest,
   res: Response,
@@ -501,33 +580,42 @@ export const getSavedPosts = async (
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 12)));
     const skip = (page - 1) * limit;
 
+    const [saveDocs, total] = await Promise.all([
+      SaveModel.find({ userId: viewerId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SaveModel.countDocuments({ userId: viewerId }),
+    ]);
+
+    const postIds = saveDocs.map((s) => s.postId);
     const posts = await PostModel.find({
+      _id: { $in: postIds },
       isDeleted: false,
-      "saves.userId": viewerId,
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    }).lean();
+    const postMap = new Map(posts.map((p) => [p._id.toString(), p]));
+    const ordered = postIds
+      .map((id) => postMap.get(id))
+      .filter(Boolean) as any[];
 
-    const total = await PostModel.countDocuments({
-      isDeleted: false,
-      "saves.userId": viewerId,
-    });
-
+    const withFlags = await attachViewerFlags(ordered, viewerId);
     res.json({
       success: true,
-      data: posts,
-      pagination: { page, limit, total, hasMore: skip + posts.length < total },
+      data: withFlags,
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: skip + saveDocs.length < total,
+      },
     });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * GET /api/post/:postId
- */
+// ── GET BY ID ────────────────────────────────────────────────────────
 export const getPostById = async (
   req: AuthRequest,
   res: Response,
@@ -535,7 +623,6 @@ export const getPostById = async (
   try {
     const viewerId = req.userId!.toString();
     const { postId } = req.params;
-
     const post = await PostModel.findOne({
       _id: postId,
       isDeleted: false,
@@ -546,12 +633,10 @@ export const getPostById = async (
     }
 
     const ownerId = post.userId.toString();
-
     if (post.visibility === "only_me" && ownerId !== viewerId) {
       res.status(403).json({ success: false, message: "This post is private" });
       return;
     }
-
     if (post.visibility === "followers" && ownerId !== viewerId) {
       const follow = await isFollowing(viewerId, ownerId).catch(() => ({
         isFollowing: false,
@@ -565,7 +650,6 @@ export const getPostById = async (
       }
     }
 
-    // Enrich with owner info
     const usersResp = await wieUserClient
       .getUsersByIds([ownerId])
       .catch(() => ({ users: [] }));
@@ -573,27 +657,15 @@ export const getPostById = async (
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
     const enriched = await enrichPostWithUser(post, userMap);
+    const [withFlags] = await attachViewerFlags([enriched], viewerId);
 
-    // Viewer-specific flags
-    const hasLiked = (post.likes ?? []).some(
-      (l: any) => l.userId?.toString() === viewerId,
-    );
-    const hasSaved = (post.saves ?? []).some(
-      (s: any) => s.userId?.toString() === viewerId,
-    );
-
-    res
-      .status(200)
-      .json({ success: true, data: { ...enriched, hasLiked, hasSaved } });
+    res.status(200).json({ success: true, data: withFlags });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * PATCH /api/post/:postId
- * Body: { caption?, visibility?, locationLabel?, locationLat?, locationLng?, locationPlaceId? }
- */
+// ── UPDATE ───────────────────────────────────────────────────────────
 export const updatePost = async (
   req: AuthRequest,
   res: Response,
@@ -601,7 +673,6 @@ export const updatePost = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-
     const post = await PostModel.findOne({
       _id: postId,
       userId: callerId,
@@ -623,26 +694,19 @@ export const updatePost = async (
       "locationLng",
     ];
     const updates: Record<string, any> = {};
-    for (const key of allowed) {
+    for (const key of allowed)
       if (req.body[key] !== undefined) updates[key] = req.body[key];
-    }
-
-    if (updates.caption) {
-      updates.mentions = parseMentions(updates.caption);
-    }
+    if (updates.caption) updates.mentions = parseMentions(updates.caption);
 
     Object.assign(post, updates);
     await post.save();
-
     res.json({ success: true, data: post });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * DELETE /api/post/:postId
- */
+// ── DELETE ───────────────────────────────────────────────────────────
 export const deletePost = async (
   req: AuthRequest,
   res: Response,
@@ -650,7 +714,6 @@ export const deletePost = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-
     const post = await PostModel.findOne({
       _id: postId,
       userId: callerId,
@@ -666,7 +729,6 @@ export const deletePost = async (
     post.isDeleted = true;
     await post.save();
 
-    // Fire-and-forget: delete media from Cloudinary
     Promise.allSettled(
       post.mediaItems.map((item) =>
         deleteFromCloudinary(item.url, item.cloudinaryResourceType).catch(
@@ -674,19 +736,13 @@ export const deletePost = async (
         ),
       ),
     );
-
     res.json({ success: true, message: "Post deleted" });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-//  LIKES & REACTIONS
-/**
- * POST /api/post/:postId/like
- * Body: { emoji?: string }  — defaults to "❤️"
- * Toggles like. Sends notification on new like.
- */
+// ── TOGGLE LIKE ──────────────────────────────────────────────────────
 export const toggleLike = async (
   req: AuthRequest,
   res: Response,
@@ -703,70 +759,45 @@ export const toggleLike = async (
     }
 
     const ownerId = post.userId.toString();
-
-    // Privacy gate
     if (post.visibility === "only_me" && ownerId !== callerId) {
       res.status(403).json({ success: false, message: "Post is private" });
       return;
     }
-    if (post.visibility === "followers" && ownerId !== callerId) {
-      const follow = await isFollowing(callerId, ownerId).catch(() => ({
-        isFollowing: false,
-      }));
-      if (!follow.isFollowing) {
-        res
-          .status(403)
-          .json({ success: false, message: "Follow this user to interact" });
-        return;
-      }
-    }
 
-    const existingIdx = (post.likes as any[]).findIndex(
-      (l: any) => l.userId?.toString() === callerId,
-    );
+    const existing = await LikeModel.findOne({ postId, userId: callerId });
 
-    if (existingIdx !== -1) {
-      // ── Unlike ──────────────────────────────────────────
-      (post.likes as any[]).splice(existingIdx, 1);
-      await post.save();
-
-      onUnlike(callerId, postId); // no-op but keeps intent explicit
-
-      res.json({
-        success: true,
-        liked: false,
-        likeCount: post.likes.length,
-      });
+    if (existing) {
+      // Unlike
+      await LikeModel.deleteOne({ _id: existing._id });
+      const newCount = Math.max(0, await LikeModel.countDocuments({ postId }));
+      await PostModel.findByIdAndUpdate(postId, { likeCount: newCount });
+      onUnlike(callerId, postId);
+      res.json({ success: true, liked: false, likeCount: newCount });
       return;
     }
 
-    // ── Like ─────────────────────────────────────────────
-    (post.likes as any[]).push({
-      userId: callerId,
-      emoji,
-      createdAt: new Date(),
-    });
-    await post.save();
-    const likeCount = post.likes.length;
+    // Like
+    await LikeModel.create({ postId, userId: callerId, emoji });
+    const newCount = await LikeModel.countDocuments({ postId });
+    await PostModel.findByIdAndUpdate(postId, { likeCount: newCount });
 
-    // Notify owner — skip self-likes and respect cooldown
     if (ownerId !== callerId && shouldSendLikeNotif(callerId, postId)) {
       const likerResp = await wieUserClient
         .getUsersByIds([callerId])
         .catch(() => ({ users: [] }));
       const liker = (likerResp.users ?? [])[0];
       const likerName = liker?.username ?? liker?.name ?? "Someone";
-      const isReaction = emoji !== "❤️";
-
       await createNotification({
         userId: ownerId,
-        type: isReaction ? "post_reacted" : "post_liked",
-        title: isReaction
-          ? `${likerName} reacted ${emoji} to your post`
-          : `${likerName} liked your post`,
-        message: isReaction
-          ? `${likerName} reacted ${emoji} to your post`
-          : `${likerName} liked your post ❤️`,
+        type: emoji !== "❤️" ? "post_reacted" : "post_liked",
+        title:
+          emoji !== "❤️"
+            ? `${likerName} reacted ${emoji} to your post`
+            : `${likerName} liked your post`,
+        message:
+          emoji !== "❤️"
+            ? `${likerName} reacted ${emoji} to your post`
+            : `${likerName} liked your post ❤️`,
         fromUserId: callerId,
         metadata: {
           postId,
@@ -778,15 +809,13 @@ export const toggleLike = async (
       }).catch(() => {});
     }
 
-    res.json({ success: true, liked: true, likeCount });
+    res.json({ success: true, liked: true, likeCount: newCount });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * GET /api/post/:postId/likes
- */
+// ── GET LIKES ────────────────────────────────────────────────────────
 export const getPostLikes = async (
   req: AuthRequest,
   res: Response,
@@ -794,33 +823,32 @@ export const getPostLikes = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-
     const post = await PostModel.findOne({ _id: postId, isDeleted: false })
-      .select("likes userId likesHidden")
+      .select("likesHidden userId")
       .lean();
     if (!post) {
       res.status(404).json({ success: false, message: "Post not found" });
       return;
     }
 
-    const ownerId = (post as any).userId?.toString();
-    const isOwner = ownerId === callerId;
-    const likes: any[] = (post as any).likes ?? [];
+    const isOwner = (post as any).userId?.toString() === callerId;
+    const hasLiked = !!(await LikeModel.findOne({ postId, userId: callerId }));
+    const total = await LikeModel.countDocuments({ postId });
 
     if ((post as any).likesHidden && !isOwner) {
-      res.json({ success: true, total: null, hidden: true });
+      res.json({ success: true, total: null, hidden: true, hasLiked });
       return;
     }
-
-    const hasLiked = likes.some((l: any) => l.userId?.toString() === callerId);
-
     if (!isOwner) {
-      res.json({ success: true, total: likes.length, hasLiked });
+      res.json({ success: true, total, hasLiked });
       return;
     }
 
-    // Owner: full enriched list
-    const userIds = likes.map((l: any) => l.userId?.toString()).filter(Boolean);
+    const likeDocs = await LikeModel.find({ postId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    const userIds = likeDocs.map((l) => l.userId.toString()).filter(Boolean);
     const usersResp = userIds.length
       ? await wieUserClient.getUsersByIds(userIds).catch(() => ({ users: [] }))
       : { users: [] };
@@ -828,37 +856,25 @@ export const getPostLikes = async (
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    const enriched = likes.map((l: any) => ({
-      userId: l.userId?.toString(),
-      emoji: l.emoji ?? "❤️",
-      createdAt: l.createdAt,
-      ...(userMap.get(l.userId?.toString())
-        ? {
-            name: (userMap.get(l.userId!.toString()) as any).name,
-            username: (userMap.get(l.userId!.toString()) as any).username,
-            profile_picture:
-              (userMap.get(l.userId!.toString()) as any).profile_picture ??
-              null,
-          }
-        : {}),
-    }));
-
-    res.json({
-      success: true,
-      likes: enriched,
-      total: enriched.length,
-      hasLiked,
+    const enriched = likeDocs.map((l) => {
+      const u = userMap.get(l.userId.toString());
+      return {
+        userId: l.userId,
+        emoji: l.emoji ?? "❤️",
+        createdAt: l.createdAt,
+        name: u?.name,
+        username: u?.username,
+        profile_picture: u?.profile_picture ?? null,
+      };
     });
+
+    res.json({ success: true, likes: enriched, total, hasLiked });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-//  COMMENTS
-/**
- * POST /api/post/:postId/comments
- * Body: { text: string }
- */
+// ── ADD COMMENT ──────────────────────────────────────────────────────
 export const addComment = async (
   req: AuthRequest,
   res: Response,
@@ -866,12 +882,14 @@ export const addComment = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-    const text: string = (req.body.text ?? "").trim();
+    const text = (req.body.text ?? "").trim();
+    const gifUrl = req.body.gifUrl ?? null;
+    const stickerUrl = req.body.stickerUrl ?? null;
 
-    if (!text) {
+    if (!text && !gifUrl && !stickerUrl) {
       res
         .status(400)
-        .json({ success: false, message: "Comment text is required" });
+        .json({ success: false, message: "Comment content is required" });
       return;
     }
 
@@ -880,7 +898,6 @@ export const addComment = async (
       res.status(404).json({ success: false, message: "Post not found" });
       return;
     }
-
     if (post.commentsDisabled && post.userId.toString() !== callerId) {
       res.status(403).json({
         success: false,
@@ -889,14 +906,14 @@ export const addComment = async (
       return;
     }
 
-    const comment = {
+    const comment = await CommentModel.create({
+      postId,
       userId: callerId,
       text,
-      likes: [],
-      replies: [],
-      createdAt: new Date(),
-    };
-    await PostModel.findByIdAndUpdate(postId, { $push: { comments: comment } });
+      gifUrl,
+      stickerUrl,
+    });
+    await PostModel.findByIdAndUpdate(postId, { $inc: { commentCount: 1 } });
 
     const ownerId = post.userId.toString();
     if (ownerId !== callerId) {
@@ -905,24 +922,19 @@ export const addComment = async (
         .catch(() => ({ users: [] }));
       const caller = (callerResp.users ?? [])[0];
       const callerName = caller?.username ?? caller?.name ?? "Someone";
-
       await createNotification({
         userId: ownerId,
         type: "post_commented",
         title: "New comment on your post",
-        message: `${callerName} commented: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`,
+        message: text
+          ? `${callerName} commented: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`
+          : `${callerName} replied with media`,
         fromUserId: callerId,
-        metadata: {
-          postId,
-          commentText: text,
-          callerName,
-          callerAvatar: caller?.profile_picture ?? null,
-        },
+        metadata: { postId, commentText: text, callerName },
         link: `/post/${postId}`,
       }).catch(() => {});
     }
 
-    // Fetch caller info for response
     const callerInfoResp = await wieUserClient
       .getUsersByIds([callerId])
       .catch(() => ({ users: [] }));
@@ -931,8 +943,18 @@ export const addComment = async (
     res.status(201).json({
       success: true,
       comment: {
-        ...comment,
+        _id: comment._id,
+        userId: callerId,
+        text,
+        gifUrl,
+        stickerUrl,
+        likes: [],
+        likeCount: 0,
+        replies: [],
+        replyCount: 0,
+        createdAt: comment.createdAt,
         name: callerInfo?.name ?? callerInfo?.username ?? "Someone",
+        username: callerInfo?.username ?? "",
         profile_picture: callerInfo?.profile_picture ?? null,
       },
     });
@@ -941,9 +963,7 @@ export const addComment = async (
   }
 };
 
-/**
- * GET /api/post/:postId/comments?page=1&limit=20
- */
+// ── GET COMMENTS ─────────────────────────────────────────────────────
 export const getPostComments = async (
   req: AuthRequest,
   res: Response,
@@ -952,22 +972,18 @@ export const getPostComments = async (
     const { postId } = req.params;
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(100, Number(req.query.limit ?? 20));
+    const skip = (page - 1) * limit;
 
-    const post = await PostModel.findOne({ _id: postId, isDeleted: false })
-      .select("comments")
-      .lean();
-    if (!post) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
+    const [comments, total] = await Promise.all([
+      CommentModel.find({ postId, isDeleted: false })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      CommentModel.countDocuments({ postId, isDeleted: false }),
+    ]);
 
-    const allComments: any[] = (post as any).comments ?? [];
-    const total = allComments.length;
-    const sliced = allComments.slice((page - 1) * limit, page * limit);
-
-    const userIds = [
-      ...new Set(sliced.map((c: any) => c.userId?.toString()).filter(Boolean)),
-    ];
+    const userIds = [...new Set(comments.map((c) => c.userId.toString()))];
     const usersResp = userIds.length
       ? await wieUserClient.getUsersByIds(userIds).catch(() => ({ users: [] }))
       : { users: [] };
@@ -975,22 +991,22 @@ export const getPostComments = async (
       (usersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]),
     );
 
-    const enriched = sliced.map((c: any) => {
-      const user = userMap.get(c.userId?.toString());
+    const enriched = comments.map((c) => {
+      const user = userMap.get(c.userId.toString());
       return {
-        _id: c._id?.toString() ?? `comment-${Math.random()}`,
-        userId: c.userId?.toString(),
+        _id: c._id?.toString(),
+        userId: c.userId,
         text: c.text,
-        likes: c.likes ?? [],
-        likeCount: (c.likes ?? []).length,
+        likes: c.likedBy ?? [],
+        likeCount: c.likeCount ?? 0,
         replies: (c.replies ?? []).map((r: any) => {
           const ru = userMap.get(r.userId?.toString());
           return {
-            _id: r._id?.toString() ?? `reply-${Math.random()}`,
-            userId: r.userId?.toString(),
+            _id: r._id?.toString(),
+            userId: r.userId,
             text: r.text,
-            likes: r.likes ?? [],
-            likeCount: (r.likes ?? []).length,
+            likes: r.likedBy ?? [],
+            likeCount: r.likeCount ?? 0,
             createdAt: r.createdAt,
             name: ru?.name ?? ru?.username ?? "Someone",
             username: ru?.username ?? "",
@@ -1015,10 +1031,7 @@ export const getPostComments = async (
   }
 };
 
-/**
- * POST /api/post/:postId/comments/:commentId/reply
- * Body: { text: string }
- */
+// ── REPLY TO COMMENT ─────────────────────────────────────────────────
 export const replyToComment = async (
   req: AuthRequest,
   res: Response,
@@ -1026,21 +1039,35 @@ export const replyToComment = async (
   try {
     const callerId = req.userId!.toString();
     const { postId, commentId } = req.params;
-    const text: string = (req.body.text ?? "").trim();
+    const text = (req.body.text ?? "").trim();
+    const gifUrl = req.body.gifUrl ?? null;
+    const stickerUrl = req.body.stickerUrl ?? null;
 
-    if (!text) {
+    if (!text && !gifUrl && !stickerUrl) {
       res
         .status(400)
-        .json({ success: false, message: "Reply text is required" });
+        .json({ success: false, message: "Reply content is required" });
       return;
     }
 
-    const post = await PostModel.findOne({ _id: postId, isDeleted: false });
+    const comment = await CommentModel.findOne({
+      _id: commentId,
+      postId,
+      isDeleted: false,
+    });
+    if (!comment) {
+      res.status(404).json({ success: false, message: "Comment not found" });
+      return;
+    }
+
+    const post = await PostModel.findOne({
+      _id: postId,
+      isDeleted: false,
+    }).select("commentsDisabled userId");
     if (!post) {
       res.status(404).json({ success: false, message: "Post not found" });
       return;
     }
-
     if (post.commentsDisabled && post.userId.toString() !== callerId) {
       res
         .status(403)
@@ -1048,22 +1075,20 @@ export const replyToComment = async (
       return;
     }
 
-    const comment = (post.comments as any[]).find(
-      (c: any) => c._id?.toString() === commentId,
-    );
-    if (!comment) {
-      res.status(404).json({ success: false, message: "Comment not found" });
-      return;
-    }
+    const reply = {
+      userId: callerId,
+      text,
+      gifUrl,
+      stickerUrl,
+      likeCount: 0,
+      likedBy: [],
+      createdAt: new Date(),
+    };
+    await CommentModel.findByIdAndUpdate(commentId, {
+      $push: { replies: reply },
+      $inc: { replyCount: 1 },
+    });
 
-    const reply = { userId: callerId, text, likes: [], createdAt: new Date() };
-    await PostModel.findByIdAndUpdate(
-      postId,
-      { $push: { "comments.$[c].replies": reply } },
-      { arrayFilters: [{ "c._id": comment._id }] },
-    );
-
-    // Notify comment author
     const commentAuthorId = comment.userId?.toString();
     if (commentAuthorId && commentAuthorId !== callerId) {
       const callerResp = await wieUserClient
@@ -1071,12 +1096,13 @@ export const replyToComment = async (
         .catch(() => ({ users: [] }));
       const caller = (callerResp.users ?? [])[0];
       const callerName = caller?.username ?? caller?.name ?? "Someone";
-
       await createNotification({
         userId: commentAuthorId,
         type: "post_replied",
         title: `${callerName} replied to your comment`,
-        message: `${callerName}: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`,
+        message: text
+          ? `${callerName}: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`
+          : `${callerName} replied with media`,
         fromUserId: callerId,
         metadata: { postId, commentId, callerName },
         link: `/post/${postId}`,
@@ -1089,10 +1115,7 @@ export const replyToComment = async (
   }
 };
 
-/**
- * POST /api/post/:postId/comments/:commentId/like
- * Toggles like on a comment
- */
+// ── LIKE COMMENT ─────────────────────────────────────────────────────
 export const likeComment = async (
   req: AuthRequest,
   res: Response,
@@ -1101,36 +1124,27 @@ export const likeComment = async (
     const callerId = req.userId!.toString();
     const { postId, commentId } = req.params;
 
-    const post = await PostModel.findOne({ _id: postId, isDeleted: false });
-    if (!post) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
-
-    const comment = (post.comments as any[]).find(
-      (c: any) => c._id?.toString() === commentId,
-    );
+    const comment = await CommentModel.findOne({
+      _id: commentId,
+      postId,
+      isDeleted: false,
+    });
     if (!comment) {
       res.status(404).json({ success: false, message: "Comment not found" });
       return;
     }
 
-    const alreadyLiked = (comment.likes ?? []).includes(callerId);
-
+    const alreadyLiked = comment.likedBy.includes(callerId);
     if (alreadyLiked) {
-      await PostModel.findByIdAndUpdate(
-        postId,
-        { $pull: { "comments.$[c].likes": callerId } },
-        { arrayFilters: [{ "c._id": comment._id }] },
-      );
+      await CommentModel.findByIdAndUpdate(commentId, {
+        $pull: { likedBy: callerId },
+        $inc: { likeCount: -1 },
+      });
     } else {
-      await PostModel.findByIdAndUpdate(
-        postId,
-        { $addToSet: { "comments.$[c].likes": callerId } },
-        { arrayFilters: [{ "c._id": comment._id }] },
-      );
-
-      // Notify comment author (not for self-likes)
+      await CommentModel.findByIdAndUpdate(commentId, {
+        $addToSet: { likedBy: callerId },
+        $inc: { likeCount: 1 },
+      });
       const commentAuthorId = comment.userId?.toString();
       if (commentAuthorId && commentAuthorId !== callerId) {
         const likerResp = await wieUserClient
@@ -1138,20 +1152,13 @@ export const likeComment = async (
           .catch(() => ({ users: [] }));
         const liker = (likerResp.users ?? [])[0];
         const likerName = liker?.username ?? liker?.name ?? "Someone";
-
         await createNotification({
           userId: commentAuthorId,
           type: "comment_liked",
           title: `${likerName} liked your comment`,
-          message: `${likerName} liked your comment: "${(comment.text ?? "").slice(0, 60)}${comment.text?.length > 60 ? "…" : ""}"`,
+          message: `${likerName} liked your comment: "${(comment.text ?? "").slice(0, 60)}…"`,
           fromUserId: callerId,
-          metadata: {
-            postId,
-            commentId,
-            likerName,
-            likerAvatar: liker?.profile_picture ?? null,
-            commentText: comment.text,
-          },
+          metadata: { postId, commentId, likerName },
           link: `/post/${postId}`,
         }).catch(() => {});
       }
@@ -1163,10 +1170,7 @@ export const likeComment = async (
   }
 };
 
-/**
- * POST /api/post/:postId/comments/:commentId/replies/:replyId/like
- * Toggles like on a comment reply
- */
+// ── LIKE COMMENT REPLY ───────────────────────────────────────────────
 export const likeCommentReply = async (
   req: AuthRequest,
   res: Response,
@@ -1175,21 +1179,17 @@ export const likeCommentReply = async (
     const callerId = req.userId!.toString();
     const { postId, commentId, replyId } = req.params;
 
-    const post = await PostModel.findOne({ _id: postId, isDeleted: false });
-    if (!post) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
-
-    const comment = (post.comments as any[]).find(
-      (c: any) => c._id?.toString() === commentId,
-    );
+    const comment = await CommentModel.findOne({
+      _id: commentId,
+      postId,
+      isDeleted: false,
+    });
     if (!comment) {
       res.status(404).json({ success: false, message: "Comment not found" });
       return;
     }
 
-    const reply = (comment.replies ?? []).find(
+    const reply = comment.replies.find(
       (r: any) => r._id?.toString() === replyId,
     );
     if (!reply) {
@@ -1197,13 +1197,17 @@ export const likeCommentReply = async (
       return;
     }
 
-    const alreadyLiked = (reply.likes ?? []).includes(callerId);
+    const alreadyLiked = (reply.likedBy ?? []).includes(callerId);
     const op = alreadyLiked ? "$pull" : "$addToSet";
+    const inc = alreadyLiked ? -1 : 1;
 
-    await PostModel.findByIdAndUpdate(
-      postId,
-      { [op]: { "comments.$[c].replies.$[r].likes": callerId } },
-      { arrayFilters: [{ "c._id": comment._id }, { "r._id": reply._id }] },
+    await CommentModel.findByIdAndUpdate(
+      commentId,
+      {
+        [op]: { "replies.$[r].likedBy": callerId },
+        $inc: { "replies.$[r].likeCount": inc },
+      },
+      { arrayFilters: [{ "r._id": reply._id }] },
     );
 
     res.json({ success: true, liked: !alreadyLiked });
@@ -1212,10 +1216,7 @@ export const likeCommentReply = async (
   }
 };
 
-/**
- * DELETE /api/post/:postId/comments/:commentId
- * Post owner OR comment author can delete
- */
+// ── DELETE COMMENT ───────────────────────────────────────────────────
 export const deleteComment = async (
   req: AuthRequest,
   res: Response,
@@ -1224,46 +1225,33 @@ export const deleteComment = async (
     const callerId = req.userId!.toString();
     const { postId, commentId } = req.params;
 
-    const post = await PostModel.findOne({ _id: postId, isDeleted: false });
-    if (!post) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
-
-    const comment = (post.comments as any[]).find(
-      (c: any) => c._id?.toString() === commentId,
-    );
+    const comment = await CommentModel.findOne({
+      _id: commentId,
+      postId,
+      isDeleted: false,
+    });
     if (!comment) {
       res.status(404).json({ success: false, message: "Comment not found" });
       return;
     }
 
-    const isPostOwner = post.userId.toString() === callerId;
+    const post = await PostModel.findById(postId).select("userId");
+    const isPostOwner = post?.userId?.toString() === callerId;
     const isCommentOwner = comment.userId?.toString() === callerId;
-
     if (!isPostOwner && !isCommentOwner) {
-      res.status(403).json({
-        success: false,
-        message: "Not authorized to delete this comment",
-      });
+      res.status(403).json({ success: false, message: "Not authorized" });
       return;
     }
 
-    await PostModel.findByIdAndUpdate(postId, {
-      $pull: { comments: { _id: comment._id } },
-    });
+    await CommentModel.findByIdAndUpdate(commentId, { isDeleted: true });
+    await PostModel.findByIdAndUpdate(postId, { $inc: { commentCount: -1 } });
     res.json({ success: true, message: "Comment deleted" });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-//  SHARE
-/**
- * POST /api/post/:postId/share
- * Body: { receiverIds: string[] }
- * Sends post as a chat message to specified users
- */
+// ── SHARE ────────────────────────────────────────────────────────────
 export const sharePost = async (
   req: AuthRequest,
   res: Response,
@@ -1295,9 +1283,6 @@ export const sharePost = async (
       .catch(() => ({ users: [] }));
     const caller = (callerResp.users ?? [])[0];
     const callerName = caller?.name ?? caller?.username ?? "Someone";
-    const callerAvatar = caller?.profile_picture ?? null;
-
-    const postUrl = `/post/${postId}`;
     const firstMedia = (post as any).mediaItems?.[0] ?? {};
 
     const results: {
@@ -1307,54 +1292,49 @@ export const sharePost = async (
       error?: string;
     }[] = [];
 
-    for (const receiverId of receiverIds) {
-      const content = JSON.stringify({
-        type: "post_share",
-        text: `${callerName} shared a post`,
-        senderLabel: "You shared a post",
-        postId,
-        postOwnerId: (post as any).userId?.toString(),
-        mediaUrl: firstMedia.url ?? null,
-        mediaType: firstMedia.type ?? "image",
-        caption: (post as any).caption ?? "",
-        sharerName: callerName,
-        postUrl,
-      });
-
-      try {
-        const chatRes = await chatClient.sendSystemMessage({
-          sender_id: callerId,
-          receiver_id: receiverId,
-          message_type: "post_share",
-          content,
-          metadata_json: JSON.stringify({
+    // Insert share records + send chat messages
+    await Promise.all(
+      receiverIds.map(async (receiverId) => {
+        try {
+          await ShareModel.create({ postId, userId: callerId, receiverId });
+          const content = JSON.stringify({
+            type: "post_share",
+            text: `${callerName} shared a post`,
+            senderLabel: "You shared a post",
             postId,
+            postOwnerId: (post as any).userId?.toString(),
             mediaUrl: firstMedia.url ?? null,
             mediaType: firstMedia.type ?? "image",
+            caption: (post as any).caption ?? "",
             sharerName: callerName,
-            sharerAvatar: callerAvatar,
-            postOwnerId: (post as any).userId?.toString(),
-            type: "post_share",
-          }),
-        });
-        results.push({
-          receiverId,
-          chatId: chatRes.chat_id,
-          messageId: chatRes.message_id,
-        });
-      } catch (chatErr) {
-        console.error(`❌ sharePost chat failed for ${receiverId}:`, chatErr);
-        results.push({ receiverId, error: "Failed to send" });
-      }
-    }
+            postUrl: `/post/${postId}`,
+          });
+          const chatRes = await chatClient.sendSystemMessage({
+            sender_id: callerId,
+            receiver_id: receiverId,
+            message_type: "post_share",
+            content,
+            metadata_json: JSON.stringify({
+              postId,
+              mediaUrl: firstMedia.url ?? null,
+              sharerName: callerName,
+              type: "post_share",
+            }),
+          });
+          results.push({
+            receiverId,
+            chatId: chatRes.chat_id,
+            messageId: chatRes.message_id,
+          });
+        } catch (e) {
+          results.push({ receiverId, error: "Failed to send" });
+        }
+      }),
+    );
 
-    // Increment share count + record sharer
-    await PostModel.findByIdAndUpdate(postId, {
-      $inc: { shareCount: receiverIds.length },
-      $push: { shares: { userId: callerId, createdAt: new Date() } },
-    });
+    const newShareCount = await ShareModel.countDocuments({ postId });
+    await PostModel.findByIdAndUpdate(postId, { shareCount: newShareCount });
 
-    // Notify post owner
     const ownerId = (post as any).userId?.toString();
     if (ownerId && ownerId !== callerId) {
       await createNotification({
@@ -1363,7 +1343,7 @@ export const sharePost = async (
         title: `${callerName} shared your post`,
         message: `${callerName} shared your post`,
         fromUserId: callerId,
-        metadata: { postId, callerName, callerAvatar },
+        metadata: { postId, callerName },
         link: `/post/${postId}`,
       }).catch(() => {});
     }
@@ -1374,12 +1354,7 @@ export const sharePost = async (
   }
 };
 
-//  SAVE / BOOKMARK
-/**
- * POST /api/post/:postId/save
- * Body: { collection?: string }
- * Toggle save (bookmark) for authenticated user
- */
+// ── TOGGLE SAVE ──────────────────────────────────────────────────────
 export const toggleSave = async (
   req: AuthRequest,
   res: Response,
@@ -1387,44 +1362,35 @@ export const toggleSave = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-    const collection: string | undefined = req.body.collection;
-
     const post = await PostModel.findOne({ _id: postId, isDeleted: false });
     if (!post) {
       res.status(404).json({ success: false, message: "Post not found" });
       return;
     }
 
-    const already = (post.saves as any[]).findIndex(
-      (s: any) => s.userId?.toString() === callerId,
-    );
-
-    if (already !== -1) {
-      (post.saves as any[]).splice(already, 1);
-      await post.save();
-      res.json({ success: true, saved: false, saveCount: post.saves.length });
+    const existing = await SaveModel.findOne({ postId, userId: callerId });
+    if (existing) {
+      await SaveModel.deleteOne({ _id: existing._id });
+      const newCount = await SaveModel.countDocuments({ postId });
+      await PostModel.findByIdAndUpdate(postId, { saveCount: newCount });
+      res.json({ success: true, saved: false, saveCount: newCount });
       return;
     }
 
-    (post.saves as any[]).push({
+    await SaveModel.create({
+      postId,
       userId: callerId,
-      collection,
-      createdAt: new Date(),
+      collection: req.body.collection,
     });
-    await post.save();
-
-    res.json({ success: true, saved: true, saveCount: post.saves.length });
+    const newCount = await SaveModel.countDocuments({ postId });
+    await PostModel.findByIdAndUpdate(postId, { saveCount: newCount });
+    res.json({ success: true, saved: true, saveCount: newCount });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-//  TAG PEOPLE
-/**
- * POST /api/post/:postId/tags
- * Body: { taggedUsers: [{ userId, x?, y?, mediaIndex? }] }
- * Post owner can add/update tags
- */
+// ── TAG USERS ────────────────────────────────────────────────────────
 export const tagUsers = async (
   req: AuthRequest,
   res: Response,
@@ -1442,7 +1408,6 @@ export const tagUsers = async (
         mediaIndex?: number;
       }[];
     } = req.body ?? {};
-
     if (!Array.isArray(taggedUsers)) {
       res
         .status(400)
@@ -1462,7 +1427,6 @@ export const tagUsers = async (
       return;
     }
 
-    // Validate each tagged user (block check)
     const validated: typeof taggedUsers = [];
     for (const tag of taggedUsers) {
       if (!tag.userId || tag.userId === callerId) continue;
@@ -1474,35 +1438,13 @@ export const tagUsers = async (
 
     post.taggedUsers = validated as any;
     await post.save();
-
-    // Notify newly tagged users
-    const callerResp = await wieUserClient
-      .getUsersByIds([callerId])
-      .catch(() => ({ users: [] }));
-    const caller = (callerResp.users ?? [])[0];
-    const callerName = caller?.name ?? caller?.username ?? "Someone";
-
-    for (const tag of validated) {
-      await createNotification({
-        userId: tag.userId,
-        type: "mention",
-        title: `${callerName} tagged you in a post`,
-        message: `${callerName} tagged you in a post`,
-        fromUserId: callerId,
-        metadata: { postId, callerName },
-        link: `/post/${postId}`,
-      }).catch(() => {});
-    }
-
     res.json({ success: true, taggedUsers: post.taggedUsers });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * GET /api/post/:postId/tags
- */
+// ── GET TAGS ─────────────────────────────────────────────────────────
 export const getPostTags = async (
   req: AuthRequest,
   res: Response,
@@ -1533,7 +1475,7 @@ export const getPostTags = async (
         x: t.x,
         y: t.y,
         mediaIndex: t.mediaIndex ?? 0,
-        name: user?.name ?? user?.username ?? "Someone",
+        name: user?.name ?? "Someone",
         username: user?.username ?? "",
         profile_picture: user?.profile_picture ?? null,
       };
@@ -1545,11 +1487,7 @@ export const getPostTags = async (
   }
 };
 
-//  POST SETTINGS
-/**
- * PATCH /api/post/:postId/settings
- * Body: { commentsDisabled?, likesHidden?, visibility?, isPinned? }
- */
+// ── POST SETTINGS ────────────────────────────────────────────────────
 export const updatePostSettings = async (
   req: AuthRequest,
   res: Response,
@@ -1557,7 +1495,6 @@ export const updatePostSettings = async (
   try {
     const callerId = req.userId!.toString();
     const { postId } = req.params;
-
     const post = await PostModel.findOne({
       _id: postId,
       userId: callerId,
@@ -1577,10 +1514,8 @@ export const updatePostSettings = async (
       "isPinned",
     ];
     const updates: Record<string, any> = {};
-    for (const key of allowed) {
+    for (const key of allowed)
       if (req.body[key] !== undefined) updates[key] = req.body[key];
-    }
-
     Object.assign(post, updates);
     await post.save();
 
@@ -1595,5 +1530,57 @@ export const updatePostSettings = async (
     });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+// ── GIPHY SEARCH
+export const searchGiphy = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const q = (req.query.q as string)?.trim() ?? "";
+    const type =
+      (req.query.type as string) === "stickers" ? "stickers" : "gifs";
+    const offset = Number(req.query.offset) || 0;
+    const apiKey = process.env.STICKER_API_KEY ?? "";
+    if (!apiKey) {
+      res.status(503).json({ success: false, message: "Giphy not configured" });
+      return;
+    }
+
+    const endpoint = q
+      ? `https://api.giphy.com/v1/${type}/search`
+      : `https://api.giphy.com/v1/${type}/trending`;
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      limit: "20",
+      offset: String(offset),
+      rating: "pg-13",
+      ...(q ? { q } : {}),
+    });
+    const response = await fetch(`${endpoint}?${params}`);
+    if (!response.ok) {
+      res.status(502).json({ success: false, message: "Giphy request failed" });
+      return;
+    }
+
+    const data = (await response.json()) as GiphyResponse;
+    const items = data.data.map((g) => ({
+      id: g.id,
+      title: g.title,
+      preview:
+        g.images.fixed_width_small?.url ?? g.images.preview_gif?.url ?? "",
+      url: g.images.fixed_width?.url ?? g.images.downsized?.url ?? "",
+      original: g.images.original?.url ?? "",
+    }));
+
+    res
+      .status(200)
+      .json({ success: true, data: items, pagination: data.pagination });
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Internal server error",
+    });
   }
 };
