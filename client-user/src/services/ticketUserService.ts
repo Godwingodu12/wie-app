@@ -283,9 +283,23 @@ export const getInitialEvents = async (
 export const searchEventsByName = async (
   params: NameSearchParams,
 ): Promise<NameSearchResponse> => {
+  // Guard: backend requires a non-empty searchQuery
+  if (!params.searchQuery?.trim()) {
+    return {
+      success: true,
+      message: "No query provided",
+      data: {
+        searchQuery: "",
+        categories: [],
+        eventsByCategory: {},
+        totalEvents: 0,
+      },
+    };
+  }
+
   try {
     const queryParams = new URLSearchParams();
-    queryParams.append("searchQuery", params.searchQuery);
+    queryParams.append("searchQuery", params.searchQuery.trim());
     if (params.userId) queryParams.append("userId", params.userId);
 
     const url = `/tickets/search-by-name?${queryParams.toString()}`;
