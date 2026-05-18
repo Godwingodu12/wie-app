@@ -556,10 +556,11 @@ function ProfileContent() {
                           >
                             Add story
                           </button>
+                          {/* CHANGED: separate Post and Reel buttons */}
                           <button
                             onClick={() => {
                               setShowActionModal(false);
-                              router.push("/post/add-post");
+                              router.push("/post/add-post?mode=post");
                             }}
                             className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
                             style={{ color: themeStyles.text }}
@@ -568,16 +569,28 @@ function ProfileContent() {
                           </button>
                           <button
                             onClick={() => {
+                              setShowActionModal(false);
+                              router.push("/post/add-post?mode=reel");
+                            }}
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
+                            style={{ color: themeStyles.text }}
+                          >
+                            Add reel
+                          </button>
+                          <button
+                            onClick={() => {
                               document.getElementById("avatar-upload")?.click();
                               setShowActionModal(false);
                             }}
-                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
+                            style={{ color: themeStyles.text }}
                           >
                             Change profile picture
                           </button>
                           <button
                             onClick={handleRemoveProfilePicture}
-                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
+                            style={{ color: themeStyles.text }}
                           >
                             Remove profile picture
                           </button>

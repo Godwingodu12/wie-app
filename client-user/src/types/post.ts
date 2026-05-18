@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────────────────
-//  FILE: src/types/post.ts   (CREATE NEW)
-// ─────────────────────────────────────────────────────────
-
 export type PostVisibility = "public" | "followers" | "only_me";
 export type PostMediaType = "image" | "video";
 export type ReactionEmoji = "❤️" | "🔥" | "😂" | "😮" | "👏" | "🚀";
@@ -44,6 +40,8 @@ export interface PostComment {
   profile_picture: string | null;
   text: string;
   likes: string[];
+  gifUrl?: string;
+  stickerUrl?: string;
   likeCount: number;
   replies: PostCommentReply[];
   createdAt: string;
@@ -61,6 +59,7 @@ export interface Post {
   userId: string;
   owner?: PostOwner;
   mediaItems: PostMediaItem[];
+  contentType?: "post" | "reel"; 
   caption?: string;
   visibility: PostVisibility;
   locationLabel?: string;
@@ -96,6 +95,7 @@ export interface CreatePostPayload {
   files: File[];
   caption?: string;
   visibility?: PostVisibility;
+  contentType?: "post" | "reel";
   taggedUsers?: TaggedUser[];
   locationLabel?: string;
   locationPlaceId?: string;

@@ -1,63 +1,75 @@
 "use client";
-// ─────────────────────────────────────────────────────────
-//  FILE: src/app/(protected)/post/add-post/page.tsx  (CREATE NEW)
-// ─────────────────────────────────────────────────────────
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, ChevronDown,
   ImageIcon, Video, X, Loader2,
-  MapPin, Users, Globe, Lock, UserCheck,
-  Plus, Check,
+  MapPin, Globe, Lock, UserCheck,
+  Plus, Check, Film, Image as ImageIconLucide,
 } from "lucide-react";
 import { useTheme } from "@/components/home/ThemeContext";
 import { createPost } from "@/services/postService";
 import type { PostVisibility } from "@/types/post";
 
-// ── Types ─────────────────────────────────────────────────
 type Step = "pick" | "edit" | "posting" | "done";
+type ContentMode = "post" | "reel";
 
 interface PreviewItem {
-  file:     File;
-  url:      string;
-  type:     "image" | "video";
-  duration?: number;
+  file: File;
+  url: string;
+  type: "image" | "video";
 }
 
 const VISIBILITY_OPTIONS: {
-  value:  PostVisibility;
-  label:  string;
-  sub:    string;
-  icon:   React.ReactNode;
+  value: PostVisibility;
+  label: string;
+  sub: string;
+  icon: React.ReactNode;
 }[] = [
-  { value: "public",    label: "Public",       sub: "Anyone can see",       icon: <Globe    size={16} /> },
-  { value: "followers", label: "Followers",    sub: "Followers only",       icon: <UserCheck size={16} /> },
-  { value: "only_me",   label: "Only Me",      sub: "Private",              icon: <Lock      size={16} /> },
+  { value: "public",    label: "Public",    sub: "Anyone can see",  icon: <Globe     size={16} /> },
+  { value: "followers", label: "Followers", sub: "Followers only",  icon: <UserCheck size={16} /> },
+  { value: "only_me",   label: "Only Me",   sub: "Private",         icon: <Lock      size={16} /> },
 ];
 
-const MAX_FILES  = 10;
-const MAX_MB     = 200;
+const MAX_FILES = 10;
+const MAX_MB    = 200;
 
 export default function AddPostPage() {
   const { themeStyles } = useTheme();
-  const router          = useRouter();
+  const router = useRouter();
 
-  const [step,       setStep]       = useState<Step>("pick");
-  const [previews,   setPreviews]   = useState<PreviewItem[]>([]);
-  const [activeIdx,  setActiveIdx]  = useState(0);
-  const [caption,    setCaption]    = useState("");
-  const [visibility, setVisibility] = useState<PostVisibility>("public");
-  const [location,   setLocation]   = useState("");
+  // Detect mode from URL param ?mode=reel
+  const [contentMode, setContentMode] = useState<ContentMode>("post");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "reel") setContentMode("reel");
+  }, []);
+
+  const [step,          setStep]          = useState<Step>("pick");
+  const [previews,      setPreviews]      = useState<PreviewItem[]>([]);
+  const [activeIdx,     setActiveIdx]     = useState(0);
+  const [caption,       setCaption]       = useState("");
+  const [visibility,    setVisibility]    = useState<PostVisibility>("public");
+  const [location,      setLocation]      = useState("");
   const [showVisPicker, setShowVisPicker] = useState(false);
-  const [progress,   setProgress]   = useState(0);
-  const [error,      setError]      = useState("");
-  const [dragging,   setDragging]   = useState(false);
+  const [progress,      setProgress]      = useState(0);
+  const [error,         setError]         = useState("");
+  const [dragging,      setDragging]      = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
+  // Auto-detect mode from uploaded files
+  const detectMode = useCallback((files: PreviewItem[]) => {
+    const hasVideo = files.some((f) => f.type === "video");
+    const hasImage = files.some((f) => f.type === "image");
+    if (hasVideo && !hasImage) setContentMode("reel");
+    else if (hasImage && !hasVideo) setContentMode("post");
+    // mixed: keep current mode
+  }, []);
+
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -65,39 +77,56 @@ export default function AddPostPage() {
     el.style.height = el.scrollHeight + "px";
   }, [caption]);
 
-  // Revoke object URLs on unmount
   useEffect(() => {
     return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
   }, [previews]);
 
-  const processFiles = useCallback((files: FileList | File[]) => {
-    setError("");
-    const arr = Array.from(files);
+  const processFiles = useCallback(
+    (files: FileList | File[]) => {
+      setError("");
+      const arr = Array.from(files);
 
-    if (previews.length + arr.length > MAX_FILES) {
-      setError(`Max ${MAX_FILES} files allowed.`);
-      return;
-    }
-
-    const items: PreviewItem[] = [];
-    for (const file of arr) {
-      if (file.size > MAX_MB * 1024 * 1024) {
-        setError(`"${file.name}" exceeds ${MAX_MB} MB.`);
-        continue;
+      if (previews.length + arr.length > MAX_FILES) {
+        setError(`Max ${MAX_FILES} files allowed.`);
+        return;
       }
-      const isVideo = file.type.startsWith("video/");
-      const isImage = file.type.startsWith("image/");
-      if (!isVideo && !isImage) {
-        setError(`"${file.name}" is not a supported format.`);
-        continue;
-      }
-      items.push({ file, url: URL.createObjectURL(file), type: isVideo ? "video" : "image" });
-    }
 
-    if (items.length === 0) return;
-    setPreviews((prev) => [...prev, ...items]);
-    setStep("edit");
-  }, [previews]);
+      // In reel mode only allow videos
+      if (contentMode === "reel") {
+        const nonVideo = arr.filter((f) => !f.type.startsWith("video/"));
+        if (nonVideo.length > 0) {
+          setError("Reels only support video files.");
+          return;
+        }
+      }
+
+      const items: PreviewItem[] = [];
+      for (const file of arr) {
+        if (file.size > MAX_MB * 1024 * 1024) {
+          setError(`"${file.name}" exceeds ${MAX_MB} MB.`);
+          continue;
+        }
+        const isVideo = file.type.startsWith("video/");
+        const isImage = file.type.startsWith("image/");
+        if (!isVideo && !isImage) {
+          setError(`"${file.name}" is not a supported format.`);
+          continue;
+        }
+        items.push({
+          file,
+          url: URL.createObjectURL(file),
+          type: isVideo ? "video" : "image",
+        });
+      }
+
+      if (items.length === 0) return;
+      const next = [...previews, ...items];
+      setPreviews(next);
+      detectMode(next);
+      setStep("edit");
+    },
+    [previews, contentMode, detectMode],
+  );
 
   const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) processFiles(e.target.files);
@@ -115,7 +144,10 @@ export default function AddPostPage() {
     const next = previews.filter((_, i) => i !== idx);
     setPreviews(next);
     if (next.length === 0) setStep("pick");
-    else setActiveIdx(Math.min(activeIdx, next.length - 1));
+    else {
+      setActiveIdx(Math.min(activeIdx, next.length - 1));
+      detectMode(next);
+    }
   };
 
   const handlePost = async () => {
@@ -126,26 +158,68 @@ export default function AddPostPage() {
     try {
       await createPost(
         {
-          files:          previews.map((p) => p.file),
-          caption:        caption.trim() || undefined,
+          files:         previews.map((p) => p.file),
+          caption:       caption.trim() || undefined,
           visibility,
-          locationLabel:  location.trim() || undefined,
+          locationLabel: location.trim() || undefined,
         },
         (evt) => {
-          if (evt.total) setProgress(Math.round((evt.loaded / evt.total) * 100));
+          if (evt.total)
+            setProgress(Math.round((evt.loaded / evt.total) * 100));
         },
       );
       setStep("done");
       setTimeout(() => router.push("/home"), 1500);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? "Upload failed. Please try again.");
+      setError(
+        e?.response?.data?.message ?? "Upload failed. Please try again.",
+      );
       setStep("edit");
     }
   };
 
   const currentVis = VISIBILITY_OPTIONS.find((o) => o.value === visibility)!;
+  const isReel = contentMode === "reel";
 
-  // ── PICK STEP ─────────────────────────────────────────
+  // ── MODE SELECTOR (shown in pick step and edit step header) ────────────
+  const ModeToggle = () => (
+    <div
+      className="flex rounded-full p-1 gap-1"
+      style={{ background: themeStyles.pillBg }}
+    >
+      {(["post", "reel"] as ContentMode[]).map((mode) => (
+        <button
+          key={mode}
+          onClick={() => {
+            setContentMode(mode);
+            // clear files if switching to reel and there are images
+            if (mode === "reel" && previews.some((p) => p.type === "image")) {
+              previews.forEach((p) => URL.revokeObjectURL(p.url));
+              setPreviews([]);
+              setStep("pick");
+            }
+          }}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all"
+          style={{
+            background:
+              contentMode === mode
+                ? "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)"
+                : "transparent",
+            color: contentMode === mode ? "#fff" : themeStyles.textSecondary,
+          }}
+        >
+          {mode === "post" ? (
+            <ImageIconLucide size={14} />
+          ) : (
+            <Film size={14} />
+          )}
+          {mode === "post" ? "Post" : "Reel"}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ── PICK STEP ─────────────────────────────────────────────────────────
   if (step === "pick") {
     return (
       <div
@@ -155,12 +229,19 @@ export default function AddPostPage() {
         {/* Header */}
         <div
           className="flex items-center justify-between px-4 py-4 sticky top-0 z-10"
-          style={{ background: themeStyles.background, borderBottom: `1px solid ${themeStyles.border}` }}
+          style={{
+            background: themeStyles.background,
+            borderBottom: `1px solid ${themeStyles.border}`,
+          }}
         >
-          <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-full" style={{ background: themeStyles.pillBg }}>
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 flex items-center justify-center rounded-full"
+            style={{ background: themeStyles.pillBg }}
+          >
             <ArrowLeft size={20} style={{ color: themeStyles.text }} />
           </button>
-          <h1 className="text-[16px] font-semibold" style={{ color: themeStyles.text }}>New Post</h1>
+          <ModeToggle />
           <div className="w-9" />
         </div>
 
@@ -175,22 +256,39 @@ export default function AddPostPage() {
             <div
               className="w-full aspect-square max-w-xs flex flex-col items-center justify-center gap-4 rounded-3xl cursor-pointer transition-all duration-200"
               style={{
-                border:     `2px dashed ${dragging ? "#8860D9" : themeStyles.border}`,
-                background: dragging ? "rgba(136,96,217,0.08)" : themeStyles.cardBg,
+                border: `2px dashed ${dragging ? "#8860D9" : themeStyles.border}`,
+                background: dragging
+                  ? "rgba(136,96,217,0.08)"
+                  : themeStyles.cardBg,
               }}
               onClick={() => fileInputRef.current?.click()}
             >
               <div
                 className="w-20 h-20 rounded-full flex items-center justify-center"
-                style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+                style={{
+                  background:
+                    "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+                }}
               >
-                <Plus size={36} className="text-white" />
+                {isReel ? (
+                  <Film size={36} className="text-white" />
+                ) : (
+                  <Plus size={36} className="text-white" />
+                )}
               </div>
               <div className="text-center px-6">
-                <p className="text-[15px] font-semibold" style={{ color: themeStyles.text }}>
-                  Drag & drop files here
+                <p
+                  className="text-[15px] font-semibold"
+                  style={{ color: themeStyles.text }}
+                >
+                  {isReel
+                    ? "Drop your video here"
+                    : "Drag & drop files here"}
                 </p>
-                <p className="text-[13px] mt-1" style={{ color: themeStyles.textSecondary }}>
+                <p
+                  className="text-[13px] mt-1"
+                  style={{ color: themeStyles.textSecondary }}
+                >
                   or tap to browse
                 </p>
               </div>
@@ -198,37 +296,134 @@ export default function AddPostPage() {
 
             {/* Format hints */}
             <div className="flex gap-6">
-              {[
-                { icon: <ImageIcon size={20} />, label: "Photos", sub: "JPG, PNG, WEBP, HEIC" },
-                { icon: <Video      size={20} />, label: "Videos", sub: "MP4, MOV, WEBM" },
-              ].map(({ icon, label, sub }) => (
-                <div key={label} className="flex flex-col items-center gap-1">
-                  <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                    style={{ background: themeStyles.pillBg, color: "#8860D9" }}
-                  >
-                    {icon}
-                  </div>
-                  <span className="text-[12px] font-semibold" style={{ color: themeStyles.text }}>{label}</span>
-                  <span className="text-[10px] text-center" style={{ color: themeStyles.textSecondary }}>{sub}</span>
-                </div>
-              ))}
+              {isReel ? (
+                <>
+                  {[
+                    {
+                      icon: <Video size={20} />,
+                      label: "MP4 / MOV",
+                      sub: "H.264, 1080p vertical",
+                    },
+                    {
+                      icon: <Film size={20} />,
+                      label: "50–200 MB",
+                      sub: "For best quality",
+                    },
+                  ].map(({ icon, label, sub }) => (
+                    <div
+                      key={label}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                        style={{
+                          background: themeStyles.pillBg,
+                          color: "#8860D9",
+                        }}
+                      >
+                        {icon}
+                      </div>
+                      <span
+                        className="text-[12px] font-semibold"
+                        style={{ color: themeStyles.text }}
+                      >
+                        {label}
+                      </span>
+                      <span
+                        className="text-[10px] text-center"
+                        style={{ color: themeStyles.textSecondary }}
+                      >
+                        {sub}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {[
+                    {
+                      icon: <ImageIcon size={20} />,
+                      label: "Photos",
+                      sub: "JPG, PNG, WEBP, HEIC",
+                    },
+                    {
+                      icon: <Video size={20} />,
+                      label: "Videos",
+                      sub: "MP4, MOV, WEBM",
+                    },
+                  ].map(({ icon, label, sub }) => (
+                    <div
+                      key={label}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                        style={{
+                          background: themeStyles.pillBg,
+                          color: "#8860D9",
+                        }}
+                      >
+                        {icon}
+                      </div>
+                      <span
+                        className="text-[12px] font-semibold"
+                        style={{ color: themeStyles.text }}
+                      >
+                        {label}
+                      </span>
+                      <span
+                        className="text-[10px] text-center"
+                        style={{ color: themeStyles.textSecondary }}
+                      >
+                        {sub}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
-            <p className="text-[12px] text-center" style={{ color: themeStyles.textSecondary }}>
-              Up to {MAX_FILES} files · Max {MAX_MB} MB each
+            {isReel && (
+              <div
+                className="w-full rounded-2xl px-4 py-3 text-[12px] leading-relaxed"
+                style={{
+                  background: "rgba(136,96,217,0.08)",
+                  border: "1px solid rgba(136,96,217,0.25)",
+                  color: themeStyles.textSecondary,
+                }}
+              >
+                <span className="font-semibold" style={{ color: "#8860D9" }}>
+                  Reel tips:{" "}
+                </span>
+                Export as MP4 (H.264) · 1080×1920 vertical · 50–200 MB for
+                best quality and minimal compression.
+              </div>
+            )}
+
+            <p
+              className="text-[12px] text-center"
+              style={{ color: themeStyles.textSecondary }}
+            >
+              {isReel
+                ? "1 video · Max 200 MB"
+                : `Up to ${MAX_FILES} files · Max ${MAX_MB} MB each`}
             </p>
 
             {error && (
-              <p className="text-[13px] text-[#FF453A] text-center font-medium">{error}</p>
+              <p className="text-[13px] text-[#FF453A] text-center font-medium">
+                {error}
+              </p>
             )}
 
             <button
               className="w-full py-3.5 rounded-2xl text-white font-semibold text-[15px]"
-              style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+              style={{
+                background:
+                  "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+              }}
               onClick={() => fileInputRef.current?.click()}
             >
-              Choose Files
+              {isReel ? "Choose Video" : "Choose Files"}
             </button>
           </div>
         </div>
@@ -236,8 +431,8 @@ export default function AddPostPage() {
         <input
           ref={fileInputRef}
           type="file"
-          multiple
-          accept="image/*,video/*"
+          multiple={!isReel}
+          accept={isReel ? "video/*" : "image/*,video/*"}
           className="hidden"
           onChange={handleFilePick}
         />
@@ -245,7 +440,7 @@ export default function AddPostPage() {
     );
   }
 
-  // ── POSTING / DONE STEP ───────────────────────────────
+  // ── POSTING / DONE STEP ───────────────────────────────────────────────
   if (step === "posting" || step === "done") {
     return (
       <div
@@ -256,23 +451,44 @@ export default function AddPostPage() {
           <>
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center"
-              style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+              style={{
+                background:
+                  "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+              }}
             >
               <Check size={40} className="text-white" />
             </div>
-            <p className="text-[18px] font-bold text-center" style={{ color: themeStyles.text }}>
-              Posted! 🚀
+            <p
+              className="text-[18px] font-bold text-center"
+              style={{ color: themeStyles.text }}
+            >
+              {isReel ? "Reel posted! 🎬" : "Posted! 🚀"}
             </p>
-            <p className="text-[14px] text-center" style={{ color: themeStyles.textSecondary }}>
+            <p
+              className="text-[14px] text-center"
+              style={{ color: themeStyles.textSecondary }}
+            >
               Redirecting to your feed…
             </p>
           </>
         ) : (
           <>
-            {/* Preview thumb */}
             {previews[0] && (
               <div className="w-24 h-24 rounded-2xl overflow-hidden relative">
-                <Image src={previews[0].url} alt="" fill className="object-cover" />
+                {previews[0].type === "video" ? (
+                  <video
+                    src={previews[0].url}
+                    className="w-full h-full object-cover"
+                    muted
+                  />
+                ) : (
+                  <Image
+                    src={previews[0].url}
+                    alt=""
+                    fill
+                    className="object-cover"
+                  />
+                )}
                 {previews.length > 1 && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-sm font-bold">
                     +{previews.length}
@@ -282,14 +498,27 @@ export default function AddPostPage() {
             )}
             <div className="w-full max-w-xs">
               <div className="flex justify-between mb-1">
-                <span className="text-[13px]" style={{ color: themeStyles.textSecondary }}>Uploading…</span>
-                <span className="text-[13px] font-semibold" style={{ color: "#8860D9" }}>{progress}%</span>
+                <span
+                  className="text-[13px]"
+                  style={{ color: themeStyles.textSecondary }}
+                >
+                  {isReel ? "Uploading reel…" : "Uploading…"}
+                </span>
+                <span
+                  className="text-[13px] font-semibold"
+                  style={{ color: "#8860D9" }}
+                >
+                  {progress}%
+                </span>
               </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: themeStyles.pillBg }}>
+              <div
+                className="h-2 rounded-full overflow-hidden"
+                style={{ background: themeStyles.pillBg }}
+              >
                 <div
                   className="h-full rounded-full transition-all duration-300"
                   style={{
-                    width:      `${progress}%`,
+                    width: `${progress}%`,
                     background: "linear-gradient(90deg,#B3B8E2,#8860D9)",
                   }}
                 />
@@ -302,7 +531,7 @@ export default function AddPostPage() {
     );
   }
 
-  // ── EDIT STEP ─────────────────────────────────────────
+  // ── EDIT STEP ─────────────────────────────────────────────────────────
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -311,7 +540,10 @@ export default function AddPostPage() {
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-4 sticky top-0 z-20"
-        style={{ background: themeStyles.background, borderBottom: `1px solid ${themeStyles.border}` }}
+        style={{
+          background: themeStyles.background,
+          borderBottom: `1px solid ${themeStyles.border}`,
+        }}
       >
         <button
           onClick={() => setStep("pick")}
@@ -320,28 +552,49 @@ export default function AddPostPage() {
         >
           <ArrowLeft size={20} style={{ color: themeStyles.text }} />
         </button>
-        <h1 className="text-[16px] font-semibold" style={{ color: themeStyles.text }}>New Post</h1>
+
+        {/* Mode badge (read-only in edit step) */}
+        <div
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold text-white"
+          style={{
+            background:
+              "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+          }}
+        >
+          {isReel ? <Film size={14} /> : <ImageIconLucide size={14} />}
+          {isReel ? "Reel" : "Post"}
+        </div>
+
         <button
           onClick={handlePost}
           className="px-5 py-2 rounded-full text-white text-[13px] font-semibold active:scale-95 transition-transform"
-          style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+          style={{
+            background:
+              "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+          }}
         >
-          Post
+          {isReel ? "Share Reel" : "Post"}
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto pb-8">
-        {/* ── Media preview carousel ──────────────────── */}
+        {/* Media preview */}
         <div
           className="relative w-full"
-          style={{ aspectRatio: "4/5", maxHeight: 520, background: "#0a0a0a" }}
+          style={{
+            aspectRatio: isReel ? "9/16" : "4/5",
+            maxHeight: isReel ? 640 : 520,
+            background: "#0a0a0a",
+          }}
         >
           {previews[activeIdx]?.type === "video" ? (
             <video
               key={previews[activeIdx].url}
               src={previews[activeIdx].url}
               className="w-full h-full object-contain"
-              controls muted playsInline
+              controls
+              muted
+              playsInline
             />
           ) : previews[activeIdx] ? (
             <Image
@@ -371,18 +624,20 @@ export default function AddPostPage() {
                   <ArrowRight size={16} className="text-white" />
                 </button>
               )}
-              {/* Dots */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                 {previews.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setActiveIdx(i)}
                     style={{
-                      width:        i === activeIdx ? 16 : 6,
-                      height:       6,
+                      width: i === activeIdx ? 16 : 6,
+                      height: 6,
                       borderRadius: 3,
-                      background:   i === activeIdx ? "#8860D9" : "rgba(255,255,255,0.5)",
-                      transition:   "all 0.2s",
+                      background:
+                        i === activeIdx
+                          ? "#8860D9"
+                          : "rgba(255,255,255,0.5)",
+                      transition: "all 0.2s",
                     }}
                   />
                 ))}
@@ -390,16 +645,26 @@ export default function AddPostPage() {
             </>
           )}
 
-          {/* Remove current */}
           <button
             className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
             onClick={() => removeFile(activeIdx)}
           >
             <X size={16} className="text-white" />
           </button>
+
+          {/* Reel quality badge */}
+          {isReel && (
+            <div
+              className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full text-white text-[11px] font-semibold"
+              style={{ background: "rgba(136,96,217,0.85)" }}
+            >
+              <Film size={11} />
+              Reel
+            </div>
+          )}
         </div>
 
-        {/* ── Thumbnail strip ─────────────────────────── */}
+        {/* Thumbnail strip */}
         {previews.length > 1 && (
           <div className="flex gap-2 px-4 py-3 overflow-x-auto">
             {previews.map((p, i) => (
@@ -408,21 +673,30 @@ export default function AddPostPage() {
                 onClick={() => setActiveIdx(i)}
                 className="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden transition-all"
                 style={{
-                  border: i === activeIdx ? "2px solid #8860D9" : `2px solid ${themeStyles.border}`,
+                  border:
+                    i === activeIdx
+                      ? "2px solid #8860D9"
+                      : `2px solid ${themeStyles.border}`,
                 }}
               >
                 {p.type === "video" ? (
-                  <video src={p.url} className="w-full h-full object-cover" muted />
+                  <video
+                    src={p.url}
+                    className="w-full h-full object-cover"
+                    muted
+                  />
                 ) : (
                   <Image src={p.url} alt="" fill className="object-cover" />
                 )}
               </button>
             ))}
-            {/* Add more */}
-            {previews.length < MAX_FILES && (
+            {previews.length < MAX_FILES && !isReel && (
               <button
                 className="flex-shrink-0 w-16 h-16 rounded-xl flex items-center justify-center border-2 border-dashed"
-                style={{ borderColor: themeStyles.border, background: themeStyles.pillBg }}
+                style={{
+                  borderColor: themeStyles.border,
+                  background: themeStyles.pillBg,
+                }}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Plus size={20} style={{ color: "#8860D9" }} />
@@ -431,59 +705,100 @@ export default function AddPostPage() {
           </div>
         )}
 
-        {/* ── Form ─────────────────────────────────────── */}
+        {/* Form */}
         <div className="px-4 flex flex-col gap-4 pt-4">
+          {/* Reel quality reminder */}
+          {isReel && (
+            <div
+              className="rounded-2xl px-4 py-3 text-[12px] leading-relaxed"
+              style={{
+                background: "rgba(136,96,217,0.08)",
+                border: "1px solid rgba(136,96,217,0.25)",
+                color: themeStyles.textSecondary,
+              }}
+            >
+              <span className="font-semibold" style={{ color: "#8860D9" }}>
+                Best quality:{" "}
+              </span>
+              MP4 (H.264) · 1080×1920 · 50–200 MB
+            </div>
+          )}
+
           {/* Caption */}
           <div
             className="rounded-2xl p-4"
-            style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
+            style={{
+              background: themeStyles.cardBg,
+              border: `1px solid ${themeStyles.border}`,
+            }}
           >
             <textarea
               ref={textareaRef}
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              placeholder="Write a caption… (optional)"
+              placeholder={
+                isReel
+                  ? "Write a reel caption… (optional)"
+                  : "Write a caption… (optional)"
+              }
               maxLength={2200}
               rows={3}
               className="w-full bg-transparent outline-none resize-none text-[14px] leading-relaxed"
               style={{ color: themeStyles.text }}
             />
             <div className="flex justify-end mt-2">
-              <span className="text-[11px]" style={{ color: themeStyles.textSecondary }}>
+              <span
+                className="text-[11px]"
+                style={{ color: themeStyles.textSecondary }}
+              >
                 {caption.length}/2200
               </span>
             </div>
           </div>
 
-          {/* Location */}
-          <div
-            className="flex items-center gap-3 rounded-2xl px-4 py-3"
-            style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
-          >
-            <MapPin size={18} style={{ color: "#8860D9" }} />
-            <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Add location (optional)"
-              className="flex-1 bg-transparent outline-none text-[14px]"
-              style={{ color: themeStyles.text }}
-            />
-          </div>
+          {/* Location (posts only) */}
+          {!isReel && (
+            <div
+              className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{
+                background: themeStyles.cardBg,
+                border: `1px solid ${themeStyles.border}`,
+              }}
+            >
+              <MapPin size={18} style={{ color: "#8860D9" }} />
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Add location (optional)"
+                className="flex-1 bg-transparent outline-none text-[14px]"
+                style={{ color: themeStyles.text }}
+              />
+            </div>
+          )}
 
-          {/* Visibility picker */}
+          {/* Visibility */}
           <div className="relative">
             <button
               onClick={() => setShowVisPicker(!showVisPicker)}
               className="w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
-              style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
+              style={{
+                background: themeStyles.cardBg,
+                border: `1px solid ${themeStyles.border}`,
+              }}
             >
               <div className="flex items-center gap-3">
                 <div className="text-[#8860D9]">{currentVis.icon}</div>
                 <div className="text-left">
-                  <p className="text-[14px] font-medium" style={{ color: themeStyles.text }}>
+                  <p
+                    className="text-[14px] font-medium"
+                    style={{ color: themeStyles.text }}
+                  >
                     {currentVis.label}
                   </p>
-                  <p className="text-[11px]" style={{ color: themeStyles.textSecondary }}>
+                  <p
+                    className="text-[11px]"
+                    style={{ color: themeStyles.textSecondary }}
+                  >
                     {currentVis.sub}
                   </p>
                 </div>
@@ -491,7 +806,7 @@ export default function AddPostPage() {
               <ChevronDown
                 size={16}
                 style={{
-                  color:     themeStyles.textSecondary,
+                  color: themeStyles.textSecondary,
                   transform: showVisPicker ? "rotate(180deg)" : "none",
                   transition: "transform 0.2s",
                 }}
@@ -500,21 +815,40 @@ export default function AddPostPage() {
 
             {showVisPicker && (
               <>
-                <div className="fixed inset-0 z-20" onClick={() => setShowVisPicker(false)} />
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setShowVisPicker(false)}
+                />
                 <div
                   className="absolute top-full mt-1 left-0 right-0 rounded-2xl overflow-hidden z-30 shadow-2xl"
-                  style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
+                  style={{
+                    background: themeStyles.cardBg,
+                    border: `1px solid ${themeStyles.border}`,
+                  }}
                 >
                   {VISIBILITY_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:opacity-80 transition-opacity"
-                      onClick={() => { setVisibility(opt.value); setShowVisPicker(false); }}
+                      onClick={() => {
+                        setVisibility(opt.value);
+                        setShowVisPicker(false);
+                      }}
                     >
                       <div className="text-[#8860D9]">{opt.icon}</div>
                       <div className="text-left flex-1">
-                        <p className="text-[14px] font-medium" style={{ color: themeStyles.text }}>{opt.label}</p>
-                        <p className="text-[11px]" style={{ color: themeStyles.textSecondary }}>{opt.sub}</p>
+                        <p
+                          className="text-[14px] font-medium"
+                          style={{ color: themeStyles.text }}
+                        >
+                          {opt.label}
+                        </p>
+                        <p
+                          className="text-[11px]"
+                          style={{ color: themeStyles.textSecondary }}
+                        >
+                          {opt.sub}
+                        </p>
                       </div>
                       {visibility === opt.value && (
                         <Check size={16} style={{ color: "#8860D9" }} />
@@ -526,42 +860,27 @@ export default function AddPostPage() {
             )}
           </div>
 
-          {/* Settings hints */}
-          <div
-            className="rounded-2xl px-4 py-3 flex flex-col gap-2"
-            style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[13px]" style={{ color: themeStyles.text }}>Tag people</span>
-              <div className="flex items-center gap-1">
-                <Users size={14} style={{ color: themeStyles.textSecondary }} />
-                <span className="text-[12px]" style={{ color: themeStyles.textSecondary }}>
-                  After posting
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[13px]" style={{ color: themeStyles.text }}>Advanced settings</span>
-              <ArrowRight size={14} style={{ color: themeStyles.textSecondary }} />
-            </div>
-          </div>
-
           {error && (
             <div
               className="rounded-2xl px-4 py-3 text-[13px] text-[#FF453A] font-medium"
-              style={{ background: "rgba(255,69,58,0.1)", border: "1px solid rgba(255,69,58,0.3)" }}
+              style={{
+                background: "rgba(255,69,58,0.1)",
+                border: "1px solid rgba(255,69,58,0.3)",
+              }}
             >
               {error}
             </div>
           )}
 
-          {/* Post button (bottom CTA) */}
           <button
             onClick={handlePost}
             className="w-full py-4 rounded-2xl text-white font-bold text-[16px] active:scale-[0.98] transition-transform"
-            style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+            style={{
+              background:
+                "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+            }}
           >
-            Share Post 🚀
+            {isReel ? "Share Reel 🎬" : "Share Post 🚀"}
           </button>
         </div>
       </div>
@@ -569,8 +888,8 @@ export default function AddPostPage() {
       <input
         ref={fileInputRef}
         type="file"
-        multiple
-        accept="image/*,video/*"
+        multiple={!isReel}
+        accept={isReel ? "video/*" : "image/*,video/*"}
         className="hidden"
         onChange={handleFilePick}
       />
