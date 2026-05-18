@@ -8,6 +8,10 @@ import { useTheme } from '@/components/home/ThemeContext';
 import { getPostById } from '@/services/postService';
 import { getUserById } from '@/services/wieUserService';
 import type { Post } from '@/types/post';
+import CommentSheet from "@/components/post/CommentSheet";
+import PostShareBar from "@/components/post/actions/PostShareBar";
+import { toggleLike, toggleSave } from "@/services/postService";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PreviewPostProps {
   postId: string;
@@ -33,8 +37,16 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
   const [isMuted, setIsMuted]           = useState(true);
   const videoRef   = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth(false);
+  const [hasLikedLocal,  setHasLikedLocal]  = useState(false);
+  const [likeCountLocal, setLikeCountLocal] = useState(0);
+  const [hasSavedLocal,  setHasSavedLocal]  = useState(false);
+  const [showComments,   setShowComments]   = useState(false);
+  const [showShare,      setShowShare]      = useState(false);
+  const [commentCount,   setCommentCount]   = useState(0);
+  const [actionLoading,  setActionLoading]  = useState(false);
 
-  // ── Fetch post then author ──────────────────────────────────────────────
+  // ── Fetch post then author 
   useEffect(() => {
     if (!postId) return;
     let cancelled = false;
@@ -93,8 +105,14 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
     fetch();
     return () => { cancelled = true; };
   }, [postId]);
-
-  // ── Keyboard navigation ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!post) return;
+    setHasLikedLocal((post as any).hasLiked  ?? false);
+    setLikeCountLocal(post.likeCount ?? (post as any).likes?.length ?? 0);
+    setHasSavedLocal((post as any).hasSaved  ?? false);
+    setCommentCount(post.commentCount ?? (post as any).comments?.length ?? 0);
+  }, [post]);
+  // ── Keyboard navigation 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape')      onClose();
@@ -106,7 +124,7 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [post, onClose]);
 
-  // ── Video helpers ───────────────────────────────────────────────────────
+  // ── Video helpers 
   const togglePlay = () => {
     if (!videoRef.current) return;
     isPlaying ? videoRef.current.pause() : videoRef.current.play();
@@ -117,14 +135,35 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
     videoRef.current.muted = !isMuted;
     setIsMuted(m => !m);
   };
+  const handleLike = async () => {
+    if (actionLoading || !post) return;
+    setActionLoading(true);
+    const prev = { hasLikedLocal, likeCountLocal };
+    setHasLikedLocal(v => !v);
+    setLikeCountLocal(c => hasLikedLocal ? c - 1 : c + 1);
+    try {
+      const res = await toggleLike(post._id);
+      setHasLikedLocal(res.liked);
+      setLikeCountLocal(res.likeCount);
+    } catch {
+      setHasLikedLocal(prev.hasLikedLocal);
+      setLikeCountLocal(prev.likeCountLocal);
+    } finally { setActionLoading(false); }
+  };
 
-  // ── Derived ─────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!post) return;
+    setHasSavedLocal(v => !v);
+    try { await toggleSave(post._id); }
+    catch { setHasSavedLocal(v => !v); }
+  };
+
+  // Derived
   const currentMedia = post?.mediaItems?.[currentIndex];
   const isVideo      = currentMedia?.type === 'video';
   const totalMedia   = post?.mediaItems?.length ?? 0;
 
   const likeCount    = post?.likeCount    ?? (post as any)?.likes?.length    ?? 0;
-  const commentCount = post?.commentCount ?? (post as any)?.comments?.length ?? 0;
   const shareCount   = (post as any)?.shareCount ?? (post as any)?.shares?.length ?? 0;
   const saveCount    = (post as any)?.saveCount  ?? (post as any)?.saves?.length  ?? 0;
   const viewCount    = (post as any)?.viewCount  ?? 0;
@@ -136,7 +175,7 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
   const authorAvatar   = author?.profile_picture || (post as any)?.author?.profile_picture;
   const authorVerified = author?.is_verified     || (post as any)?.author?.is_verified;
 
-  // ── Styles ───────────────────────────────────────────────────────────────
+  // ── Styles
   const bg      = isDark ? '#0e0e0e' : '#fff';
   const border  = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
   const divider = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
@@ -392,94 +431,126 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
                 )}
               </div>
 
-              {/* Stats footer */}
+              {/* Action bar + stats footer */}
               <div
                 className="px-4 py-3 flex-shrink-0"
                 style={{ borderTop: `1px solid ${divider}` }}
               >
-                {/* Stat grid */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {/* Likes */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: statBg }}
-                  >
-                    <Heart
-                      size={16}
-                      style={{ color: hasLiked ? '#FF4B6E' : textSecondary }}
-                      fill={hasLiked ? '#FF4B6E' : 'none'}
-                    />
-                    <div>
-                      <p className="text-xs font-bold leading-none" style={{ color: textPrimary }}>
-                        {likeCount.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Likes</p>
-                    </div>
-                  </div>
+                {/* Primary action buttons */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    {/* Like */}
+                    <button
+                      onClick={handleLike}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 transition-transform active:scale-90"
+                    >
+                      <Heart
+                        size={22}
+                        style={{ color: hasLikedLocal ? "#FF4B6E" : textSecondary }}
+                        fill={hasLikedLocal ? "#FF4B6E" : "none"}
+                      />
+                      <span className="text-sm font-semibold" style={{ color: hasLikedLocal ? "#FF4B6E" : textPrimary }}>
+                        {likeCountLocal.toLocaleString()}
+                      </span>
+                    </button>
 
-                  {/* Comments */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: statBg }}
-                  >
-                    <MessageCircle size={16} style={{ color: textSecondary }} />
-                    <div>
-                      <p className="text-xs font-bold leading-none" style={{ color: textPrimary }}>
+                    {/* Comment */}
+                    <button
+                      onClick={() => setShowComments(true)}
+                      className="flex items-center gap-1.5 transition-transform active:scale-90"
+                    >
+                      <MessageCircle size={22} style={{ color: textSecondary }} />
+                      <span className="text-sm font-semibold" style={{ color: textPrimary }}>
                         {commentCount.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Comments</p>
-                    </div>
-                  </div>
+                      </span>
+                    </button>
 
-                  {/* Shares */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: statBg }}
-                  >
-                    <Share2 size={16} style={{ color: textSecondary }} />
-                    <div>
-                      <p className="text-xs font-bold leading-none" style={{ color: textPrimary }}>
+                    {/* Share */}
+                    <button
+                      onClick={() => setShowShare(true)}
+                      className="flex items-center gap-1.5 transition-transform active:scale-90"
+                    >
+                      <Share2 size={22} style={{ color: textSecondary }} />
+                      <span className="text-sm font-semibold" style={{ color: textPrimary }}>
                         {shareCount.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Shares</p>
-                    </div>
+                      </span>
+                    </button>
                   </div>
 
-                  {/* Saves */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: statBg }}
+                  {/* Save */}
+                  <button
+                    onClick={handleSave}
+                    className="transition-transform active:scale-90"
                   >
                     <Bookmark
-                      size={16}
-                      style={{ color: hasSaved ? '#F59E0B' : textSecondary }}
-                      fill={hasSaved ? '#F59E0B' : 'none'}
+                      size={22}
+                      style={{ color: hasSavedLocal ? "#F59E0B" : textSecondary }}
+                      fill={hasSavedLocal ? "#F59E0B" : "none"}
                     />
-                    <div>
-                      <p className="text-xs font-bold leading-none" style={{ color: textPrimary }}>
-                        {saveCount.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Saves</p>
-                    </div>
-                  </div>
+                  </button>
                 </div>
 
-                {/* Views — full width if present */}
-                {viewCount > 0 && (
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: statBg }}
-                  >
-                    <Eye size={16} style={{ color: textSecondary }} />
-                    <div>
-                      <p className="text-xs font-bold leading-none" style={{ color: textPrimary }}>
-                        {viewCount.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Views</p>
+                {/* Secondary stats */}
+                <div className="grid grid-cols-2 gap-2">
+                  {shareCount > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: statBg }}>
+                      <Share2 size={14} style={{ color: textSecondary }} />
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: textPrimary }}>{shareCount.toLocaleString()}</p>
+                        <p className="text-[10px]" style={{ color: textSecondary }}>Shares</p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                  {saveCount > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: statBg }}>
+                      <Bookmark size={14} style={{ color: textSecondary }} />
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: textPrimary }}>{saveCount.toLocaleString()}</p>
+                        <p className="text-[10px]" style={{ color: textSecondary }}>Saves</p>
+                      </div>
+                    </div>
+                  )}
+                  {viewCount > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl col-span-2" style={{ background: statBg }}>
+                      <Eye size={14} style={{ color: textSecondary }} />
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: textPrimary }}>{viewCount.toLocaleString()}</p>
+                        <p className="text-[10px]" style={{ color: textSecondary }}>Views</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Comment sheet */}
+              {post && (
+                <CommentSheet
+                  postId={post._id}
+                  isOpen={showComments}
+                  onClose={() => setShowComments(false)}
+                  commentCount={commentCount}
+                  onCommentAdded={() => setCommentCount(c => c + 1)}
+                  currentUserId={user?.id}
+                />
+              )}
+
+              {/* Share bar */}
+              {post && showShare && (
+                <div
+                  className="fixed inset-0 z-[9999] flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+                  onClick={() => setShowShare(false)}
+                >
+                  <div onClick={e => e.stopPropagation()}>
+                    <PostShareBar
+                      postId={post._id}
+                      postOwnerId={(post as any).userId?.toString?.()}
+                      onClose={() => setShowShare(false)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
