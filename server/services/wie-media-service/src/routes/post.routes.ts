@@ -11,10 +11,9 @@ router.use(authenticate);
 // ── Feed / Discovery
 // GET /api/post/feed?page=1&limit=20
 router.get("/feed", postController.getPostFeed);
-
+router.get("/reels", postController.getReelsFeed);
 // GET /api/post/explore?page=1&limit=20
 router.get("/explore", postController.getExplorePosts);
-
 // GET /api/post/saved
 router.get("/saved", postController.getSavedPosts);
 
@@ -25,7 +24,9 @@ router.post(
   upload.array("media", 10), // up to 10 files per post (carousel)
   postController.createPost,
 );
-
+// Giphy Search (Comments)
+// GET /api/post/giphy/search?q=cats&type=gifs&offset=0
+router.get("/giphy/search", postController.searchGiphy);
 // ── User posts
 // GET /api/post/user/:userId?page=1&limit=12
 router.get("/user/:userId", postController.getUserPosts);
