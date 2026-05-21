@@ -33,9 +33,27 @@ message Booking {
 }
 
 message VerifyBookingQRResponse {
-  bool   success      = 1;
-  string error        = 2;
-  Booking booking     = 3;
+  bool   success         = 1;
+  string error           = 2;
+  string bookingId       = 3;
+  string externalId      = 4;
+  string userId          = 5;
+  string ticketId        = 6;
+  string ticketType      = 7;
+  int32  quantity        = 8;
+  string paymentMethod   = 9;
+  string bookingStatus   = 10;
+  string userName        = 11;
+  string userEmail       = 12;
+  string userPhone       = 13;
+  string eventName       = 14;
+  string eventDate       = 15;
+  string eventTime       = 16;
+  string eventEndDate    = 17;
+  string venue           = 18;
+  double totalAmount     = 19;
+  double subtotal        = 20;
+  string eventImage      = 21;
 }
 
 message EventFinancialSummaryRequest {
