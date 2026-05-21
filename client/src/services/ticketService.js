@@ -56,7 +56,7 @@ export const createTicketBasicInfo = async (formData, ticketId = null) => {
     if (!groupId || groupId === 'undefined') {
       throw new Error('Group ID is missing or invalid');
     }
-    const url = ticketId 
+    const url = ticketId
       ? `ticket/create-event/${groupId}/${ticketId}`
       : `ticket/create-event/${groupId}`;
     const response = await api.post(url, formData);
@@ -97,7 +97,7 @@ export const updateSubEvent = async (ticketId, subEventId, formData) => {
     throw error;
   }
 };
-export const updateTicketDetails = async (ticketId,apiFormData) => {
+export const updateTicketDetails = async (ticketId, apiFormData) => {
   try {
     const response = await api.post(`/ticket/update-ticket-details/${ticketId}`, apiFormData);
     return response.data;
@@ -183,7 +183,7 @@ export const deleteEventPermenently = async (ticketId, options = {}) => {
   try {
     const response = await api.delete(`/ticket/delete-event-permanently/${ticketId}`, {
       data: {
-        isSubEvent:    options.isSubEvent    || false,
+        isSubEvent: options.isSubEvent || false,
         parentEventId: options.parentEventId || null,
       },
     });
@@ -290,35 +290,35 @@ export const getMyUpcomingEvents = async () => {
     throw error;
   }
 };
-export const getOthersEvents = async(otherId)=>{
-  try{
+export const getOthersEvents = async (otherId) => {
+  try {
     const response = await api.get(`ticket/get-others-events/${otherId}`);
     return response.data;
-  }catch(error){
+  } catch (error) {
     throw error;
   }
 };
-export const getOthersEventsById = async(otherId,ticketId)=>{
-  try{
+export const getOthersEventsById = async (otherId, ticketId) => {
+  try {
     const response = await api.get(`ticket/get-other-ticket-id/${otherId}/${ticketId}`);
     return response.data;
-  }catch(error){
+  } catch (error) {
     throw error;
   }
 };
-export const getOtherLiveEvents = async(otherId)=>{
-  try{
+export const getOtherLiveEvents = async (otherId) => {
+  try {
     const response = await api.get(`ticket/get-others-live-events/${otherId}`);
     return response.data;
-  }catch(error){
+  } catch (error) {
     throw error;
   }
 };
-export const getOthersPastEvents = async(otherId)=>{
-  try{
+export const getOthersPastEvents = async (otherId) => {
+  try {
     const response = await api.get(`ticket/get-others-past-events/${otherId}`);
     return response.data;
-  }catch(error){
+  } catch (error) {
     throw error;
   }
 };
@@ -364,7 +364,7 @@ export const getMyPreviousEventView = async (ticketId) => {
     throw error;
   }
 };
-export const likeEvent = async(ticketId) => {
+export const likeEvent = async (ticketId) => {
   try {
     const response = await api.post(`/tickets/like-event/${ticketId}`);
     return response.data;
@@ -372,7 +372,7 @@ export const likeEvent = async(ticketId) => {
     throw error;
   }
 };
-export const unlikeEvent = async(ticketId) => {
+export const unlikeEvent = async (ticketId) => {
   try {
     const response = await api.post(`/tickets/unlike-event/${ticketId}`);
     return response.data;
@@ -381,20 +381,20 @@ export const unlikeEvent = async(ticketId) => {
   }
 };
 export const checkIfUserLiked = async (ticketId) => {
-  try{
+  try {
     const response = await api.get(`/tickets/check-user-liked/${ticketId}`);
     return response.data;
-  }catch(error){
+  } catch (error) {
     throw error;
   }
 };
 export const checkUserLiked = async (ticketId) => {
-  try{
+  try {
     const response = await api.get(`/tickets/check-user-liked/${ticketId}`);
     return response.data;
-  }catch(error){
-      throw error;
-    } 
+  } catch (error) {
+    throw error;
+  }
 };
 export const showEventBankDetails = async () => {
   try {
@@ -405,7 +405,7 @@ export const showEventBankDetails = async () => {
     throw error;
   }
 };
-export const showAllBankDetails= async () => {
+export const showAllBankDetails = async () => {
   try {
     const response = await api.get(`ticket/show-all-bank-details`);
     return response.data;
@@ -619,8 +619,8 @@ export const getCancellationReport = async (ticketId, subEventId = null) => {
       : `cancellation-report-${ticketId}.xlsx`;
 
     const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
-    const link    = document.createElement('a');
-    link.href     = blobUrl;
+    const link = document.createElement('a');
+    link.href = blobUrl;
     link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
@@ -713,3 +713,10 @@ export const downloadAttendance = (ticketId, format = 'excel', subEventId = null
   if (subEventId) params.append('subEventId', subEventId);
   return api.get(`/attendance/${ticketId}/download?${params}`, { responseType: 'blob' });
 };
+export const completeAttendance = (ticketId, subEventId = null) =>
+  api.patch(`/attendance/${ticketId}/complete`, { subEventId });
+
+export const removeAttendee = (ticketId, bookingId, subEventId = null) =>
+  api.delete(`/attendance/${ticketId}/attendee/${bookingId}`, {
+    params: subEventId ? { subEventId } : {},
+  });
