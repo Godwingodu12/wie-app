@@ -649,7 +649,7 @@ const getEventTransactionList = async (call: any, callback: any) => {
   }
 };
 
-const verifyBookingQR = async (call: any, callback: any) => {
+export const verifyBookingQR = async (call: any, callback: any) => {
   try {
     const { qrData } = call.request;
     if (!qrData) {

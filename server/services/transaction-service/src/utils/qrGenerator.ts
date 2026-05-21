@@ -137,7 +137,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
     }
   }
 
-  // ── Format 3: multiline text (old legacy) ────────────────────────────────
+  // ── Format 3: multiline text (old legacy) 
   const get = (label: string) => {
     const m = trimmed.match(new RegExp(`${label}:\\s*([^\\n\\r]+)`, "i"));
     return m ? m[1].trim() : "";
@@ -157,7 +157,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
       venue: get("Location") || get("Venue"),
       paymentMethod: get("Payment"),
       totalAmount: Number(get("Total Price")?.replace(/[^\d.]/g, "")) || 0,
-      v: 0, // legacy
+      v: 0,
     };
   }
   return null;

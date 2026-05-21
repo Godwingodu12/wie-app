@@ -11,14 +11,15 @@ import { EventCancelModal, EventCancelSuccessModal } from "../../components/Even
 import ReHostModal from "../../components/Event/ReHostModal";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
+import { Html5Qrcode } from 'html5-qrcode';
 import { toast } from "react-hot-toast";
 import {
   getMyLiveEventView,
   getGroupView,
-  getTicketById,cancelEvent, cancelSubEvent, getCancellationReport,rehostEvent,
-  getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
-  getEventFinancialSummary, getEventTransactions,initAttendance, scanAttendanceQR, 
-  getAttendanceList, downloadAttendance
+  getTicketById, cancelEvent, cancelSubEvent, getCancellationReport, rehostEvent,
+  getEventMetrics, getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
+  getEventFinancialSummary, getEventTransactions, initAttendance, scanAttendanceQR,
+  getAttendanceList, downloadAttendance, completeAttendance, removeAttendee
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
@@ -39,8 +40,8 @@ import {
   Ticket,
   TrendingUp,
   ChevronLeft,
-  ChevronRight,QrCode, CheckCircle, UserCheck,
-  ChevronDown, AlertTriangle, FileSpreadsheet, Ban,RefreshCw
+  ChevronRight, QrCode, CheckCircle, UserCheck,
+  ChevronDown, AlertTriangle, FileSpreadsheet, Ban, RefreshCw
 } from "lucide-react";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
 const HEADER_HEIGHT = 72; // From HomePage
@@ -78,32 +79,32 @@ const LiveEventsPage = () => {
   const [groupName, setGroupName] = useState("");
   const [selectedGuest, setSelectedGuest] = useState(null);
   // ── Event Cancellation State 
-  const [showCancelModal, setShowCancelModal]         = useState(false);
-  const [cancelReason, setCancelReason]               = useState("");
-  const [cancelReasonError, setCancelReasonError]     = useState("");
-  const [isCancelling, setIsCancelling]               = useState(false);
-  const [cancelSuccess, setCancelSuccess]             = useState(false);
-  const [showDownloadReport, setShowDownloadReport]   = useState(false);
-  const [isDownloading, setIsDownloading]             = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+  const [showDownloadReport, setShowDownloadReport] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [cancellationSummary, setCancellationSummary] = useState(null);
-  const [downloadError, setDownloadError]             = useState("");
-  const [showRehostModal, setShowRehostModal]         = useState(false);
-  const [isRehosting, setIsRehosting]                 = useState(false);
-  const [financialSummary, setFinancialSummary]       = useState(null);
-  const [transactions, setTransactions]               = useState([]);
-  const [transactionTotal, setTransactionTotal]       = useState(0);
-  const [transactionFilter, setTransactionFilter]     = useState('all');
-  const [loadingFinancial, setLoadingFinancial]       = useState(false);
-  const [showTransactionPanel,setShowTransactionPanel]= useState(false);
-  const [showAttendanceModal,   setShowAttendanceModal]   = useState(false);
-  const [showAttendanceList,    setShowAttendanceList]     = useState(false);
-  const [attendanceData,        setAttendanceData]         = useState(null);
-  const [scanResult,            setScanResult]             = useState(null);  // last scan
-  const [scanCount,             setScanCount]              = useState(0);
-  const [scanError,             setScanError]              = useState('');
-  const [isInitingAttendance,   setIsInitingAttendance]    = useState(false);
-  const [isDownloadingAtt,      setIsDownloadingAtt]       = useState(false);
-  const [activeSubEventIdForAtt,setActiveSubEventIdForAtt] = useState(null);
+  const [downloadError, setDownloadError] = useState("");
+  const [showRehostModal, setShowRehostModal] = useState(false);
+  const [isRehosting, setIsRehosting] = useState(false);
+  const [financialSummary, setFinancialSummary] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionTotal, setTransactionTotal] = useState(0);
+  const [transactionFilter, setTransactionFilter] = useState('all');
+  const [loadingFinancial, setLoadingFinancial] = useState(false);
+  const [showTransactionPanel, setShowTransactionPanel] = useState(false);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showAttendanceList, setShowAttendanceList] = useState(false);
+  const [attendanceData, setAttendanceData] = useState(null);
+  const [scanResult, setScanResult] = useState(null);  // last scan
+  const [scanCount, setScanCount] = useState(0);
+  const [scanError, setScanError] = useState('');
+  const [isInitingAttendance, setIsInitingAttendance] = useState(false);
+  const [isDownloadingAtt, setIsDownloadingAtt] = useState(false);
+  const [activeSubEventIdForAtt, setActiveSubEventIdForAtt] = useState(null);
   // Update the fetchEventData useEffect to also fetch initial growth stats
   useEffect(() => {
     const fetchEventData = async () => {
@@ -145,10 +146,10 @@ const LiveEventsPage = () => {
           if (isRehostedFresh) {
             // Use the reset lifecycle_metrics embedded in the ticket
             setMetrics({
-              totalRevenue:       data.lifecycle_metrics?.revenue            ?? 0,
-              totalTicketsSold:   data.lifecycle_metrics?.totalBookings      ?? 0,
-              totalLikes:         data.lifecycle_metrics?.like               ?? 0,
-              totalShare:         data.lifecycle_metrics?.share              ?? 0,
+              totalRevenue: data.lifecycle_metrics?.revenue ?? 0,
+              totalTicketsSold: data.lifecycle_metrics?.totalBookings ?? 0,
+              totalLikes: data.lifecycle_metrics?.like ?? 0,
+              totalShare: data.lifecycle_metrics?.share ?? 0,
               total_cancellation: data.lifecycle_metrics?.total_cancellation ?? 0,
             });
           } else {
@@ -160,10 +161,10 @@ const LiveEventsPage = () => {
         } catch (metricsErr) {
           console.warn("Failed to fetch event metrics:", metricsErr);
           setMetrics({
-            totalRevenue:       0,
-            totalTicketsSold:   0,
-            totalLikes:         0,
-            totalShare:         0,
+            totalRevenue: 0,
+            totalTicketsSold: 0,
+            totalLikes: 0,
+            totalShare: 0,
             total_cancellation: 0,
           });
         }
@@ -182,7 +183,7 @@ const LiveEventsPage = () => {
             console.warn("Failed to fetch group data:", groupErr);
           }
         }
-        
+
         try {
           const metricsResponse = await getEventMetrics(ticketId);
           if (metricsResponse?.data) {
@@ -215,10 +216,10 @@ const LiveEventsPage = () => {
           }
           yesterday.setDate(yesterday.getDate() - 1);
           const yesterdayFormatted = yesterday.toISOString().split('T')[0];
-          
+
           const initialGrowthResponse = await getEventGrowthStats(
-            ticketId, 
-            yesterdayFormatted, 
+            ticketId,
+            yesterdayFormatted,
             'daily'
           );
           if (initialGrowthResponse?.data) {
@@ -243,7 +244,7 @@ const LiveEventsPage = () => {
 
     fetchEventData();
   }, [ticketId]);
-    const groupId = eventData?.group_id || eventData?.groupId;
+  const groupId = eventData?.group_id || eventData?.groupId;
   // Replace the existing useEffect for date-based stats
   useEffect(() => {
     const fetchDateBasedStats = async () => {
@@ -252,7 +253,7 @@ const LiveEventsPage = () => {
       // Don't fetch date-specific stats on initial load
       // Only fetch when user explicitly selects a date
       const isInitialLoad = currentDate.toDateString() === new Date().toDateString();
-      
+
       if (isInitialLoad) {
         // On initial load, just use the metrics from getEventMetrics
         return;
@@ -328,14 +329,14 @@ const LiveEventsPage = () => {
         const promotion = response.data?.promotion;
 
         setCancellationSummary({
-          eventName:          eventData?.event_name,
-          totalBookings:      response.data?.affectedBookings || 0,
-          refundPercentage:   response.data?.refundPolicy?.refundPercentage ?? 100,
-          cancellationTier:   response.data?.refundPolicy?.cancellationTier,
-          isPaid:             eventData?.payment_type === "paid",
-          reason:             cancelReason.trim(),
-          promoted:           promotion?.promoted || false,
-          newMainTicketId:    promotion?.newMainTicketId || null,
+          eventName: eventData?.event_name,
+          totalBookings: response.data?.affectedBookings || 0,
+          refundPercentage: response.data?.refundPolicy?.refundPercentage ?? 100,
+          cancellationTier: response.data?.refundPolicy?.cancellationTier,
+          isPaid: eventData?.payment_type === "paid",
+          reason: cancelReason.trim(),
+          promoted: promotion?.promoted || false,
+          newMainTicketId: promotion?.newMainTicketId || null,
         });
 
         setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
@@ -408,40 +409,40 @@ const LiveEventsPage = () => {
 
   const computedEventData = eventData
     ? {
-        name:    eventData.event_name || 'Event Name',
-        creator: eventData.created_by || 'Unknown Creator',
+      name: eventData.event_name || 'Event Name',
+      creator: eventData.created_by || 'Unknown Creator',
 
-        totalRevenue:
-          selectedDateStats?.totalRevenue ??
-          metrics?.totalRevenue ??
-          eventData.revenue ?? 0,
+      totalRevenue:
+        selectedDateStats?.totalRevenue ??
+        metrics?.totalRevenue ??
+        eventData.revenue ?? 0,
 
-        totalBooking:
-          selectedDateStats?.totalTicketsSold ??
-          metrics?.totalBookings ??           
-          eventData.totalBookings ?? 0,
+      totalBooking:
+        selectedDateStats?.totalTicketsSold ??
+        metrics?.totalBookings ??
+        eventData.totalBookings ?? 0,
 
-        totalTicketsSold:
-          metrics?.totalTicketsSold ??
-          eventData.totalTicketsSold ?? 0,
+      totalTicketsSold:
+        metrics?.totalTicketsSold ??
+        eventData.totalTicketsSold ?? 0,
 
-        totalLikes:
-          metrics?.totalLikes ??
-          eventData.like ?? 0,
+      totalLikes:
+        metrics?.totalLikes ??
+        eventData.like ?? 0,
 
-        totalShare:
-          metrics?.totalShare ??
-          eventData.share ?? 0,
+      totalShare:
+        metrics?.totalShare ??
+        eventData.share ?? 0,
 
-        totalCancellation:
-          metrics?.total_cancellation ??
-          eventData.total_cancellation ?? 0,
+      totalCancellation:
+        metrics?.total_cancellation ??
+        eventData.total_cancellation ?? 0,
 
-        paymentType: metrics?.paymentType ?? eventData.payment_type ?? 'paid',
+      paymentType: metrics?.paymentType ?? eventData.payment_type ?? 'paid',
 
-        addOnRevenue:      eventData.addon_revenue       || '0',
-        addOnRevenueMonth: eventData.addon_revenue_month || '0',
-      }
+      addOnRevenue: eventData.addon_revenue || '0',
+      addOnRevenueMonth: eventData.addon_revenue_month || '0',
+    }
     : null;
   // Theme setup from HomePage
   useEffect(() => {
@@ -464,7 +465,7 @@ const LiveEventsPage = () => {
         height: Math.max(20, Math.min(160, (item.bookingCount || 1) * 15)) // Dynamic height in pixels
       }));
     }
-    
+
     // Show default message - no static data
     return [];
   }, [monthlyChartData]);
@@ -786,37 +787,37 @@ const LiveEventsPage = () => {
   // Replace the existing formattedDate and formattedEndDate logic with this:
   const formattedDate = eventData?.event_dates?.[0]?.start_date
     ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
     : "N/A";
 
   const formattedEndDate = eventData?.event_dates?.[0]?.end_date
     ? new Date(eventData.event_dates[0].end_date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
     : null;
 
   // Check if dates are the same
-  const isSameDate = eventData?.event_dates?.[0]?.start_date && 
-                    eventData?.event_dates?.[0]?.end_date &&
-                    new Date(eventData.event_dates[0].start_date).toDateString() === 
-                    new Date(eventData.event_dates[0].end_date).toDateString();
+  const isSameDate = eventData?.event_dates?.[0]?.start_date &&
+    eventData?.event_dates?.[0]?.end_date &&
+    new Date(eventData.event_dates[0].start_date).toDateString() ===
+    new Date(eventData.event_dates[0].end_date).toDateString();
 
-  const displayDate = isSameDate 
-    ? formattedDate 
-    : (formattedDate !== "N/A" && formattedEndDate 
-        ? `${formattedDate} - ${formattedEndDate}` 
-        : formattedDate);
+  const displayDate = isSameDate
+    ? formattedDate
+    : (formattedDate !== "N/A" && formattedEndDate
+      ? `${formattedDate} - ${formattedEndDate}`
+      : formattedDate);
 
   const handleOpenAttendanceScanner = async (subEventId = null) => {
     setIsInitingAttendance(true);
     try {
-      await initAttendance(eventData._id || ticketId, subEventId);
-      const res = await getAttendanceList(eventData._id || ticketId, subEventId);
+      await initAttendance(ticketId, subEventId);
+      const res = await getAttendanceList(ticketId, subEventId);
       setAttendanceData(res?.data?.data || null);
       setScanCount(res?.data?.data?.totalPresent || 0);
       setActiveSubEventIdForAtt(subEventId);
@@ -832,30 +833,45 @@ const LiveEventsPage = () => {
 
   const handleQRScanned = async (qrData) => {
     setScanError('');
+    setScanResult(null);
     try {
-      const res = await scanAttendanceQR(
-        eventData._id || ticketId,
-        qrData,
-        activeSubEventIdForAtt
-      );
+      const res = await scanAttendanceQR(ticketId, qrData, activeSubEventIdForAtt);
       const attendee = res?.data?.data?.scannedAttendee;
       setScanResult(attendee);
       setScanCount(prev => prev + 1);
       setAttendanceData(prev =>
         prev
-          ? { ...prev, totalPresent: (prev.totalPresent || 0) + 1, attendees: [...(prev.attendees || []), attendee] }
+          ? {
+            ...prev,
+            totalPresent: (prev.totalPresent || 0) + 1,
+            attendees: [...(prev.attendees || []), attendee],
+          }
           : prev
       );
+      // Auto-close after showing success result for 3 s
+      setTimeout(() => {
+        setScanResult(null);
+        setShowAttendanceModal(false);
+      }, 3000);
     } catch (err) {
       const msg = err?.response?.data?.message || 'Scan failed';
-      setScanError(msg);
+      const isDouble = err?.response?.status === 409 || msg.toLowerCase().includes('already been scanned');
+      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found');
+      const isCancel = msg.toLowerCase().includes('cancelled');
       setScanResult(null);
+      setScanError(
+        isDouble ? '⚠️ Already scanned — this ticket was marked present earlier'
+          : isCancel ? '❌ Booking is cancelled — cannot mark attendance'
+            : isBadQR ? '❌ Invalid QR code — does not belong to this event'
+              : `❌ ${msg}`
+      );
+      setTimeout(() => setScanError(''), 5000);
     }
   };
 
   const handleViewAttendanceList = async (subEventId = null) => {
     try {
-      const res = await getAttendanceList(eventData._id || ticketId, subEventId);
+      const res = await getAttendanceList(ticketId, subEventId);
       setAttendanceData(res?.data?.data || null);
       setActiveSubEventIdForAtt(subEventId);
       setShowAttendanceList(true);
@@ -867,19 +883,16 @@ const LiveEventsPage = () => {
   const handleDownloadAttendance = async (format = 'excel') => {
     setIsDownloadingAtt(true);
     try {
-      const res = await downloadAttendance(
-        eventData._id || ticketId,
-        format,
-        activeSubEventIdForAtt
-      );
-      const url  = window.URL.createObjectURL(new Blob([res.data]));
+      const res = await downloadAttendance(ticketId, format, activeSubEventIdForAtt); // ✅ ticketId
+      const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href  = url;
+      link.href = url;
       link.setAttribute('download', format === 'pdf' ? 'attendance.pdf' : 'attendance.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      toast.success('Downloaded successfully');
     } catch (err) {
       toast.error('Download failed');
     } finally {
@@ -887,6 +900,39 @@ const LiveEventsPage = () => {
     }
   };
 
+  const handleCompleteAttendance = async () => {
+    try {
+      await completeAttendance(ticketId, activeSubEventIdForAtt);
+      toast.success('Attendance session completed');
+      setShowAttendanceModal(false);
+      setScanResult(null);
+      setScanError('');
+      // Refresh list data so the list modal shows "Completed" status
+      const res = await getAttendanceList(ticketId, activeSubEventIdForAtt);
+      setAttendanceData(res?.data?.data || null);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to complete session');
+    }
+  };
+
+  const handleRemoveAttendee = async (bookingId) => {
+    try {
+      await removeAttendee(ticketId, bookingId, activeSubEventIdForAtt);
+      setAttendanceData(prev =>
+        prev
+          ? {
+            ...prev,
+            totalPresent: Math.max(0, (prev.totalPresent || 1) - 1),
+            attendees: prev.attendees.filter(a => String(a.bookingId) !== String(bookingId)),
+          }
+          : prev
+      );
+      setScanCount(prev => Math.max(0, prev - 1));
+      toast.success('Attendee removed');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to remove attendee');
+    }
+  };
   return (
     <>
       <style>{`
@@ -1191,30 +1237,30 @@ const LiveEventsPage = () => {
                     {
                       label: 'Ticket Revenue',
                       value: `₹${financialSummary.revenue?.totalRevenue?.toFixed(2) || '0.00'}`,
-                      note:  'Gross ticket sales (your share)',
+                      note: 'Gross ticket sales (your share)',
                       color: 'text-emerald-400',
-                      bg:    'bg-emerald-500/10',
+                      bg: 'bg-emerald-500/10',
                     },
                     {
                       label: 'Refunds Issued',
                       value: `₹${financialSummary.revenue?.totalRefunded?.toFixed(2) || '0.00'}`,
-                      note:  'Returned to attendees',
+                      note: 'Returned to attendees',
                       color: 'text-red-400',
-                      bg:    'bg-red-500/10',
+                      bg: 'bg-red-500/10',
                     },
                     {
                       label: 'Net Payout',
                       value: `₹${financialSummary.revenue?.netHostPayout?.toFixed(2) || '0.00'}`,
-                      note:  'Revenue after refunds',
+                      note: 'Revenue after refunds',
                       color: 'text-blue-400',
-                      bg:    'bg-blue-500/10',
+                      bg: 'bg-blue-500/10',
                     },
                     {
                       label: 'GST Collected',
                       value: `₹${financialSummary.revenue?.totalTax?.toFixed(2) || '0.00'}`,
-                      note:  'Tax on ticket price',
+                      note: 'Tax on ticket price',
                       color: 'text-amber-400',
-                      bg:    'bg-amber-500/10',
+                      bg: 'bg-amber-500/10',
                     },
                   ].map((item, idx) => (
                     <div key={idx} className={`p-4 rounded-2xl ${item.bg} ${theme.bg}`}>
@@ -1298,11 +1344,10 @@ const LiveEventsPage = () => {
                           <button
                             key={f}
                             onClick={() => setTransactionFilter(f)}
-                            className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                              transactionFilter === f
-                                ? 'bg-indigo-600 text-white'
-                                : `${theme.bg} ${theme.subText} border border-gray-600`
-                            }`}
+                            className={`text-xs px-3 py-1 rounded-full transition-colors ${transactionFilter === f
+                              ? 'bg-indigo-600 text-white'
+                              : `${theme.bg} ${theme.subText} border border-gray-600`
+                              }`}
                           >
                             {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
                           </button>
@@ -1346,13 +1391,12 @@ const LiveEventsPage = () => {
                                   {t.paymentMethod || '—'}
                                 </td>
                                 <td className="px-3 py-2">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    t.bookingStatus === 'CONFIRMED'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : t.bookingStatus === 'CANCELLED'
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.bookingStatus === 'CONFIRMED'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : t.bookingStatus === 'CANCELLED'
                                       ? 'bg-red-500/20 text-red-400'
                                       : 'bg-gray-500/20 text-gray-400'
-                                  }`}>
+                                    }`}>
                                     {t.bookingStatus}
                                   </span>
                                 </td>
@@ -1366,8 +1410,8 @@ const LiveEventsPage = () => {
                                 <td className={`px-3 py-2 whitespace-nowrap ${theme.subText}`}>
                                   {t.createdAt
                                     ? new Date(t.createdAt).toLocaleDateString('en-IN', {
-                                        day: '2-digit', month: 'short', year: '2-digit',
-                                      })
+                                      day: '2-digit', month: 'short', year: '2-digit',
+                                    })
                                     : '—'}
                                 </td>
                               </tr>
@@ -1378,10 +1422,10 @@ const LiveEventsPage = () => {
                       {(financialSummary.recentTransactions || []).filter(
                         (t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter
                       ).length === 0 && (
-                        <div className={`text-center py-8 ${theme.subText}`}>
-                          No transactions found for this filter.
-                        </div>
-                      )}
+                          <div className={`text-center py-8 ${theme.subText}`}>
+                            No transactions found for this filter.
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}
@@ -1405,8 +1449,8 @@ const LiveEventsPage = () => {
                       {selectedDateStats?.totalRevenue || computedEventData?.totalRevenue || "0"}
                     </div>
                     <div className={`${theme.subText} text-base`}>
-                      {selectedDateStats 
-                        ? `Revenue on ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` 
+                      {selectedDateStats
+                        ? `Revenue on ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                         : 'Total Revenue (All Time)'}
                     </div>
                   </div>
@@ -1415,8 +1459,8 @@ const LiveEventsPage = () => {
                       {selectedDateStats ? 'Bookings on selected date' : 'Total Bookings (All Time)'}
                     </div>
                     <div className="text-xl font-bold">
-                      {selectedDateStats 
-                        ? selectedDateStats.totalTicketsSold 
+                      {selectedDateStats
+                        ? selectedDateStats.totalTicketsSold
                         : (computedEventData?.totalTicketsSold || "0")}
                     </div>
                   </div>
@@ -1426,60 +1470,60 @@ const LiveEventsPage = () => {
                       className={`w-10 h-10 rounded-full border ${theme.border} flex items-center justify-center`}
                     >
                       <span className="text-sm font-bold">
-                        {growthStats 
-                          ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${parseFloat(growthStats.growthPercentage).toFixed(0)}%` 
+                        {growthStats
+                          ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${parseFloat(growthStats.growthPercentage).toFixed(0)}%`
                           : 'N/A'}
                       </span>
                     </div>
                   </div>
                 </div>
-              {/* Bar Chart */}
-              <div className="flex justify-around items-end flex-1 overflow-x-auto min-h-[200px] px-2">
-                {chartData.length > 0 ? (
-                  chartData.map((bar, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col items-center gap-2 min-w-[40px]"
-                    >
-                      <span className={`text-xs ${theme.subText}`}>
-                        ₹{typeof bar.value === 'number' ? bar.value.toFixed(1) : bar.value}k
-                      </span>
+                {/* Bar Chart */}
+                <div className="flex justify-around items-end flex-1 overflow-x-auto min-h-[200px] px-2">
+                  {chartData.length > 0 ? (
+                    chartData.map((bar, index) => (
                       <div
-                        className={`w-6 rounded-t-lg bg-green-500 transition-all duration-300`}
-                        style={{
-                          height: `${bar.height}px`
-                        }}
-                      ></div>
-                      <span className={`text-xs ${theme.subText}`}>
-                        {bar.month}
-                      </span>
-                      <span className={`text-[10px] ${theme.subText} opacity-70`}>
-                        {bar.bookingCount} booking{bar.bookingCount !== 1 ? 's' : ''}
-                      </span>
+                        key={index}
+                        className="flex flex-col items-center gap-2 min-w-[40px]"
+                      >
+                        <span className={`text-xs ${theme.subText}`}>
+                          ₹{typeof bar.value === 'number' ? bar.value.toFixed(1) : bar.value}k
+                        </span>
+                        <div
+                          className={`w-6 rounded-t-lg bg-green-500 transition-all duration-300`}
+                          style={{
+                            height: `${bar.height}px`
+                          }}
+                        ></div>
+                        <span className={`text-xs ${theme.subText}`}>
+                          {bar.month}
+                        </span>
+                        <span className={`text-[10px] ${theme.subText} opacity-70`}>
+                          {bar.bookingCount} booking{bar.bookingCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={`flex flex-col items-center justify-center ${theme.subText} text-center w-full gap-3`}>
+                      <TrendingUp className="w-12 h-12 opacity-30" />
+                      <div>
+                        <p className="text-base font-medium">No Booking Data Available</p>
+                        <p className="text-xs mt-1 opacity-70">
+                          {dateError
+                            ? dateError
+                            : selectedDateStats
+                              ? 'Select a date within the event period to view statistics'
+                              : 'Bookings will appear here once customers make purchases'}
+                        </p>
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div className={`flex flex-col items-center justify-center ${theme.subText} text-center w-full gap-3`}>
-                    <TrendingUp className="w-12 h-12 opacity-30" />
-                    <div>
-                      <p className="text-base font-medium">No Booking Data Available</p>
-                      <p className="text-xs mt-1 opacity-70">
-                        {dateError 
-                          ? dateError 
-                          : selectedDateStats 
-                            ? 'Select a date within the event period to view statistics' 
-                            : 'Bookings will appear here once customers make purchases'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
                 <div
                   className={`flex justify-between text-sm ${theme.subText} mt-4 pt-4 border-t ${theme.border}`}
                 >
                   <span>
-                    {selectedDateStats 
-                      ? `Selected Date: ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` 
+                    {selectedDateStats
+                      ? `Selected Date: ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                       : `Event: ${computedEventData?.name || 'N/A'}`}
                   </span>
                 </div>
@@ -1637,40 +1681,38 @@ const LiveEventsPage = () => {
 
                       {/* Calendar Grid */}
                       <div
-                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${
-                          isDark ? theme.bg : "bg-white"
-                        }`}
+                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${isDark ? theme.bg : "bg-white"
+                          }`}
                       >
                         {calendarDays.map((day, idx) => (
                           <div
                             key={idx}
                             onClick={() => setCurrentDate(new Date(day.fullDate))}
-                            className={`flex flex-col items-center justify-center p-0.5 transition-all duration-300 cursor-pointer hover:opacity-80 ${
-                              day.active ? "text-white" : ""
-                            }`}
+                            className={`flex flex-col items-center justify-center p-0.5 transition-all duration-300 cursor-pointer hover:opacity-80 ${day.active ? "text-white" : ""
+                              }`}
                             style={
                               day.active
                                 ? {
-                                    backgroundColor: "#5E5CE6",
-                                    borderRadius: "9999px",
-                                    marginTop: "-2px",
-                                    marginBottom: "-2px",
-                                    zIndex: 10,
-                                    height: "auto",
-                                    minHeight: "50px",
-                                    width: "100%",
-                                    maxWidth: "36px",
-                                    marginLeft: "auto",
-                                    marginRight: "auto",
-                                  }
+                                  backgroundColor: "#5E5CE6",
+                                  borderRadius: "9999px",
+                                  marginTop: "-2px",
+                                  marginBottom: "-2px",
+                                  zIndex: 10,
+                                  height: "auto",
+                                  minHeight: "50px",
+                                  width: "100%",
+                                  maxWidth: "36px",
+                                  marginLeft: "auto",
+                                  marginRight: "auto",
+                                }
                                 : {
-                                    height: "auto",
-                                    minHeight: "40px",
-                                    width: "100%",
-                                    maxWidth: "36px",
-                                    marginLeft: "auto",
-                                    marginRight: "auto",
-                                  }
+                                  height: "auto",
+                                  minHeight: "40px",
+                                  width: "100%",
+                                  maxWidth: "36px",
+                                  marginLeft: "auto",
+                                  marginRight: "auto",
+                                }
                             }
                           >
                             <span className="text-[9px] uppercase mb-1 opacity-80">
@@ -1687,17 +1729,16 @@ const LiveEventsPage = () => {
                       <div className="flex justify-between items-center mt-6">
                         <div className="text-sm">
                           <span className={`opacity-50`}>Common growth</span>{" "}
-                          {growthStats 
-                            ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${growthStats.growthPercentage}%` 
+                          {growthStats
+                            ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${growthStats.growthPercentage}%`
                             : 'N/A'} from last {growthStats?.comparisonType || 'day'}
                         </div>
-                        <div className={`w-12 h-12 rounded-full ${
-                          parseFloat(growthStats?.growthPercentage || 0) >= 0 
-                            ? 'bg-green-500' 
-                            : 'bg-red-500'
-                        } flex items-center justify-center text-sm font-bold text-white`}>
-                          {growthStats 
-                            ? `${Math.abs(parseFloat(growthStats.growthPercentage)).toFixed(0)}%` 
+                        <div className={`w-12 h-12 rounded-full ${parseFloat(growthStats?.growthPercentage || 0) >= 0
+                          ? 'bg-green-500'
+                          : 'bg-red-500'
+                          } flex items-center justify-center text-sm font-bold text-white`}>
+                          {growthStats
+                            ? `${Math.abs(parseFloat(growthStats.growthPercentage)).toFixed(0)}%`
                             : 'N/A'}
                         </div>
                       </div>
@@ -1846,15 +1887,17 @@ const LiveEventsPage = () => {
                   toast.success("Download feature coming soon!");
                 }}
               />
-              {eventData?.attendance_count && eventData?.event_status === 'live' && (
+              {eventData?.event_status === 'live' && (
                 <FooterButton
                   theme={theme}
-                  icon={<UserCheck />}
-                  text="Mark attendance"
-                  onClick={() => handleOpenAttendanceScanner(null)}
+                  icon={isInitingAttendance ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UserCheck />}
+                  text={isInitingAttendance ? 'Opening...' : 'Mark attendance'}
+                  onClick={() => !isInitingAttendance && handleOpenAttendanceScanner(null)}
                 />
               )}
-              {eventData?.attendance_count && (
+
+              {/* View list — available for live AND completed/cancelled events */}
+              {(eventData?.event_status === 'live' || eventData?.event_status === 'cancelled' || eventData?.event_status === 'confirmed') && (
                 <FooterButton
                   theme={theme}
                   icon={<QrCode />}
@@ -1886,11 +1929,11 @@ const LiveEventsPage = () => {
                         Re-hosted on{" "}
                         {eventData.rehosted_at
                           ? new Date(eventData.rehosted_at).toLocaleDateString("en-US", {
-                              month: "short", day: "numeric", year: "numeric",
-                            })
+                            month: "short", day: "numeric", year: "numeric",
+                          })
                           : new Date(eventData.createdAt).toLocaleDateString("en-US", {
-                              month: "short", day: "numeric", year: "numeric",
-                            })}
+                            month: "short", day: "numeric", year: "numeric",
+                          })}
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-right">
@@ -2042,6 +2085,7 @@ const LiveEventsPage = () => {
           isDark={isDark}
           onClose={() => { setShowAttendanceModal(false); setScanResult(null); setScanError(''); }}
           onScan={handleQRScanned}
+          onComplete={handleCompleteAttendance}
           scanResult={scanResult}
           scanError={scanError}
           scanCount={scanCount}
@@ -2056,6 +2100,7 @@ const LiveEventsPage = () => {
           attendanceData={attendanceData}
           onDownload={handleDownloadAttendance}
           isDownloading={isDownloadingAtt}
+          onRemove={handleRemoveAttendee}
         />
       )}
     </>
@@ -2182,7 +2227,7 @@ const BankAccountDetailsModal = ({ theme, onClose, eventData }) => {
   // Extract bank details from the banking_details array
   const bankDetailsArray = eventData?.banking_details || [];
   const bankDetails = bankDetailsArray.length > 0 ? bankDetailsArray[0] : null;
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div
@@ -2245,215 +2290,371 @@ const DetailRow = ({ label, value, theme }) => (
     <div className={`text-base font-semibold ${theme.text}`}>{value}</div>
   </div>
 );
-// QR Scanner Modal
-const AttendanceScannerModal = ({ theme, isDark, onClose, onScan, scanResult, scanError, scanCount, eventName }) => {
-  const scannerRef = React.useRef(null);
+const AttendanceScannerModal = ({
+  theme, isDark, onClose, onScan, onComplete,
+  scanResult, scanError, scanCount, eventName,
+}) => {
   const html5QrRef = React.useRef(null);
+  const mountedRef = React.useRef(true);
+  const lastScanRef = React.useRef(0); // timestamp debounce
   const [scanning, setScanning] = React.useState(false);
+  const [camError, setCamError] = React.useState('');
+  const [starting, setStarting] = React.useState(true);
 
-  React.useEffect(() => {
-    let mounted = true;
-    const startScanner = async () => {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      if (!scannerRef.current || !mounted) return;
-      const scanner = new Html5Qrcode('qr-reader-attendance');
-      html5QrRef.current = scanner;
-      try {
-        await scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 260, height: 260 } },
-          (decoded) => { onScan(decoded); },
-          () => {}
-        );
-        if (mounted) setScanning(true);
-      } catch (err) {
-        console.warn('Camera start error:', err);
-      }
-    };
-    startScanner();
-    return () => {
-      mounted = false;
-      if (html5QrRef.current?.isScanning) {
-        html5QrRef.current.stop().catch(() => {});
-      }
-    };
+  // ── Teardown helper ─────────────────────────────────────────────────────────
+  const destroyScanner = React.useCallback(async () => {
+    const s = html5QrRef.current;
+    if (!s) return;
+    html5QrRef.current = null;
+    try {
+      if (s.isScanning) await s.stop();
+    } catch { /* ignore */ }
+    try { s.clear(); } catch { /* ignore */ }
   }, []);
 
+  // ── Init once on mount
+  React.useEffect(() => {
+    mountedRef.current = true;
+
+    const init = async () => {
+      try {
+        const scanner = new Html5Qrcode('qr-reader-attendance', { verbose: false });
+        html5QrRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 30,
+            qrbox: (w, h) => {
+              const size = Math.floor(Math.min(w, h) * 0.7);
+              return { width: size, height: size };
+            },
+            aspectRatio: 1.0,
+            disableFlip: false,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          },
+          (decoded) => {
+            // timestamp-based debounce — ignore repeat frames for 3 s
+            const now = Date.now();
+            if (now - lastScanRef.current < 3000) return;
+            lastScanRef.current = now;
+            onScan(decoded);
+          },
+          () => { } // per-frame fail is normal — stay silent
+        );
+
+        if (mountedRef.current) {
+          setScanning(true);
+          setStarting(false);
+        }
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setStarting(false);
+        const msg = err?.message || '';
+        if (msg.includes('NotAllowed') || msg.includes('Permission') || msg.includes('denied')) {
+          setCamError('Camera permission denied. Allow camera access in your browser settings and tap "Try Again".');
+        } else if (msg.includes('NotFound') || msg.includes('DevicesNotFound')) {
+          setCamError('No camera found on this device.');
+        } else {
+          setCamError(`Could not start camera: ${msg}`);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      mountedRef.current = false;
+      // fire-and-forget cleanup on unmount
+      const s = html5QrRef.current;
+      if (!s) return;
+      html5QrRef.current = null;
+      (s.isScanning ? s.stop() : Promise.resolve())
+        .catch(() => { })
+        .finally(() => { try { s.clear(); } catch { } });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRetry = React.useCallback(async () => {
+    setCamError('');
+    setStarting(true);
+    await destroyScanner();
+
+    try {
+      const scanner = new Html5Qrcode('qr-reader-attendance', { verbose: false });
+      html5QrRef.current = scanner;
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 30,
+          qrbox: (w, h) => {
+            const size = Math.floor(Math.min(w, h) * 0.7);
+            return { width: size, height: size };
+          },
+          aspectRatio: 1.0,
+          disableFlip: false,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        },
+        (decoded) => {
+          const now = Date.now();
+          if (now - lastScanRef.current < 3000) return;
+          lastScanRef.current = now;
+          onScan(decoded);
+        },
+        () => { }
+      );
+
+      if (mountedRef.current) {
+        setScanning(true);
+        setStarting(false);
+      }
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setStarting(false);
+      setCamError(err?.message || 'Could not start camera. Try Again.');
+    }
+  }, [destroyScanner, onScan]);
+
+  const handleClose = React.useCallback(async () => {
+    await destroyScanner();
+    onClose();
+  }, [destroyScanner, onClose]);
+
+  const handleComplete = React.useCallback(async () => {
+    await destroyScanner();
+    onComplete();
+  }, [destroyScanner, onComplete]);
+
+  // ── Camera viewport ─────────────────────────────────────────────────────────
+  const renderCamera = () => {
+    if (camError) {
+      return (
+        <div style={{
+          borderRadius: 16, background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.3)', padding: '32px 24px', textAlign: 'center'
+        }}>
+          <XCircle style={{ width: 48, height: 48, color: '#EF4444', margin: '0 auto 12px' }} />
+          <p style={{ color: '#EF4444', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{camError}</p>
+          <button onClick={handleRetry}
+            style={{
+              background: '#6549B8', border: 'none', borderRadius: 10, padding: '8px 20px',
+              cursor: 'pointer', color: '#fff', fontSize: 13, fontWeight: 600, marginTop: 8
+            }}>
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{
+        position: 'relative', borderRadius: 16, overflow: 'hidden',
+        background: '#000', minHeight: 280
+      }}>
+        {/* Html5Qrcode always needs this element in the DOM from the start */}
+        <div id="qr-reader-attendance" style={{ width: '100%' }} />
+
+        {/* Spinner overlay until camera stream starts */}
+        {starting && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', zIndex: 2
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              border: '3px solid #6549B8', borderTopColor: 'transparent',
+              animation: 'qrSpin 0.7s linear infinite', marginBottom: 12
+            }} />
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: 0 }}>Starting camera…</p>
+            <style>{`@keyframes qrSpin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {/* Corner guides */}
+        {scanning && !starting && (
+          <>
+            {[
+              { top: 12, left: 12, borderTop: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '6px 0 0 0' },
+              { top: 12, right: 12, borderTop: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 6px 0 0' },
+              { bottom: 12, left: 12, borderBottom: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '0 0 0 6px' },
+              { bottom: 12, right: 12, borderBottom: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 0 6px 0' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                position: 'absolute', width: 28, height: 28,
+                pointerEvents: 'none', ...s
+              }} />
+            ))}
+            <div style={{
+              position: 'absolute', left: '14%', right: '14%', height: 2,
+              background: 'linear-gradient(90deg,transparent,#6549B8,transparent)',
+              animation: 'qrLine 1.6s ease-in-out infinite', top: '50%'
+            }} />
+            <style>{`
+              @keyframes qrLine {
+                0%   { transform: translateY(-90px); opacity: 0; }
+                10%  { opacity: 1; }
+                90%  { opacity: 1; }
+                100% { transform: translateY(90px); opacity: 0; }
+              }
+            `}</style>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className={`${theme.cardBg} rounded-3xl w-full max-w-md overflow-hidden`} style={{ boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.78)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+    }}>
+      <div className={`${theme.cardBg} rounded-3xl w-full max-w-md overflow-hidden`}
+        style={{
+          boxShadow: '0 25px 50px rgba(0,0,0,0.5)', maxHeight: '95vh',
+          display: 'flex', flexDirection: 'column'
+        }}>
+
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg,#6549B8,#1E1242)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{
+          background: 'linear-gradient(135deg,#6549B8,#1E1242)',
+          padding: '20px 24px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <QrCode style={{ width: 22, height: 22, color: '#fff' }} />
             <div>
-              <p style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0 }}>Attendance Scanner</p>
+              <p style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0 }}>
+                Attendance Scanner
+              </p>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{eventName}</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <XC style={{ width: 16, height: 16, color: '#fff' }} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={handleComplete}
+              style={{
+                background: 'rgba(16,185,129,0.25)', border: '1px solid rgba(16,185,129,0.5)',
+                borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: '#10B981',
+                fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5
+              }}>
+              <CheckCircle style={{ width: 13, height: 13 }} /> Done
+            </button>
+            <button onClick={handleClose}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+                width: 32, height: 32, cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center'
+              }}>
+              <XCircle style={{ width: 16, height: 16, color: '#fff' }} />
+            </button>
+          </div>
         </div>
 
-        {/* Counter pill */}
-        <div style={{ padding: '12px 24px 0', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ background: '#6549B8', borderRadius: 20, padding: '6px 20px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        {/* Scan counter */}
+        <div style={{
+          padding: '12px 24px 0', display: 'flex',
+          justifyContent: 'center', flexShrink: 0
+        }}>
+          <div style={{
+            background: '#6549B8', borderRadius: 20, padding: '6px 20px',
+            display: 'inline-flex', alignItems: 'center', gap: 8
+          }}>
             <UserCheck style={{ width: 16, height: 16, color: '#fff' }} />
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{scanCount} scanned</span>
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+              {scanCount} scanned
+            </span>
           </div>
         </div>
 
-        {/* Camera viewfinder */}
-        <div style={{ padding: '16px 24px 0' }}>
-          <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: '#000' }}>
-            <div id="qr-reader-attendance" ref={scannerRef} style={{ width: '100%' }} />
-            {/* Corner markers */}
-            {['top-left','top-right','bottom-left','bottom-right'].map(pos => {
-              const isTop    = pos.includes('top');
-              const isLeft   = pos.includes('left');
-              return (
-                <div key={pos} style={{
-                  position: 'absolute',
-                  [isTop ? 'top' : 'bottom']:   '50%',
-                  [isLeft ? 'left' : 'right']:  '50%',
-                  transform: `translate(${isLeft ? '-130px' : '100px'}, ${isTop ? '-130px' : '100px'})`,
-                  width: 24, height: 24,
-                  borderTop:    isTop    ? '3px solid #6549B8' : 'none',
-                  borderBottom: !isTop   ? '3px solid #6549B8' : 'none',
-                  borderLeft:   isLeft   ? '3px solid #6549B8' : 'none',
-                  borderRight:  !isLeft  ? '3px solid #6549B8' : 'none',
-                  borderRadius: isTop && isLeft ? '4px 0 0 0' : isTop ? '0 4px 0 0' : isLeft ? '0 0 0 4px' : '0 0 4px 0',
-                  pointerEvents: 'none',
-                }}/>
-              );
-            })}
-          </div>
-          <p style={{ textAlign: 'center', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)', fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            Point the camera at attendee's ticket QR code
+        {/* Camera area */}
+        <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
+          {renderCamera()}
+          <p style={{
+            textAlign: 'center', marginTop: 8, marginBottom: 0, fontSize: 12,
+            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'
+          }}>
+            {camError ? '' :
+              scanning ? 'Hold ticket QR steady inside the frame' :
+                'Initialising camera…'}
           </p>
         </div>
 
-        {/* Last scan result */}
-        <div style={{ padding: '12px 24px 16px' }}>
+        {/* Result / error */}
+        <div style={{ padding: '12px 24px 20px', overflowY: 'auto', flex: 1 }}>
           {scanResult && (
-            <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: 14, overflow: 'hidden' }}>
-
-              {/* ── Success header strip ── */}
-              <div style={{ background: 'rgba(16,185,129,0.20)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              background: 'rgba(16,185,129,0.08)',
+              border: '1px solid rgba(16,185,129,0.28)', borderRadius: 14, overflow: 'hidden'
+            }}>
+              <div style={{
+                background: 'rgba(16,185,129,0.20)', padding: '10px 14px',
+                display: 'flex', alignItems: 'center', gap: 8
+              }}>
                 <CheckCircle style={{ width: 17, height: 17, color: '#10B981', flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>
-                    ✓ Attendance marked
+                    ✓ Attendance marked — closing in 3 s
                   </p>
-                  <p style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0, fontFamily: 'monospace' }}>
+                  <p style={{
+                    color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0,
+                    fontFamily: 'monospace'
+                  }}>
                     #{(scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '').toUpperCase()}
                   </p>
                 </div>
                 <div style={{ background: 'rgba(16,185,129,0.25)', borderRadius: 6, padding: '3px 8px' }}>
-                  <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>#{scanCount}</p>
+                  <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>
+                    #{scanCount}
+                  </p>
                 </div>
               </div>
-
-              {/* ── Ticket detail grid — matches user ticket view exactly ── */}
               <div style={{ padding: '10px 12px 12px' }}>
-
-                {/* Row 1: Holder (full width) */}
-                <ScanDetailRow
-                  label="Ticket holder"
-                  value={scanResult.holderName || scanResult.userName || scanResult.userId || '—'}
-                  isDark={isDark}
-                  fullWidth
-                />
-
-                {/* Row 2: Event name (full width) */}
-                <ScanDetailRow
-                  label="Event"
-                  value={scanResult.eventName || '—'}
-                  isDark={isDark}
-                  fullWidth
-                />
-
-                {/* Row 3: Type + Qty side by side */}
+                <ScanDetailRow label="Ticket holder"
+                  value={scanResult.holderName || scanResult.userName || '—'}
+                  isDark={isDark} fullWidth />
+                <ScanDetailRow label="Event"
+                  value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 5, marginBottom: 5 }}>
-                  <ScanDetailRow
-                    label="Type"
-                    value={scanResult.ticketType || '—'}
-                    isDark={isDark}
-                  />
-                  <ScanDetailRow
-                    label="Qty"
-                    value={String(scanResult.quantity ?? 1)}
-                    isDark={isDark}
-                  />
+                  <ScanDetailRow label="Type" value={scanResult.ticketType || '—'} isDark={isDark} />
+                  <ScanDetailRow label="Qty" value={String(scanResult.quantity ?? 1)} isDark={isDark} />
                 </div>
-
-                {/* Row 4: Date + Time side by side */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
-                  <ScanDetailRow
-                    label="Event date"
-                    value={scanResult.eventDate || '—'}
-                    isDark={isDark}
-                  />
-                  <ScanDetailRow
-                    label="Time"
-                    value={scanResult.eventTime || '—'}
-                    isDark={isDark}
-                  />
+                  <ScanDetailRow label="Date" value={scanResult.eventDate || '—'} isDark={isDark} />
+                  <ScanDetailRow label="Time" value={scanResult.eventTime || '—'} isDark={isDark} />
                 </div>
-
-                {/* Row 5: Venue (full width) */}
-                <ScanDetailRow
-                  label="Venue"
-                  value={scanResult.venue || '—'}
-                  isDark={isDark}
-                  fullWidth
-                />
-
-                {/* Row 6: Payment + Amount paid side by side */}
+                <ScanDetailRow label="Venue" value={scanResult.venue || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
-                  <ScanDetailRow
-                    label="Payment"
-                    value={scanResult.paymentMethod || '—'}
-                    isDark={isDark}
-                  />
-                  <ScanDetailRow
-                    label="Amount paid"
-                    value={scanResult.totalAmount > 0 ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}` : (scanResult.totalAmount === 0 ? 'Free' : '—')}
-                    isDark={isDark}
-                    highlight
-                  />
+                  <ScanDetailRow label="Payment" value={scanResult.paymentMethod || '—'} isDark={isDark} />
+                  <ScanDetailRow label="Amount"
+                    value={scanResult.totalAmount > 0
+                      ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}`
+                      : 'Free'}
+                    isDark={isDark} highlight />
                 </div>
-
-                {/* Row 7: Transaction ID (full width, monospace) */}
-                <ScanDetailRow
-                  label="Transaction ID"
-                  value={scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '—'}
-                  isDark={isDark}
-                  fullWidth
-                  mono
-                />
-
-                {/* Row 8: Scanned at timestamp */}
-                <ScanDetailRow
-                  label="Scanned at"
-                  value={scanResult.scannedAt ? new Date(scanResult.scannedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                  isDark={isDark}
-                  fullWidth
-                />
-
+                <ScanDetailRow label="Transaction ID"
+                  value={scanResult.bookingRef || scanResult.bookingId || '—'}
+                  isDark={isDark} fullWidth mono />
               </div>
             </div>
           )}
+
           {scanError && (
-            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <XC style={{ width: 18, height: 18, color: '#EF4444', flexShrink: 0 }} />
+            <div style={{
+              background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.35)', borderRadius: 14,
+              padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10
+            }}>
+              <XCircle style={{ width: 18, height: 18, color: '#EF4444', flexShrink: 0 }} />
               <p style={{ color: '#EF4444', fontSize: 13, margin: 0 }}>{scanError}</p>
             </div>
           )}
-          {!scanResult && !scanError && (
-            <div style={{ textAlign: 'center', padding: '8px 0', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', fontSize: 13 }}>
-              Waiting for scan...
+
+          {!scanResult && !scanError && scanning && (
+            <div style={{
+              textAlign: 'center', padding: '8px 0', fontSize: 13,
+              color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'
+            }}>
+              Waiting for scan…
             </div>
           )}
         </div>
@@ -2463,7 +2664,7 @@ const AttendanceScannerModal = ({ theme, isDark, onClose, onScan, scanResult, sc
 };
 
 // Attendance List Modal 
-const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownload, isDownloading }) => {
+const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownload, isDownloading, onRemove }) => {
   const rows = attendanceData?.attendees || [];
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -2485,7 +2686,7 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
               <Download style={{ width: 14, height: 14 }} /> PDF
             </button>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <XC style={{ width: 16, height: 16, color: '#fff' }} />
+              <XCircle style={{ width: 16, height: 16, color: '#fff' }} />
             </button>
           </div>
         </div>
@@ -2494,8 +2695,8 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
         <div style={{ padding: '12px 24px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, display: 'flex', gap: 24, flexShrink: 0 }}>
           {[
             { label: 'Total Booked', val: attendanceData?.totalBooked || 0, color: '#6549B8' },
-            { label: 'Present',      val: attendanceData?.totalPresent || 0, color: '#10B981' },
-            { label: 'Absent',       val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
+            { label: 'Present', val: attendanceData?.totalPresent || 0, color: '#10B981' },
+            { label: 'Absent', val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
           ].map(({ label, val, color }) => (
             <div key={label}>
               <p style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
@@ -2515,7 +2716,7 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}>
-                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Scanned At'].map(h => (
+                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Scanned At', ''].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                   ))}
                 </tr>
@@ -2524,11 +2725,28 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
                 {rows.map((att, idx) => (
                   <tr key={att.bookingId || idx} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)'}` }}>
                     <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 14px', color: isDark ? '#fff' : '#111', fontWeight: 500 }}>{att.userName || att.userId}</td>
+                    {/* ✅ Fix: use holderName first */}
+                    <td style={{ padding: '10px 14px', color: isDark ? '#fff' : '#111', fontWeight: 500 }}>
+                      {att.holderName || att.userName || att.userId}
+                    </td>
                     <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.ticketType || '-'}</td>
                     <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.quantity}</td>
                     <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>{att.paymentMethod || '-'}</td>
-                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontSize: 12 }}>{att.scannedAt ? new Date(att.scannedAt).toLocaleTimeString() : '-'}</td>
+                    <td style={{ padding: '10px 14px', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', fontSize: 12 }}>
+                      {att.scannedAt ? new Date(att.scannedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
+                    </td>
+                    {/* ✅ New: undo scan button */}
+                    {onRemove && (
+                      <td style={{ padding: '10px 14px' }}>
+                        <button
+                          onClick={() => onRemove(att.bookingId)}
+                          title="Undo scan"
+                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', color: '#EF4444', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <XCircle style={{ width: 12, height: 12 }} /> Undo
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -2543,32 +2761,32 @@ const AttendanceListModal = ({ theme, isDark, onClose, attendanceData, onDownloa
 function ScanDetailRow({ label, value, isDark, fullWidth = false, mono = false, highlight = false }) {
   return (
     <div style={{
-      background:   isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+      background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
       borderRadius: 8,
-      padding:      '6px 9px',
+      padding: '6px 9px',
       marginBottom: fullWidth ? 5 : 0,
-      width:        '100%',
+      width: '100%',
     }}>
       <p style={{
-        color:         isDark ? 'rgba(209,250,229,0.40)' : 'rgba(6,95,70,0.45)',
-        fontSize:      9,
-        fontWeight:    700,
+        color: isDark ? 'rgba(209,250,229,0.40)' : 'rgba(6,95,70,0.45)',
+        fontSize: 9,
+        fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '0.06em',
-        margin:        '0 0 2px',
+        margin: '0 0 2px',
       }}>
         {label}
       </p>
       <p style={{
-        color:       highlight
-                       ? '#10B981'
-                       : isDark ? '#d1fae5' : '#065f46',
-        fontSize:    11,
-        fontWeight:  highlight ? 700 : 600,
-        margin:      0,
-        fontFamily:  mono ? 'monospace' : 'inherit',
-        wordBreak:   'break-all',
-        lineHeight:  1.4,
+        color: highlight
+          ? '#10B981'
+          : isDark ? '#d1fae5' : '#065f46',
+        fontSize: 11,
+        fontWeight: highlight ? 700 : 600,
+        margin: 0,
+        fontFamily: mono ? 'monospace' : 'inherit',
+        wordBreak: 'break-all',
+        lineHeight: 1.4,
       }}>
         {value}
       </p>

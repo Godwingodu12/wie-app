@@ -58,8 +58,8 @@ export const getBookingGrowthStats = async (ticketId, selectedDate, comparisonTy
       { ticketId, selectedDate, comparisonType },
       (error, response) => {
         if (error) {
-          console.error('❌ [Booking gRPC] Error:', error.message);
-          resolve({ growthPercentage: '0', currentPeriodBookings: 0, previousPeriodBookings: 0 });
+          console.error('❌ [Booking gRPC] Error in GetBookingGrowthStats:', error.message);
+          reject(error); // Reject the promise to propagate the error
         } else {
           resolve(response);
         }
@@ -76,8 +76,8 @@ export const getMonthlyBookingChart = async (ticketId, year, month) => {
       { ticketId, year, month },
       (error, response) => {
         if (error) {
-          console.error('❌ [Booking gRPC] Error:', error.message);
-          resolve({ chartData: [] });
+          console.error('❌ [Booking gRPC] Error in GetMonthlyBookingChart:', error.message);
+          reject(error); // Reject the promise to propagate the error
         } else {
           resolve(response);
         }
