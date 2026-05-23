@@ -832,11 +832,21 @@ const LiveEventsPage = () => {
   };
 
   const handleQRScanned = async (qrData) => {
+    if (!qrData || !qrData.trim()) return;
     setScanError('');
     setScanResult(null);
+
+    console.log('[handleQRScanned] received qrData length:', qrData.length);
+
     try {
-      const res = await scanAttendanceQR(ticketId, qrData, activeSubEventIdForAtt);
+      const res = await scanAttendanceQR(ticketId, qrData.trim(), activeSubEventIdForAtt);
       const attendee = res?.data?.data?.scannedAttendee;
+
+      if (!attendee) {
+        setScanError('❌ Scan succeeded but no attendee data returned');
+        return;
+      }
+
       setScanResult(attendee);
       setScanCount(prev => prev + 1);
       setAttendanceData(prev =>
@@ -848,22 +858,30 @@ const LiveEventsPage = () => {
           }
           : prev
       );
-      // Auto-close after showing success result for 3 s
-      setTimeout(() => {
-        setScanResult(null);
-        setShowAttendanceModal(false);
-      }, 3000);
+
+      // Auto-close after 3s — keep scanner open so hoster can scan more
+      setTimeout(() => setScanResult(null), 3000);
+      // ← removed setShowAttendanceModal(false) so scanner stays open for next person
+
     } catch (err) {
-      const msg = err?.response?.data?.message || 'Scan failed';
-      const isDouble = err?.response?.status === 409 || msg.toLowerCase().includes('already been scanned');
-      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found');
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || 'Scan failed';
+
+      console.error('[handleQRScanned] error:', status, msg);
+
+      const isDouble = status === 409 || msg.toLowerCase().includes('already been scanned');
+      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('unrecognised');
+      const isWrongEv = msg.toLowerCase().includes('does not belong');
       const isCancel = msg.toLowerCase().includes('cancelled');
-      setScanResult(null);
+      const isTimeout = msg.toLowerCase().includes('timed out');
+
       setScanError(
         isDouble ? '⚠️ Already scanned — this ticket was marked present earlier'
           : isCancel ? '❌ Booking is cancelled — cannot mark attendance'
-            : isBadQR ? '❌ Invalid QR code — does not belong to this event'
-              : `❌ ${msg}`
+            : isWrongEv ? '❌ This QR belongs to a different event'
+              : isBadQR ? '❌ QR code not recognised — ensure ticket QR is fully visible'
+                : isTimeout ? '⏳ Verification timed out — please try again'
+                  : `❌ ${msg}`
       );
       setTimeout(() => setScanError(''), 5000);
     }
@@ -2334,10 +2352,12 @@ const AttendanceScannerModal = ({
             experimentalFeatures: { useBarCodeDetectorIfSupported: true },
           },
           (decoded) => {
-            // timestamp-based debounce — ignore repeat frames for 3 s
+            if (!decoded || !decoded.trim()) return;
+            // Debounce: only block repeat scans, not first-time scans
             const now = Date.now();
-            if (now - lastScanRef.current < 3000) return;
+            if (now - lastScanRef.current < 2000) return;
             lastScanRef.current = now;
+            console.log('[Scanner] QR decoded, length:', decoded.length, 'preview:', decoded.slice(0, 40));
             onScan(decoded);
           },
           () => { } // per-frame fail is normal — stay silent
@@ -2397,8 +2417,9 @@ const AttendanceScannerModal = ({
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         },
         (decoded) => {
+          if (!decoded || !decoded.trim()) return;
           const now = Date.now();
-          if (now - lastScanRef.current < 3000) return;
+          if (now - lastScanRef.current < 2000) return;
           lastScanRef.current = now;
           onScan(decoded);
         },
