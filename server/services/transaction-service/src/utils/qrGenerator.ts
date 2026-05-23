@@ -43,14 +43,22 @@ export interface QRPayload {
   v: number;
 }
 
+export interface GenerateQRResult {
+  qrDataURL: string;   // data:image/png — for display/download
+  qrPayload: string;   // raw base64 string encoded inside the QR image
+}
+
 /**
- * Encode the booking data as a base64-encoded JSON string,
- * then generate a QR image (data URL) from that string.
- *
- * The QR image is stored as-is; the encoded string inside it
- * is what gets scanned and decoded on both the user and hoster sides.
+ * Generates a QR code image AND returns the raw payload string
+ * that is encoded inside the QR image.
+ * The raw payload string is what the scanner reads.
  */
 export const generateQRCode = async (data: QRCodeData): Promise<string> => {
+  const result = await generateQRCodeWithPayload(data);
+  return result.qrDataURL;
+};
+
+export const generateQRCodeWithPayload = async (data: QRCodeData): Promise<GenerateQRResult> => {
   try {
     const payload: QRPayload = {
       bookingId: data.bookingId,
@@ -69,10 +77,10 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
       v: 1,
     };
 
-    // base64-encode so the QR string is URL-safe and compact
-    const qrString = Buffer.from(JSON.stringify(payload)).toString("base64");
+    // This is the raw string that gets encoded into the QR image pixels
+    const qrPayload = Buffer.from(JSON.stringify(payload)).toString("base64");
 
-    const qrCodeDataURL = await QRCode.toDataURL(qrString, {
+    const qrDataURL = await QRCode.toDataURL(qrPayload, {
       errorCorrectionLevel: "H",
       type: "image/png",
       width: 400,
@@ -80,7 +88,7 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
       color: { dark: "#000000", light: "#FFFFFF" },
     });
 
-    return qrCodeDataURL;
+    return { qrDataURL, qrPayload };
   } catch (error) {
     console.error("❌ Error generating QR code:", error);
     throw new Error("Failed to generate QR code");
