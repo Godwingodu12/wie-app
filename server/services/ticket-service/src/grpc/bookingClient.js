@@ -35,7 +35,7 @@ const getClient = () => {
 export const getBookingStatsByDate = async (ticketId, selectedDate) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetBookingStatsByDate(
       { ticketId, selectedDate },
       (error, response) => {
@@ -53,7 +53,7 @@ export const getBookingStatsByDate = async (ticketId, selectedDate) => {
 export const getBookingGrowthStats = async (ticketId, selectedDate, comparisonType) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetBookingGrowthStats(
       { ticketId, selectedDate, comparisonType },
       (error, response) => {
@@ -71,7 +71,7 @@ export const getBookingGrowthStats = async (ticketId, selectedDate, comparisonTy
 export const getMonthlyBookingChart = async (ticketId, year, month) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetMonthlyBookingChart(
       { ticketId, year, month },
       (error, response) => {
@@ -110,13 +110,13 @@ export const getBookingsForEvent = async (ticketId) => {
 
 export const cancelEventBookings = (eventId, { cancellationReason, refundPercentage, cancellationTier, isHostCancellation }) => {
   return new Promise((resolve, reject) => {
-    const grpcClient = getClient(); 
+    const grpcClient = getClient();
     grpcClient.CancelEventBookings(
       {
-        eventId:            String(eventId),
+        eventId: String(eventId),
         cancellationReason: cancellationReason || '',
-        refundPercentage:   refundPercentage   ?? 100,
-        cancellationTier:   cancellationTier   || 'full_refund',
+        refundPercentage: refundPercentage ?? 100,
+        cancellationTier: cancellationTier || 'full_refund',
         isHostCancellation: isHostCancellation ?? true,
       },
       (err, response) => {
@@ -176,14 +176,23 @@ export const getEventTransactionList = (ticketId, { limit = 50, offset = 0, stat
 export const verifyBookingQR = (qrData) => {
   return new Promise((resolve) => {
     const grpcClient = getClient();
+
+    // Timeout so a dead gRPC connection doesn't hang the scan forever
+    const timer = setTimeout(() => {
+      console.error('❌ [Booking gRPC] verifyBookingQR timed out after 8s');
+      resolve({ success: false, error: 'Verification service timed out — try again' });
+    }, 8000);
+
     grpcClient.VerifyBookingQR(
       { qrData: String(qrData) },
       (error, response) => {
+        clearTimeout(timer);
         if (error) {
           console.error('❌ [Booking gRPC] verifyBookingQR error:', error.message);
           resolve({ success: false, error: error.message });
           return;
         }
+        console.log('[Booking gRPC] verifyBookingQR response:', JSON.stringify(response));
         resolve(response);
       }
     );

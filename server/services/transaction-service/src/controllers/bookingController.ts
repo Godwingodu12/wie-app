@@ -14,14 +14,13 @@ import {
   getRehostedEvents,
 } from "../grpc/ticketClient";
 import { getUserById } from "../clients/userServiceClient";
-import { generateQRCode } from "../utils/qrGenerator";
+import { generateQRCode, generateQRCodeWithPayload } from "../utils/qrGenerator";
 import { createNotification } from "../utils/notificationHelper";
 import { LedgerModel } from "../models/ledger.model";
 import { BookingModel, PaymentTransactionModel } from "../models";
 import { calculateFeeBreakdown } from "../utils/platformFeeEngine";
 import { calculateRefund } from "../utils/refundPolicyEngine";
 import { determineSettlementMode } from "../utils/settlementModeEngine";
-
 async function safeUpdateTicketStats(
   ticketId: string,
   field: "like" | "share" | "totalBookings" | "totalTicketsSold" | "revenue",
@@ -125,7 +124,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       },
     });
 
-    const qrCode = await generateQRCode({
+    const { qrDataURL, qrPayload } = await generateQRCodeWithPayload({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
@@ -145,8 +144,9 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
     const confirmedBooking = await BookingModel.update(booking.id, {
       paymentStatus: "COMPLETED",
       bookingStatus: "CONFIRMED",
-      qrCode,
-    });
+      qrCode: qrDataURL,
+      qrPayload,
+    } as any);
 
     await safeUpdateTicketStats(ticketId, "totalBookings", 1);
     await safeUpdateTicketStats(ticketId, "totalTicketsSold", quantity);
@@ -164,7 +164,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: "Free event registration successful",
-      data: { booking: confirmedBooking, qrCode },
+      data: { booking: confirmedBooking, qrCode: qrDataURL, qrPayload },
     });
   } catch (error: any) {
     console.error("❌ Error registering for free event:", error);
@@ -273,11 +273,11 @@ export const createBooking = async (req: Request, res: Response) => {
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
         : {
-            bank_acc_holder: group.primary_bank_acc_holder || "N/A",
-            bank_acc_no: group.primary_bank_acc_no || "N/A",
-            bank_ifsc: group.primary_bank_ifsc || "N/A",
-            bank_acc_type: group.primary_bank_acc_type || "N/A",
-          };
+          bank_acc_holder: group.primary_bank_acc_holder || "N/A",
+          bank_acc_no: group.primary_bank_acc_no || "N/A",
+          bank_ifsc: group.primary_bank_ifsc || "N/A",
+          bank_acc_type: group.primary_bank_acc_type || "N/A",
+        };
 
     const bookingId = `BK${Date.now()}${Math.random()
       .toString(36)
@@ -375,10 +375,10 @@ export const createBooking = async (req: Request, res: Response) => {
       // Route split: only if host has a linked account
       hostRazorpayAccountId
         ? {
-            hostAccountId: hostRazorpayAccountId,
-            hostAmount: subtotal, // host gets ticket value only
-            onHold: settlementModeResult.onHoldForRazorpay,
-          }
+          hostAccountId: hostRazorpayAccountId,
+          hostAmount: subtotal, // host gets ticket value only
+          onHold: settlementModeResult.onHoldForRazorpay,
+        }
         : undefined,
     );
 
@@ -495,20 +495,13 @@ export const verifyPayment = async (req: Request, res: Response) => {
       razorpayPaymentId,
     );
 
-    // Generate QR code — structured base64 payload (v1)
-    const qrCode = await generateQRCode({
+    const { qrDataURL, qrPayload } = await generateQRCodeWithPayload({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
       eventName: (booking.eventDetails as any).eventName || "",
-      location:
-        (booking.eventDetails as any).location ||
-        (booking.eventDetails as any).venue ||
-        "",
-      venue:
-        (booking.eventDetails as any).venue ||
-        (booking.eventDetails as any).location ||
-        "",
+      location: (booking.eventDetails as any).location || (booking.eventDetails as any).venue || "",
+      venue: (booking.eventDetails as any).venue || (booking.eventDetails as any).location || "",
       eventDate: (booking.eventDetails as any).eventDate || "",
       eventTime: (booking.eventDetails as any).eventTime || "",
       quantity: booking.quantity,
@@ -519,15 +512,16 @@ export const verifyPayment = async (req: Request, res: Response) => {
       paymentMethod: paymentDetails.method || "",
     });
 
-    // Confirm booking
+    // Confirm booking — store both the image (for display) and the raw payload (for scanning)
     const updatedBooking = await BookingModel.update(booking.id, {
       paymentStatus: "COMPLETED",
       bookingStatus: "CONFIRMED",
       razorpayPaymentId,
       razorpaySignature,
       paymentMethod: paymentDetails.method,
-      qrCode,
-    });
+      qrCode: qrDataURL,   // PNG data URL — shown in ticket UI
+      qrPayload,                       // raw base64 string — what the scanner actually reads
+    } as any);
 
     await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
       status: "COMPLETED",
@@ -614,7 +608,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: "Payment verified successfully",
-      data: { booking: updatedBooking, qrCode },
+      data: { booking: updatedBooking, qrCode: qrDataURL, qrPayload },
     });
   } catch (error: any) {
     console.error("❌ Error verifying payment:", error);
@@ -744,11 +738,11 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
         : {
-            bank_acc_holder: group.primary_bank_acc_holder || "N/A",
-            bank_acc_no: group.primary_bank_acc_no || "N/A",
-            bank_ifsc: group.primary_bank_ifsc || "N/A",
-            bank_acc_type: group.primary_bank_acc_type || "N/A",
-          };
+          bank_acc_holder: group.primary_bank_acc_holder || "N/A",
+          bank_acc_no: group.primary_bank_acc_no || "N/A",
+          bank_ifsc: group.primary_bank_ifsc || "N/A",
+          bank_acc_type: group.primary_bank_acc_type || "N/A",
+        };
 
     const bookingId = `BK${Date.now()}${Math.random()
       .toString(36)
@@ -951,8 +945,8 @@ export const getUserBookings = async (req: Request, res: Response) => {
         groupId: booking.groupId || "",
         v: 1,
       };
-
-      return { ...booking, qrPayload };
+      const storedQrPayload = (booking as any).qrPayload || null;
+      return { ...booking, qrPayload: storedQrPayload || qrPayload };
     });
 
     res.status(200).json({
@@ -1045,12 +1039,14 @@ export const getBookingById = async (req: Request, res: Response) => {
       v: 1,
     };
 
+    const storedQrPayload = (booking as any).qrPayload || null;
     res.status(200).json({
       success: true,
       data: {
         booking: {
           ...booking,
-          qrPayload,
+          qrPayload: storedQrPayload || qrPayload,
+          qrCode: (booking as any).qrCode || null,
           event_link: eventLink,
           event_code: eventCode,
         },
@@ -1593,9 +1589,9 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
             // Mark refund as PENDING if paid event and no refund started yet
             ...(parseFloat(b.subtotal.toString()) > 0 && !b.refundStatus
               ? {
-                  refundStatus: "PENDING",
-                  refundAmount: parseFloat(b.subtotal.toString()),
-                }
+                refundStatus: "PENDING",
+                refundAmount: parseFloat(b.subtotal.toString()),
+              }
               : {}),
           });
         }),

@@ -1,12 +1,11 @@
 'use client';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import QRCodeLib from 'qrcode';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import Header from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { getBookingById, cancelBooking, Booking } from '@/services/transactionService';
+import { getBookingById, cancelBooking, Booking, QRPayload } from '@/services/transactionService';
 import SideBar from "@/components/home/SideBar";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { useTheme } from '@/components/home/ThemeContext';
@@ -47,7 +46,24 @@ export default function BookingDetailPage({ params }: { params: { bookingId: str
     </SidebarProvider>
   );
 }
-
+function QRCodeImage({ value, size = 180 }: { value: string | QRPayload; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!canvasRef.current || !value) return;
+    // Always encode as base64(JSON) — the same format verifyQRCode expects
+    const stringValue =
+      typeof value === 'string'
+        ? value   // already a base64 string stored from generateQRCodeWithPayload
+        : Buffer.from(JSON.stringify(value)).toString('base64');
+    QRCodeLib.toCanvas(canvasRef.current, stringValue, {
+      width: size,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+      color: { dark: '#000000', light: '#FFFFFF' },
+    }).catch(console.error);
+  }, [value, size]);
+  return <canvas ref={canvasRef} width={size} height={size} />;
+}
 function BookingDetailContent({ bookingId }: { bookingId: string }) {
   useAuth(true);
   const router = useRouter();
@@ -198,14 +214,14 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
   const isConfirmed = booking.bookingStatus === 'CONFIRMED' && !isEventCompleted(booking);
   const isCancelled = booking.bookingStatus === 'CANCELLED';
   const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') ||
-                          booking.cancellationReason?.toLowerCase().includes('host');
+    booking.cancellationReason?.toLowerCase().includes('host');
 
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'CONFIRMED': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'COMPLETED': return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
       case 'CANCELLED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
-      case 'VERIFIED':  return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'VERIFIED': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'PENDING': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       default: return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
     }
@@ -271,22 +287,20 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                             href={booking.event_link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:scale-[1.02] active:scale-[0.98] ${
-                              isDark
-                                ? 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30'
-                                : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200'
-                            }`}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:scale-[1.02] active:scale-[0.98] ${isDark
+                              ? 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30'
+                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200'
+                              }`}
                           >
                             <Video className="w-4 h-4" />
                             Join Online Event
                           </a>
 
                           {booking.event_code && (
-                            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border ${
-                              isDark
-                                ? 'bg-white/5 border-white/10 text-gray-400'
-                                : 'bg-black/5 border-black/10 text-gray-600'
-                            }`}>
+                            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border ${isDark
+                              ? 'bg-white/5 border-white/10 text-gray-400'
+                              : 'bg-black/5 border-black/10 text-gray-600'
+                              }`}>
                               <span className="opacity-60 uppercase tracking-tighter">Code:</span>
                               <span className="font-mono text-sm tracking-widest">{booking.event_code}</span>
                             </div>
@@ -328,22 +342,22 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     <div className="space-y-4 sm:space-y-5">
                       {/* Location */}
                       {booking.eventDetails?.location_type?.toLowerCase() !== 'online' &&
-                       booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
-                       booking.eventDetails?.venue &&
-                       booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
-                       booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
-                        <div className="flex items-center justify-between sm:justify-start gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
-                              <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                        booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
+                        booking.eventDetails?.venue &&
+                        booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
+                        booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
+                          <div className="flex items-center justify-between sm:justify-start gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                                <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                              </div>
+                              <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Location</p>
                             </div>
-                            <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Location</p>
+                            <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto break-words max-w-[200px] sm:max-w-none text-right`}>
+                              {booking.eventDetails.venue || 'TBA'}
+                            </p>
                           </div>
-                          <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto break-words max-w-[200px] sm:max-w-none text-right`}>
-                            {booking.eventDetails.venue || 'TBA'}
-                          </p>
-                        </div>
-                      )}
+                        )}
 
                       {/* Tickets */}
                       <div className="flex items-center justify-between sm:justify-start gap-4">
@@ -455,12 +469,27 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     <div className="relative group">
                       <div className="absolute -inset-2 bg-gradient-to-tr from-[#8860D9] to-fuchsia-500 rounded-2xl blur-lg opacity-15 group-hover:opacity-35 transition-opacity" />
                       <div className="relative bg-white p-2.5 rounded-2xl border border-black/5 shadow-md">
-                        <img
-                          src={booking.qrCode}
-                          alt="Ticket QR Code"
-                          className="w-40 h-40 object-contain"
-                          crossOrigin="anonymous"
-                        />
+                        {/* QR Code — the image IS the scannable QR */}
+                        {booking.qrCode ? (
+                          <img
+                            src={booking.qrCode}
+                            alt="Ticket QR Code"
+                            style={{ width: 180, height: 180, objectFit: 'contain', display: 'block' }}
+                            crossOrigin="anonymous"
+                          />
+                        ) : (booking as any).qrPayload ? (
+                          <QRCodeImage
+                            value={(booking as any).qrPayload}
+                            size={180}
+                          />
+                        ) : (
+                          <div
+                            style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            className="bg-gray-100 rounded-lg text-xs text-gray-400 text-center p-4"
+                          >
+                            QR code not available
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -547,30 +576,30 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     {/* End date (if different from start) */}
                     {booking.qrPayload?.eventEndDate &&
                       booking.qrPayload.eventEndDate !== booking.qrPayload.eventDate && (
-                      <TicketRow
-                        isDark={isDark}
-                        label="Event ends"
-                        value={booking.qrPayload.eventEndDate}
-                      />
-                    )}
+                        <TicketRow
+                          isDark={isDark}
+                          label="Event ends"
+                          value={booking.qrPayload.eventEndDate}
+                        />
+                      )}
 
                     {/* Venue */}
                     {booking.eventDetails?.location_type?.toLowerCase() !== 'online' &&
-                     booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
-                     booking.eventDetails?.venue &&
-                     booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
-                     booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
-                      <TicketRow
-                        isDark={isDark}
-                        label="Venue"
-                        value={
-                          booking.qrPayload?.venue ||
-                          booking.eventDetails?.venue ||
-                          booking.eventDetails?.location ||
-                          '—'
-                        }
-                      />
-                    )}
+                      booking.eventDetails?.location_type?.toLowerCase() !== 'recorded' &&
+                      booking.eventDetails?.venue &&
+                      booking.eventDetails?.venue?.toUpperCase() !== 'TBA' &&
+                      booking.eventDetails?.venue?.toUpperCase() !== 'VIRTUAL/TBD' && (
+                        <TicketRow
+                          isDark={isDark}
+                          label="Venue"
+                          value={
+                            booking.qrPayload?.venue ||
+                            booking.eventDetails?.venue ||
+                            booking.eventDetails?.location ||
+                            '—'
+                          }
+                        />
+                      )}
 
                     {/* Online Code (Ticket Row) */}
                     {booking.event_code && (
@@ -871,12 +900,12 @@ function TicketRow({
   valueColor = '',
   mono = false,
 }: {
-  label:       string;
-  value:       string;
-  isDark:      boolean;
-  className?:  string;
+  label: string;
+  value: string;
+  isDark: boolean;
+  className?: string;
   valueColor?: string;
-  mono?:       boolean;
+  mono?: boolean;
 }) {
   return (
     <div
@@ -889,9 +918,8 @@ function TicketRow({
         {label}
       </p>
       <p
-        className={`text-xs font-bold leading-snug break-words ${
-          mono ? 'font-mono' : ''
-        } ${valueColor || (isDark ? 'text-white' : 'text-gray-900')}`}
+        className={`text-xs font-bold leading-snug break-words ${mono ? 'font-mono' : ''
+          } ${valueColor || (isDark ? 'text-white' : 'text-gray-900')}`}
       >
         {value}
       </p>

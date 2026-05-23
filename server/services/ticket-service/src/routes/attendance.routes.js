@@ -28,12 +28,54 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// ── Helper: safely decode a base64 QR payload ─────────────────────────────────
 const decodeQRPayload = (qrData) => {
+  if (!qrData || typeof qrData !== 'string') return null;
+  const trimmed = qrData.trim();
+
+  // ── Format 1: base64-encoded JSON (current — from generateQRCode) ──────────
+  // The QR image encodes a base64 string; scanner returns that string raw.
   try {
-    const raw = Buffer.from(qrData, 'base64').toString('utf-8');
-    if (raw.startsWith('{')) return JSON.parse(raw);
-  } catch { /* legacy QR — return null */ }
+    // Handle URL-safe base64 variants (+ vs -, / vs _) and padding issues
+    const normalized = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '=='.slice(0, (4 - normalized.length % 4) % 4);
+    const raw = Buffer.from(padded, 'base64').toString('utf-8');
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.bookingId) return parsed;
+    }
+  } catch { /* not valid base64 */ }
+
+  // ── Format 2: plain JSON string (some legacy tickets) 
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && parsed.bookingId) return parsed;
+    } catch { /* not valid JSON */ }
+  }
+
+  // ── Format 3: multiline text (old legacy format) 
+  const get = (label) => {
+    const m = trimmed.match(new RegExp(`${label}:\\s*([^\\n\\r]+)`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const bookingId = get('Booking ID');
+  if (bookingId) {
+    return {
+      bookingId,
+      userId: '',
+      ticketId: '',
+      eventName: get('Event'),
+      ticketType: get('Ticket Type') || get('Ticket'),
+      quantity: Number(get('Quantity')) || 1,
+      holderName: get('Booked By'),
+      eventDate: get('Date'),
+      eventTime: get('Time'),
+      venue: get('Location') || get('Venue'),
+      paymentMethod: get('Payment'),
+      totalAmount: Number((get('Total Price') || '0').replace(/[^\d.]/g, '')) || 0,
+      v: 0,
+    };
+  }
   return null;
 };
 
@@ -58,15 +100,28 @@ const markAttendance = async ({ ticketId, subEventId = null, qrData, scannedBy }
   }
 
   // ── Step 2: Verify via gRPC (authoritative booking lookup) 
+  console.log(`[Attendance] Decoded bookingId: ${decodedPayload.bookingId}, ticketId from URL: ${ticketId}`);
+
   const qrResult = await verifyBookingQR(qrData);
+  console.log(`[Attendance] gRPC verifyBookingQR result:`, JSON.stringify(qrResult));
 
   // Handle both flat (new proto) and nested (old proto) response shapes
   const flat = qrResult?.booking
     ? { ...qrResult, ...qrResult.booking }
     : qrResult;
 
-  if (!flat.success) {
-    throw new Error(flat.error || 'Invalid or cancelled QR code');
+  if (!flat || !flat.success) {
+    const errMsg = flat?.error || 'Invalid or cancelled QR code';
+    console.error(`[Attendance] QR verification failed: ${errMsg}`);
+    throw new Error(errMsg);
+  }
+
+  // ── Verify this QR belongs to the correct event 
+  // flat.ticketId is the event the booking was made for
+  // ticketId (URL param) is the event the hoster is scanning for
+  if (flat.ticketId && ticketId && flat.ticketId.toString() !== ticketId.toString()) {
+    console.warn(`[Attendance] TicketId mismatch: QR has ${flat.ticketId}, scanner is for ${ticketId}`);
+    throw new Error('This QR code does not belong to this event');
   }
 
   // ── Step 3: Duplicate scan guard (check by externalId OR bookingId)
@@ -166,7 +221,8 @@ router.post('/:ticketId/init', authenticate, async (req, res) => {
 // Scan a QR code and mark an attendee as present.
 router.post('/:ticketId/scan', authenticate, async (req, res) => {
   try {
-    const { qrData, subEventId } = req.body;
+    const { qrData: rawQrData, qrPayload: rawQrPayload, subEventId } = req.body;
+    const qrData = rawQrData || rawQrPayload;
     if (!qrData) return res.status(400).json({ success: false, message: 'qrData is required' });
 
     const result = await markAttendance({
