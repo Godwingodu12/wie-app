@@ -76,15 +76,31 @@ export const signupVerifyOtp = async (
 };
 export const setupProfile = async (data: {
   username: string;
+  name?: string;
+  bio?: string;
+  accountPrivacy?: "public" | "private";
   profile_picture?: File | null;
 }): Promise<ApiResponse> => {
   try {
     const formData = new FormData();
     formData.append("username", data.username);
+    if (data.name !== undefined) {
+      formData.append("name", data.name);
+    }
+    if (data.bio !== undefined) {
+      formData.append("bio", data.bio);
+    }
+    if (data.accountPrivacy !== undefined) {
+      formData.append("accountPrivacy", data.accountPrivacy);
+    }
     if (data.profile_picture) {
       formData.append("profile_picture", data.profile_picture);
     }
-    const res = await api.post<ApiResponse>("/user/setup-profile", formData);
+    const res = await api.post<ApiResponse>("/user/setup-profile", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return res.data;
   } catch (err: any) {
     console.error("[setupProfile] error:", err?.response?.data || err?.message);
@@ -215,6 +231,7 @@ export const getGoogleAuthUrl = async (): Promise<string> => {
 export const forgotPassword = async (identifier: {
   email?: string;
   contact_no?: string;
+  username?: string;
 }): Promise<ApiResponse> => {
   try {
     const res = await api.post<ApiResponse>(
