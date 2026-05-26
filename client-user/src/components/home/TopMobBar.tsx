@@ -4,8 +4,10 @@ import React from "react";
 import Image from "next/image";
 import PostIcon from "@/assets/Home/PostIcon.png";
 import NotificationsIcon from "@/assets/Home/NotificationsIcon.png";
-import MessageIcon from "@/assets/Home/MessageIcon.png";
+import { MessageCircle } from "lucide-react";
 import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
+import WieLight from "@/assets/Home/WieLight.png";
+import WieDark from "@/assets/Home/WieDark.png";
 import { useTheme } from "./ThemeContext";
 
 interface TopMobBarProps {
@@ -51,15 +53,13 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
           className="flex-shrink-0"
           style={{ filter: themeStyles.iconFilter }}
         />
-        <span
-          className="font-medium text-xl tracking-normal"
-          style={{
-            fontFamily: "SF Pro, -apple-system, sans-serif",
-            color: themeStyles.text
-          }}
-        >
-          Wie
-        </span>
+        <Image
+          src={isDark ? WieDark : WieLight}
+          alt="Wie"
+          width={50}
+          height={22}
+          className="object-contain h-[22px] w-auto flex-shrink-0"
+        />
       </div>
 
       {/* Right: Actions */}
@@ -109,12 +109,13 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
           onClick={onMessageClick}
           className="relative flex items-center justify-center w-8 h-8 rounded-full transition-opacity active:opacity-70"
         >
-          <Image
-            src={MessageIcon}
-            alt="Message"
-            width={24}
-            height={24}
-            style={{ filter: themeStyles.iconFilter }}
+          <MessageCircle
+            size={24}
+            className="flex-shrink-0"
+            style={{
+              color: themeStyles.text,
+              filter: themeStyles.iconFilter
+            }}
           />
           {messageCount > 0 && (
             <span
@@ -133,4 +134,5 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
     </div>
   );
 };
+
 export default TopMobBar;
