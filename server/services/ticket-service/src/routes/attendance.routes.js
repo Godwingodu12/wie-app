@@ -31,19 +31,21 @@ const authenticate = async (req, res, next) => {
 const decodeQRPayload = (qrData) => {
   if (!qrData || typeof qrData !== 'string') return null;
   const trimmed = qrData.trim();
-
-  // ── Format 1: base64-encoded JSON (current — from generateQRCode) ──────────
-  // The QR image encodes a base64 string; scanner returns that string raw.
+  // Format 1: base64-encoded JSON (current — from generateQRCode)
   try {
-    // Handle URL-safe base64 variants (+ vs -, / vs _) and padding issues
-    const normalized = trimmed.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized + '=='.slice(0, (4 - normalized.length % 4) % 4);
-    const raw = Buffer.from(padded, 'base64').toString('utf-8');
+    // Strip any surrounding whitespace or data-URL prefix a misbehaving scanner might add
+    let b64 = trimmed.replace(/^data:[^,]+,/, '');
+    // Normalize URL-safe base64 (+ vs -, / vs _) and fix padding
+    b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad === 2) b64 += '==';
+    else if (pad === 3) b64 += '=';
+    const raw = Buffer.from(b64, 'base64').toString('utf-8');
     if (raw.startsWith('{')) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.bookingId) return parsed;
     }
-  } catch { /* not valid base64 */ }
+  } catch { /* not valid base64 JSON */ }
 
   // ── Format 2: plain JSON string (some legacy tickets) 
   if (trimmed.startsWith('{')) {
@@ -123,14 +125,17 @@ const markAttendance = async ({ ticketId, subEventId = null, qrData, scannedBy }
     console.warn(`[Attendance] TicketId mismatch: QR has ${flat.ticketId}, scanner is for ${ticketId}`);
     throw new Error('This QR code does not belong to this event');
   }
-
-  // ── Step 3: Duplicate scan guard (check by externalId OR bookingId)
-  const bookingRef = flat.externalId || flat.bookingId || decodedPayload.bookingId;
+  // externalId is the human-readable booking ID (e.g. "BK17...") — use this as the stable ref
+  // flat.bookingId is the Prisma UUID — only used internally
+  const bookingRef = flat.externalId || decodedPayload.bookingId;
 
   const existing = await Attendance.findOne({
     ticketId,
     subEventId: subEventId || null,
-    'attendees.bookingId': bookingRef,
+    $or: [
+      { 'attendees.bookingId': bookingRef },
+      { 'attendees.transactionId': bookingRef },
+    ],
   });
   if (existing) {
     throw new Error('This ticket has already been scanned for attendance');
@@ -144,7 +149,7 @@ const markAttendance = async ({ ticketId, subEventId = null, qrData, scannedBy }
 
   // ── Step 5: Build attendee record — prefer gRPC data, fall back to QR
   const attendeeRecord = {
-    bookingId: bookingRef,
+    bookingId: bookingRef,          // always the human-readable "BK..." id
     userId: flat.userId || decodedPayload.userId || '',
     userName: flat.userName || decodedPayload.holderName || '',
     holderName: decodedPayload.holderName || flat.userName || '',
@@ -153,12 +158,17 @@ const markAttendance = async ({ ticketId, subEventId = null, qrData, scannedBy }
     ticketType: flat.ticketType || decodedPayload.ticketType || '',
     quantity: flat.quantity || decodedPayload.quantity || 1,
     paymentMethod: flat.paymentMethod || decodedPayload.paymentMethod || '',
-    transactionId: bookingRef,
+    transactionId: bookingRef,      // same — for display in the list
     eventName: flat.eventName || decodedPayload.eventName || '',
     eventDate: flat.eventDate || decodedPayload.eventDate || '',
     eventTime: flat.eventTime || decodedPayload.eventTime || '',
     venue: flat.venue || decodedPayload.venue || '',
-    totalAmount: flat.totalAmount ?? decodedPayload.totalAmount ?? 0,
+    totalAmount: (flat.totalAmount && flat.totalAmount > 0)
+      ? flat.totalAmount
+      : (decodedPayload.totalAmount ?? 0),
+    subtotal: (flat.subtotal && flat.subtotal > 0)
+      ? flat.subtotal
+      : (decodedPayload.subtotal ?? 0),
     scannedAt: new Date(),
     scannedBy,
     status: 'present',
