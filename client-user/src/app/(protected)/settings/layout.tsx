@@ -25,6 +25,8 @@ import {
 import { useSidebar } from '@/context/SidebarContext';
 import { useTheme } from '@/components/home/ThemeContext';
 import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
+import WieLight from "@/assets/Home/WieLight.png";
+import WieDark from "@/assets/Home/WieDark.png";
 import { logout } from '@/services/wieUserService';
 
 export default function SettingsLayout({
@@ -93,32 +95,32 @@ export default function SettingsLayout({
     {
       title: 'Account Management',
       items: [
-        { title: 'Profile Details',    icon: User,        href: '/settings/account/profile' },
-        { title: 'Password & Security',icon: ShieldCheck,  href: '/settings/account/security' },
-        { title: 'Personal Details',   icon: SquareUser,   href: '/settings/account/personal-details' },
+        { title: 'Profile Details', icon: User, href: '/settings/account/profile' },
+        { title: 'Password & Security', icon: ShieldCheck, href: '/settings/account/security' },
+        { title: 'Personal Details', icon: SquareUser, href: '/settings/account/personal-details' },
       ],
     },
     {
       title: 'Privacy & Safety',
       items: [
-        { title: 'Account Privacy',   icon: Shield, href: '/settings/privacy' },
-        { title: 'Blocked Accounts',  icon: UserX,  href: '/settings/privacy/blocked' },
+        { title: 'Account Privacy', icon: Shield, href: '/settings/privacy' },
+        { title: 'Blocked Accounts', icon: UserX, href: '/settings/privacy/blocked' },
       ],
     },
     {
       // ── Post & Flux — top-level entry; sub-pages appear when active ──
       title: 'Post & Flux',
       items: [
-        { title: 'Flux Settings',  icon: Film,     href: '/settings/post/flux' },
+        { title: 'Flux Settings', icon: Film, href: '/settings/post/flux' },
         { title: 'Diary Settings', icon: BookOpen, href: '/settings/post/diary' },
       ],
     },
     {
       title: 'App Experience',
       items: [
-        { title: 'Notifications',   icon: Bell,           href: '/settings/app-experience/notifications' },
-        { title: 'Help & Support',  icon: HeadphonesIcon, href: '/settings/app-experience/help' },
-        { title: 'Privacy Center',  icon: ShieldCheck,    href: '/settings/app-experience/privacy-center' },
+        { title: 'Notifications', icon: Bell, href: '/settings/app-experience/notifications' },
+        { title: 'Help & Support', icon: HeadphonesIcon, href: '/settings/app-experience/help' },
+        { title: 'Privacy Center', icon: ShieldCheck, href: '/settings/app-experience/privacy-center' },
       ],
     },
     {
@@ -197,9 +199,8 @@ export default function SettingsLayout({
     return (
       <Link
         href={item.href}
-        className={`flex items-center justify-between gap-2 transition-all duration-200 ${
-          isActive ? '' : 'hover:bg-black/5 dark:hover:bg-white/5 rounded-xl'
-        }`}
+        className={`flex items-center justify-between gap-2 transition-all duration-200 ${isActive ? '' : 'hover:bg-black/5 dark:hover:bg-white/5 rounded-xl'
+          }`}
         style={isActive ? activeItemStyle : inactiveItemStyle}
       >
         <div className="flex items-center gap-4">
@@ -290,7 +291,13 @@ export default function SettingsLayout({
                 className="flex-shrink-0"
                 style={{ filter: themeStyles.iconFilter }}
               />
-              <span className="font-bold text-2xl" style={{ color: themeStyles.text }}>Wie</span>
+              <Image
+                src={isDark ? WieDark : WieLight}
+                alt="Wie"
+                width={65}
+                height={28}
+                className="object-contain h-[28px] w-auto flex-shrink-0"
+              />
             </div>
 
             <nav className="flex flex-col gap-6 overflow-y-auto custom-scrollbar">
