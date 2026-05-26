@@ -11,7 +11,7 @@ import { EventCancelModal, EventCancelSuccessModal } from "../../components/Even
 import ReHostModal from "../../components/Event/ReHostModal";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
-import { Html5Qrcode } from 'html5-qrcode';
+import jsQR from 'jsqr';
 import { toast } from "react-hot-toast";
 import {
   getMyLiveEventView,
@@ -832,21 +832,11 @@ const LiveEventsPage = () => {
   };
 
   const handleQRScanned = async (qrData) => {
-    if (!qrData || !qrData.trim()) return;
     setScanError('');
     setScanResult(null);
-
-    console.log('[handleQRScanned] received qrData length:', qrData.length);
-
     try {
-      const res = await scanAttendanceQR(ticketId, qrData.trim(), activeSubEventIdForAtt);
+      const res = await scanAttendanceQR(ticketId, qrData, activeSubEventIdForAtt);
       const attendee = res?.data?.data?.scannedAttendee;
-
-      if (!attendee) {
-        setScanError('❌ Scan succeeded but no attendee data returned');
-        return;
-      }
-
       setScanResult(attendee);
       setScanCount(prev => prev + 1);
       setAttendanceData(prev =>
@@ -858,30 +848,21 @@ const LiveEventsPage = () => {
           }
           : prev
       );
-
-      // Auto-close after 3s — keep scanner open so hoster can scan more
-      setTimeout(() => setScanResult(null), 3000);
-      // ← removed setShowAttendanceModal(false) so scanner stays open for next person
-
+      // Clear success result after 3 s but keep modal open for subsequent scans
+      setTimeout(() => {
+        setScanResult(null);
+      }, 3000);
     } catch (err) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message || err?.message || 'Scan failed';
-
-      console.error('[handleQRScanned] error:', status, msg);
-
-      const isDouble = status === 409 || msg.toLowerCase().includes('already been scanned');
-      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('unrecognised');
-      const isWrongEv = msg.toLowerCase().includes('does not belong');
+      const msg = err?.response?.data?.message || 'Scan failed';
+      const isDouble = err?.response?.status === 409 || msg.toLowerCase().includes('already been scanned');
+      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found');
       const isCancel = msg.toLowerCase().includes('cancelled');
-      const isTimeout = msg.toLowerCase().includes('timed out');
-
+      setScanResult(null);
       setScanError(
         isDouble ? '⚠️ Already scanned — this ticket was marked present earlier'
           : isCancel ? '❌ Booking is cancelled — cannot mark attendance'
-            : isWrongEv ? '❌ This QR belongs to a different event'
-              : isBadQR ? '❌ QR code not recognised — ensure ticket QR is fully visible'
-                : isTimeout ? '⏳ Verification timed out — please try again'
-                  : `❌ ${msg}`
+            : isBadQR ? '❌ Invalid QR code — does not belong to this event'
+              : `❌ ${msg}`
       );
       setTimeout(() => setScanError(''), 5000);
     }
@@ -2312,329 +2293,210 @@ const AttendanceScannerModal = ({
   theme, isDark, onClose, onScan, onComplete,
   scanResult, scanError, scanCount, eventName,
 }) => {
-  const html5QrRef = React.useRef(null);
-  const mountedRef = React.useRef(true);
-  const lastScanRef = React.useRef(0); // timestamp debounce
-  const [scanning, setScanning] = React.useState(false);
+  const videoRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+  const lastScanRef = React.useRef(0);
   const [camError, setCamError] = React.useState('');
-  const [starting, setStarting] = React.useState(true);
+  const [camReady, setCamReady] = React.useState(false);
 
-  // ── Teardown helper ─────────────────────────────────────────────────────────
-  const destroyScanner = React.useCallback(async () => {
-    const s = html5QrRef.current;
-    if (!s) return;
-    html5QrRef.current = null;
-    try {
-      if (s.isScanning) await s.stop();
-    } catch { /* ignore */ }
-    try { s.clear(); } catch { /* ignore */ }
-  }, []);
-
-  // ── Init once on mount
   React.useEffect(() => {
-    mountedRef.current = true;
-
-    const init = async () => {
+    let mounted = true;
+    const start = async () => {
       try {
-        const scanner = new Html5Qrcode('qr-reader-attendance', { verbose: false });
-        html5QrRef.current = scanner;
-
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 30,
-            qrbox: (w, h) => {
-              const size = Math.floor(Math.min(w, h) * 0.7);
-              return { width: size, height: size };
-            },
-            aspectRatio: 1.0,
-            disableFlip: false,
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-          },
-          (decoded) => {
-            if (!decoded || !decoded.trim()) return;
-            // Debounce: only block repeat scans, not first-time scans
-            const now = Date.now();
-            if (now - lastScanRef.current < 2000) return;
-            lastScanRef.current = now;
-            console.log('[Scanner] QR decoded, length:', decoded.length, 'preview:', decoded.slice(0, 40));
-            onScan(decoded);
-          },
-          () => { } // per-frame fail is normal — stay silent
-        );
-
-        if (mountedRef.current) {
-          setScanning(true);
-          setStarting(false);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+        });
+        if (!mounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', true);
+          await videoRef.current.play();
+          if (mounted) setCamReady(true);
         }
       } catch (err) {
-        if (!mountedRef.current) return;
-        setStarting(false);
-        const msg = err?.message || '';
-        if (msg.includes('NotAllowed') || msg.includes('Permission') || msg.includes('denied')) {
-          setCamError('Camera permission denied. Allow camera access in your browser settings and tap "Try Again".');
-        } else if (msg.includes('NotFound') || msg.includes('DevicesNotFound')) {
-          setCamError('No camera found on this device.');
-        } else {
-          setCamError(`Could not start camera: ${msg}`);
-        }
+        if (mounted) setCamError('Camera unavailable. Please allow camera access.');
       }
     };
-
-    init();
-
+    start();
     return () => {
-      mountedRef.current = false;
-      // fire-and-forget cleanup on unmount
-      const s = html5QrRef.current;
-      if (!s) return;
-      html5QrRef.current = null;
-      (s.isScanning ? s.stop() : Promise.resolve())
-        .catch(() => { })
-        .finally(() => { try { s.clear(); } catch { } });
+      mounted = false;
+      cancelAnimationFrame(rafRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleRetry = React.useCallback(async () => {
-    setCamError('');
-    setStarting(true);
-    await destroyScanner();
-
-    try {
-      const scanner = new Html5Qrcode('qr-reader-attendance', { verbose: false });
-      html5QrRef.current = scanner;
-
-      await scanner.start(
-        { facingMode: 'environment' },
-        {
-          fps: 30,
-          qrbox: (w, h) => {
-            const size = Math.floor(Math.min(w, h) * 0.7);
-            return { width: size, height: size };
-          },
-          aspectRatio: 1.0,
-          disableFlip: false,
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        },
-        (decoded) => {
-          if (!decoded || !decoded.trim()) return;
-          const now = Date.now();
-          if (now - lastScanRef.current < 2000) return;
-          lastScanRef.current = now;
-          onScan(decoded);
-        },
-        () => { }
-      );
-
-      if (mountedRef.current) {
-        setScanning(true);
-        setStarting(false);
+  React.useEffect(() => {
+    if (!camReady) return;
+    let mounted = true;
+    const tick = () => {
+      if (!mounted) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
       }
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setStarting(false);
-      setCamError(err?.message || 'Could not start camera. Try Again.');
-    }
-  }, [destroyScanner, onScan]);
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, w, h);
+      const imageData = ctx.getImageData(0, 0, w, h);
+      try {
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+        if (code?.data) {
+          const now = Date.now();
+          if (now - lastScanRef.current > 2000) {
+            lastScanRef.current = now;
+            onScan(code.data);
+          }
+        }
+      } catch (e) {
+        console.error("Error scanning QR:", e);
+      }
+      if (mounted) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [camReady, onScan]);
 
-  const handleClose = React.useCallback(async () => {
-    await destroyScanner();
+  const handleClose = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
     onClose();
-  }, [destroyScanner, onClose]);
+  };
 
-  const handleComplete = React.useCallback(async () => {
-    await destroyScanner();
+  const handleComplete = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
     onComplete();
-  }, [destroyScanner, onComplete]);
-
-  // ── Camera viewport ─────────────────────────────────────────────────────────
-  const renderCamera = () => {
-    if (camError) {
-      return (
-        <div style={{
-          borderRadius: 16, background: 'rgba(239,68,68,0.08)',
-          border: '1px solid rgba(239,68,68,0.3)', padding: '32px 24px', textAlign: 'center'
-        }}>
-          <XCircle style={{ width: 48, height: 48, color: '#EF4444', margin: '0 auto 12px' }} />
-          <p style={{ color: '#EF4444', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{camError}</p>
-          <button onClick={handleRetry}
-            style={{
-              background: '#6549B8', border: 'none', borderRadius: 10, padding: '8px 20px',
-              cursor: 'pointer', color: '#fff', fontSize: 13, fontWeight: 600, marginTop: 8
-            }}>
-            Try Again
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div style={{
-        position: 'relative', borderRadius: 16, overflow: 'hidden',
-        background: '#000', minHeight: 280
-      }}>
-        {/* Html5Qrcode always needs this element in the DOM from the start */}
-        <div id="qr-reader-attendance" style={{ width: '100%' }} />
-
-        {/* Spinner overlay until camera stream starts */}
-        {starting && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', zIndex: 2
-          }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: '50%',
-              border: '3px solid #6549B8', borderTopColor: 'transparent',
-              animation: 'qrSpin 0.7s linear infinite', marginBottom: 12
-            }} />
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: 0 }}>Starting camera…</p>
-            <style>{`@keyframes qrSpin { to { transform: rotate(360deg); } }`}</style>
-          </div>
-        )}
-
-        {/* Corner guides */}
-        {scanning && !starting && (
-          <>
-            {[
-              { top: 12, left: 12, borderTop: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '6px 0 0 0' },
-              { top: 12, right: 12, borderTop: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 6px 0 0' },
-              { bottom: 12, left: 12, borderBottom: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '0 0 0 6px' },
-              { bottom: 12, right: 12, borderBottom: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 0 6px 0' },
-            ].map((s, i) => (
-              <div key={i} style={{
-                position: 'absolute', width: 28, height: 28,
-                pointerEvents: 'none', ...s
-              }} />
-            ))}
-            <div style={{
-              position: 'absolute', left: '14%', right: '14%', height: 2,
-              background: 'linear-gradient(90deg,transparent,#6549B8,transparent)',
-              animation: 'qrLine 1.6s ease-in-out infinite', top: '50%'
-            }} />
-            <style>{`
-              @keyframes qrLine {
-                0%   { transform: translateY(-90px); opacity: 0; }
-                10%  { opacity: 1; }
-                90%  { opacity: 1; }
-                100% { transform: translateY(90px); opacity: 0; }
-              }
-            `}</style>
-          </>
-        )}
-      </div>
-    );
   };
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.78)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+      position: 'fixed', inset: 0, zIndex: 60,
+      background: 'rgba(0,0,0,0.82)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px'
     }}>
-      <div className={`${theme.cardBg} rounded-3xl w-full max-w-md overflow-hidden`}
-        style={{
-          boxShadow: '0 25px 50px rgba(0,0,0,0.5)', maxHeight: '95vh',
-          display: 'flex', flexDirection: 'column'
-        }}>
-
+      <div
+        className={`${theme.cardBg} rounded-3xl w-full overflow-hidden`}
+        style={{ maxWidth: 440, maxHeight: '96vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 64px rgba(0,0,0,0.6)' }}
+      >
         {/* Header */}
         <div style={{
           background: 'linear-gradient(135deg,#6549B8,#1E1242)',
-          padding: '20px 24px', display: 'flex', alignItems: 'center',
+          padding: '16px 20px', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <QrCode style={{ width: 22, height: 22, color: '#fff' }} />
+            <QrCode style={{ width: 20, height: 20, color: '#fff' }} />
             <div>
-              <p style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0 }}>
-                Attendance Scanner
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{eventName}</p>
+              <p style={{ color: '#fff', fontWeight: 700, fontSize: 14, margin: 0 }}>Attendance Scanner</p>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, margin: 0 }}>{eventName}</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={handleComplete}
-              style={{
-                background: 'rgba(16,185,129,0.25)', border: '1px solid rgba(16,185,129,0.5)',
-                borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: '#10B981',
-                fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5
-              }}>
+            <button onClick={handleComplete} style={{
+              background: 'rgba(16,185,129,0.22)', border: '1px solid rgba(16,185,129,0.45)',
+              borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: '#10B981',
+              fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5
+            }}>
               <CheckCircle style={{ width: 13, height: 13 }} /> Done
             </button>
-            <button onClick={handleClose}
-              style={{
-                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
-                width: 32, height: 32, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center'
-              }}>
-              <XCircle style={{ width: 16, height: 16, color: '#fff' }} />
+            <button onClick={handleClose} style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+              width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <XCircle style={{ width: 15, height: 15, color: '#fff' }} />
             </button>
           </div>
         </div>
 
         {/* Scan counter */}
-        <div style={{
-          padding: '12px 24px 0', display: 'flex',
-          justifyContent: 'center', flexShrink: 0
-        }}>
+        <div style={{ padding: '10px 20px 0', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
           <div style={{
-            background: '#6549B8', borderRadius: 20, padding: '6px 20px',
+            background: '#6549B8', borderRadius: 20, padding: '5px 18px',
             display: 'inline-flex', alignItems: 'center', gap: 8
           }}>
-            <UserCheck style={{ width: 16, height: 16, color: '#fff' }} />
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              {scanCount} scanned
-            </span>
+            <UserCheck style={{ width: 15, height: 15, color: '#fff' }} />
+            <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{scanCount} scanned</span>
           </div>
         </div>
 
-        {/* Camera area */}
-        <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
-          {renderCamera()}
-          <p style={{
-            textAlign: 'center', marginTop: 8, marginBottom: 0, fontSize: 12,
-            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'
-          }}>
-            {camError ? '' :
-              scanning ? 'Hold ticket QR steady inside the frame' :
-                'Initialising camera…'}
-          </p>
+        {/* Camera container */}
+        <div style={{ position: 'relative', background: '#000', margin: '12px 20px 0', borderRadius: 16, overflow: 'hidden', aspectRatio: '4/3', flexShrink: 0 }}>
+          <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: camError ? 'none' : 'block' }} />
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+          {camError && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#111', padding: 24 }}>
+              <XCircle style={{ width: 36, height: 36, color: '#EF4444', marginBottom: 12 }} />
+              <p style={{ color: '#EF4444', fontSize: 13, textAlign: 'center', margin: 0 }}>{camError}</p>
+            </div>
+          )}
+          {!camReady && !camError && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+              <div style={{ width: 36, height: 36, border: '3px solid rgba(255,255,255,0.2)', borderTopColor: '#6549B8', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginBottom: 12 }} />
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>Starting camera...</p>
+            </div>
+          )}
+          {camReady && !camError && (
+            <>
+              {/* Radial gradient mask overlay */}
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', WebkitMaskImage: 'radial-gradient(ellipse 65% 65% at 50% 50%, transparent 0%, black 100%)', maskImage: 'radial-gradient(ellipse 65% 65% at 50% 50%, transparent 0%, black 100%)' }} />
+              {/* Corner scan guides */}
+              <div style={{ position: 'absolute', left: '17%', right: '17%', top: '17%', bottom: '17%', pointerEvents: 'none' }}>
+                {[
+                  { top: 0, left: 0, borderTop: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '4px 0 0 0' },
+                  { top: 0, right: 0, borderTop: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 4px 0 0' },
+                  { bottom: 0, left: 0, borderBottom: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '0 0 0 4px' },
+                  { bottom: 0, right: 0, borderBottom: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 0 4px 0' },
+                ].map((s, i) => <div key={i} style={{ position: 'absolute', width: 22, height: 22, ...s }} />)}
+                {/* Scanning line animation */}
+                <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, #6549B8, #a78bfa, #6549B8, transparent)', animation: 'scanLine 1.6s ease-in-out infinite', boxShadow: '0 0 8px #6549B8' }} />
+              </div>
+              <p style={{ position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', margin: 0 }}>
+                💡 Align QR code within the frame
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Result / error */}
-        <div style={{ padding: '12px 24px 20px', overflowY: 'auto', flex: 1 }}>
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes scanLine { 0% { top: 4%; } 50% { top: 90%; } 100% { top: 4%; } }
+        `}</style>
+
+        {/* Result Area */}
+        <div style={{ padding: '12px 20px 16px', overflowY: 'auto', flex: 1 }}>
           {scanResult && (
-            <div style={{
-              background: 'rgba(16,185,129,0.08)',
-              border: '1px solid rgba(16,185,129,0.28)', borderRadius: 14, overflow: 'hidden'
-            }}>
-              <div style={{
-                background: 'rgba(16,185,129,0.20)', padding: '10px 14px',
-                display: 'flex', alignItems: 'center', gap: 8
-              }}>
+            <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ background: 'rgba(16,185,129,0.20)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle style={{ width: 17, height: 17, color: '#10B981', flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>
-                    ✓ Attendance marked — closing in 3 s
-                  </p>
-                  <p style={{
-                    color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0,
-                    fontFamily: 'monospace'
-                  }}>
+                  <p style={{ color: '#10B981', fontWeight: 700, fontSize: 12, margin: 0 }}>✓ Attendance marked</p>
+                  <p style={{ color: 'rgba(16,185,129,0.7)', fontSize: 10, margin: 0, fontFamily: 'monospace' }}>
                     #{(scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '').toUpperCase()}
                   </p>
                 </div>
                 <div style={{ background: 'rgba(16,185,129,0.25)', borderRadius: 6, padding: '3px 8px' }}>
-                  <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>
-                    #{scanCount}
-                  </p>
+                  <p style={{ color: '#10B981', fontSize: 11, fontWeight: 700, margin: 0 }}>#{scanCount}</p>
                 </div>
               </div>
               <div style={{ padding: '10px 12px 12px' }}>
-                <ScanDetailRow label="Ticket holder"
-                  value={scanResult.holderName || scanResult.userName || '—'}
-                  isDark={isDark} fullWidth />
-                <ScanDetailRow label="Event"
-                  value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
+                <ScanDetailRow label="Ticket holder" value={scanResult.holderName || scanResult.userName || '—'} isDark={isDark} fullWidth />
+                <ScanDetailRow label="Event" value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 5, marginBottom: 5 }}>
                   <ScanDetailRow label="Type" value={scanResult.ticketType || '—'} isDark={isDark} />
                   <ScanDetailRow label="Qty" value={String(scanResult.quantity ?? 1)} isDark={isDark} />
@@ -2646,37 +2508,24 @@ const AttendanceScannerModal = ({
                 <ScanDetailRow label="Venue" value={scanResult.venue || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
                   <ScanDetailRow label="Payment" value={scanResult.paymentMethod || '—'} isDark={isDark} />
-                  <ScanDetailRow label="Amount"
-                    value={scanResult.totalAmount > 0
-                      ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}`
-                      : 'Free'}
-                    isDark={isDark} highlight />
+                  <ScanDetailRow label="Amount" value={scanResult.totalAmount > 0 ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}` : 'Free'} isDark={isDark} highlight />
                 </div>
-                <ScanDetailRow label="Transaction ID"
-                  value={scanResult.bookingRef || scanResult.bookingId || '—'}
-                  isDark={isDark} fullWidth mono />
+                <ScanDetailRow label="Transaction ID" value={scanResult.bookingRef || scanResult.bookingId || '—'} isDark={isDark} fullWidth mono />
               </div>
             </div>
           )}
 
           {scanError && (
-            <div style={{
-              background: 'rgba(239,68,68,0.12)',
-              border: '1px solid rgba(239,68,68,0.35)', borderRadius: 14,
-              padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10
-            }}>
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <XCircle style={{ width: 18, height: 18, color: '#EF4444', flexShrink: 0 }} />
               <p style={{ color: '#EF4444', fontSize: 13, margin: 0 }}>{scanError}</p>
             </div>
           )}
 
-          {!scanResult && !scanError && scanning && (
-            <div style={{
-              textAlign: 'center', padding: '8px 0', fontSize: 13,
-              color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'
-            }}>
+          {!scanResult && !scanError && camReady && (
+            <p style={{ textAlign: 'center', padding: '6px 0', fontSize: 12, color: isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.28)' }}>
               Waiting for scan…
-            </div>
+            </p>
           )}
         </div>
       </div>

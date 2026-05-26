@@ -177,14 +177,18 @@ export const verifyBookingQR = (qrData) => {
   return new Promise((resolve) => {
     const grpcClient = getClient();
 
-    // Timeout so a dead gRPC connection doesn't hang the scan forever
+    // Reduced from 8 s to 4 s — fast enough for reconnect, short enough to feel responsive
     const timer = setTimeout(() => {
-      console.error('❌ [Booking gRPC] verifyBookingQR timed out after 8s');
+      console.error('❌ [Booking gRPC] verifyBookingQR timed out after 4s');
       resolve({ success: false, error: 'Verification service timed out — try again' });
-    }, 8000);
+    }, 4000);
+
+    // Pass an explicit call deadline so gRPC doesn't queue behind other calls
+    const deadline = new Date(Date.now() + 4000);
 
     grpcClient.VerifyBookingQR(
       { qrData: String(qrData) },
+      { deadline },          // ← ADD THIS — forces the RPC to fail fast if the server is stalled
       (error, response) => {
         clearTimeout(timer);
         if (error) {

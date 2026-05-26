@@ -140,33 +140,33 @@ export default function EventDetailPage() {
     label: string;
     width: number;
   }[] = [
-    { key: "about", label: "About", width: 116 },
-    { key: "details", label: "Dates & Location", width: 211 },
-    ...(event?.guests?.length
-      ? [
+      { key: "about", label: "About", width: 116 },
+      { key: "details", label: "Dates & Location", width: 211 },
+      ...(event?.guests?.length
+        ? [
           {
             key: "guests" as const,
             label: `Guests(${event.guests.length})`,
             width: 149,
           },
         ]
-      : []),
-    ...(event?.event_images?.length
-      ? [
+        : []),
+      ...(event?.event_images?.length
+        ? [
           {
             key: "photos" as const,
             label: `Photos(${event.event_images.length})`,
             width: 158,
           },
         ]
-      : []),
-    ...(event?.hashtag?.length
-      ? [{ key: "hashtags" as const, label: "Hashtags", width: 146 }]
-      : []),
-    ...(hasAdditionalInfo
-      ? [{ key: "additional" as const, label: "Additional Info", width: 188 }]
-      : []),
-  ];
+        : []),
+      ...(event?.hashtag?.length
+        ? [{ key: "hashtags" as const, label: "Hashtags", width: 146 }]
+        : []),
+      ...(hasAdditionalInfo
+        ? [{ key: "additional" as const, label: "Additional Info", width: 188 }]
+        : []),
+    ];
 
   const normalizeStats = (stats: any) => ({
     like: stats?.like ?? stats?.likes ?? 0,
@@ -425,18 +425,18 @@ export default function EventDetailPage() {
 
         // ── Prefill: Razorpay needs a non-empty contact to mount the UPI VPA input ──
         prefill: {
-          name:    booking?.userDetails?.name    || "",
-          email:   booking?.userDetails?.email   || "",
-          contact: booking?.userDetails?.phone   || "9999999999", // fallback keeps UPI field alive
+          name: booking?.userDetails?.name || "",
+          email: booking?.userDetails?.email || "",
+          contact: booking?.userDetails?.phone || "9999999999", // fallback keeps UPI field alive
         },
         // ── Explicitly enable all payment methods including UPI
         method: {
-          upi:        true,
-          card:       true,
+          upi: true,
+          card: true,
           netbanking: true,
-          wallet:     true,
-          emi:        false,
-          paylater:   false,
+          wallet: true,
+          emi: false,
+          paylater: false,
         },
 
         // ── Config block: required for UPI VPA input to render in test mode ───────
@@ -466,16 +466,16 @@ export default function EventDetailPage() {
         },
 
         theme: {
-          color:       "#8860D9",
+          color: "#8860D9",
           hide_topbar: false,
         },
 
         modal: {
-          backdropclose:    false,
-          escape:           false,
-          handleback:       true,
-          confirm_close:    true,
-          animation:        true,
+          backdropclose: false,
+          escape: false,
+          handleback: true,
+          confirm_close: true,
+          animation: true,
           ondismiss: function () {
             setIsBooking(false);
             setShowBookingModal(false);
@@ -716,7 +716,7 @@ export default function EventDetailPage() {
 
     return (
       eCategory.toLowerCase().trim() ===
-        currentCategory.toLowerCase().trim() &&
+      currentCategory.toLowerCase().trim() &&
       e._id !== event?._id &&
       e._id !== eventId
     );
@@ -824,7 +824,7 @@ export default function EventDetailPage() {
             <div className="flex gap-2 sm:gap-3">
               {event?.event_status !== "cancelled" && (
                 <div className="relative">
-                    <button
+                  <button
                     onClick={handleLike}
                     className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:opacity-80 transition-all border"
                     style={{
@@ -842,22 +842,22 @@ export default function EventDetailPage() {
                   </button>
                 </div>
               )}
-                <button
+              <button
                 onClick={() => setShowShareOptions(true)}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:opacity-80 transition-colors border"
-                  style={{
-                    borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
-                    background: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                    backdropFilter: "blur(4px)",
-                  }}
-                >
-                  <img
-                    src={ShareIcon.src}
-                    alt="Share"
-                    className="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                    style={{ filter: isDark ? "none" : "invert(1)" }}
-                  />
-                </button>
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:opacity-80 transition-colors border"
+                style={{
+                  borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
+                  background: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                <img
+                  src={ShareIcon.src}
+                  alt="Share"
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                  style={{ filter: isDark ? "none" : "invert(1)" }}
+                />
+              </button>
             </div>
           </div>
 
@@ -911,9 +911,8 @@ export default function EventDetailPage() {
                       {mediaItems.map((_, idx) => (
                         <div
                           key={idx}
-                          className={`h-1 rounded-full transition-all duration-300 ${
-                            idx === currentMediaIndex ? "w-6 bg-white" : "w-1.5 bg-white/40"
-                          }`}
+                          className={`h-1 rounded-full transition-all duration-300 ${idx === currentMediaIndex ? "w-6 bg-white" : "w-1.5 bg-white/40"
+                            }`}
                         />
                       ))}
                     </div>
@@ -950,7 +949,7 @@ export default function EventDetailPage() {
                             <div
                               className="h-[18px] md:h-[20px] px-2 md:px-2.5 rounded-lg transition-all shadow-sm bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0"
                             >
-                               <span className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold text-white whitespace-nowrap uppercase tracking-wider">
+                              <span className="text-[7px] md:text-[8px] lg:text-[9px] leading-none font-bold text-white whitespace-nowrap uppercase tracking-wider">
                                 {event.event_subcategory}
                               </span>
                             </div>
@@ -1135,11 +1134,9 @@ export default function EventDetailPage() {
           </div>
           <div className="relative z-20 w-full mx-auto px-4 md:px-8 mt-6 md:mt-10">
             <div
-              className={`flex flex-nowrap gap-1 md:gap-2 p-1.5 rounded-[18px] md:rounded-[24px] ${
-                isDark ? "bg-black/30" : "bg-white/70"
-              } backdrop-blur-2xl border ${
-                isDark ? "border-white/10" : "border-black/5"
-              } w-full sm:w-fit mx-auto items-center justify-start sm:justify-center overflow-x-auto scrollbar-hide shadow-xl md:shadow-2xl mb-8 md:mb-12 px-3 sm:px-1.5`}
+              className={`flex flex-nowrap gap-1 md:gap-2 p-1.5 rounded-[18px] md:rounded-[24px] ${isDark ? "bg-black/30" : "bg-white/70"
+                } backdrop-blur-2xl border ${isDark ? "border-white/10" : "border-black/5"
+                } w-full sm:w-fit mx-auto items-center justify-start sm:justify-center overflow-x-auto scrollbar-hide shadow-xl md:shadow-2xl mb-8 md:mb-12 px-3 sm:px-1.5`}
             >
               {SECTIONS.map((item) => {
                 const isActive = activeSection === item.key;
@@ -1171,11 +1168,10 @@ export default function EventDetailPage() {
                       />
                     )}
                     <span
-                      className={`relative z-10 text-[11px] sm:text-xs md:text-sm font-bold transition-transform duration-200 group-active:scale-95 ${
-                        isActive
+                      className={`relative z-10 text-[11px] sm:text-xs md:text-sm font-bold transition-transform duration-200 group-active:scale-95 ${isActive
                           ? isDark ? "text-white" : "text-gray-900"
                           : isDark ? "text-gray-400" : "text-gray-500"
-                      }`}
+                        }`}
                     >
                       {item.label}
                     </span>
@@ -1304,10 +1300,10 @@ export default function EventDetailPage() {
                           ? "Free"
                           : event.ticket_types?.length
                             ? `₹${Math.min(
-                                ...event.ticket_types.map(
-                                  (t) => t.ticket_price,
-                                ),
-                              )}`
+                              ...event.ticket_types.map(
+                                (t) => t.ticket_price,
+                              ),
+                            )}`
                             : "Paid"}
                       </span>
                     </div>
@@ -1384,7 +1380,7 @@ export default function EventDetailPage() {
                         )}
                       </div>
                     )}
-                  </div>
+                </div>
               )}
 
               {/* ================= DETAILS ================= */}
@@ -1397,8 +1393,8 @@ export default function EventDetailPage() {
                       const end = date.end_date ? new Date(date.end_date) : null;
                       const isSingleDay = !end ||
                         (start.getFullYear() === end.getFullYear() &&
-                         start.getMonth() === end.getMonth() &&
-                         start.getDate() === end.getDate());
+                          start.getMonth() === end.getMonth() &&
+                          start.getDate() === end.getDate());
 
                       const dateText = isSingleDay
                         ? start.toLocaleDateString("en-US", { day: '2-digit', month: 'short', year: 'numeric' })
@@ -1543,7 +1539,7 @@ export default function EventDetailPage() {
                         {/* Hover Overlay */}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                           <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                             <svg
+                            <svg
                               xmlns="http://www.w3.org/2000/svg"
                               width="20"
                               height="20"
@@ -1683,135 +1679,135 @@ export default function EventDetailPage() {
                     event.pet_friendly ||
                     event.event_instagram_link ||
                     event.event_youtube_link) && (
-                    <div className="px-4 md:px-8 py-2">
-                      <h2
-                        className="text-lg font-semibold mb-4"
-                        style={{ color: themeStyles.text }}
-                      >
-                        More Information
-                      </h2>
+                      <div className="px-4 md:px-8 py-2">
+                        <h2
+                          className="text-lg font-semibold mb-4"
+                          style={{ color: themeStyles.text }}
+                        >
+                          More Information
+                        </h2>
 
-                      <div className="flex flex-wrap gap-4">
-                        {/* Kids Friendly */}
-                        {event.kids_friendly && (
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{
-                                background: isDark
-                                  ? "rgba(255, 255, 255, 0.1)"
-                                  : "rgba(0, 0, 0, 0.05)",
-                              }}
-                            >
-                              <img
-                                src={KidIcon.src}
-                                alt="Kids Friendly"
-                                className="w-5 h-5"
+                        <div className="flex flex-wrap gap-4">
+                          {/* Kids Friendly */}
+                          {event.kids_friendly && (
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                                 style={{
-                                  filter: isDark
-                                    ? "brightness(0) invert(1)"
-                                    : "brightness(0)",
+                                  background: isDark
+                                    ? "rgba(255, 255, 255, 0.1)"
+                                    : "rgba(0, 0, 0, 0.05)",
                                 }}
-                              />
+                              >
+                                <img
+                                  src={KidIcon.src}
+                                  alt="Kids Friendly"
+                                  className="w-5 h-5"
+                                  style={{
+                                    filter: isDark
+                                      ? "brightness(0) invert(1)"
+                                      : "brightness(0)",
+                                  }}
+                                />
+                              </div>
+                              <span
+                                className="text-sm"
+                                style={{ color: themeStyles.textSecondary }}
+                              >
+                                Kids friendly event
+                              </span>
                             </div>
-                            <span
-                              className="text-sm"
-                              style={{ color: themeStyles.textSecondary }}
-                            >
-                              Kids friendly event
-                            </span>
-                          </div>
-                        )}
+                          )}
 
-                        {/* Pets Friendly */}
-                        {event.pet_friendly && (
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{
-                                background: isDark
-                                  ? "rgba(255, 255, 255, 0.1)"
-                                  : "rgba(0, 0, 0, 0.05)",
-                              }}
-                            >
-                              <img
-                                src={PetIcon.src}
-                                alt="Pets Friendly"
-                                className="w-5 h-5"
+                          {/* Pets Friendly */}
+                          {event.pet_friendly && (
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                                 style={{
-                                  filter: isDark
-                                    ? "brightness(0) invert(1)"
-                                    : "brightness(0)",
+                                  background: isDark
+                                    ? "rgba(255, 255, 255, 0.1)"
+                                    : "rgba(0, 0, 0, 0.05)",
                                 }}
-                              />
+                              >
+                                <img
+                                  src={PetIcon.src}
+                                  alt="Pets Friendly"
+                                  className="w-5 h-5"
+                                  style={{
+                                    filter: isDark
+                                      ? "brightness(0) invert(1)"
+                                      : "brightness(0)",
+                                  }}
+                                />
+                              </div>
+                              <span
+                                className="text-sm"
+                                style={{ color: themeStyles.textSecondary }}
+                              >
+                                Pets friendly event
+                              </span>
                             </div>
-                            <span
-                              className="text-sm"
-                              style={{ color: themeStyles.textSecondary }}
+                          )}
+
+                          {/* Instagram */}
+                          {event.event_instagram_link && (
+                            <a
+                              href={event.event_instagram_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 max-w-full"
                             >
-                              Pets friendly event
-                            </span>
-                          </div>
-                        )}
+                              <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                style={{
+                                  background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)",
+                                }}
+                              >
+                                <img
+                                  src={InstagramIcon.src}
+                                  alt="Instagram"
+                                  className="w-5 h-5"
+                                  style={{ filter: "brightness(0) invert(1)" }}
+                                />
+                              </div>
 
-                        {/* Instagram */}
-                        {event.event_instagram_link && (
-                          <a
-                            href={event.event_instagram_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 max-w-full"
-                          >
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{
-                                background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)",
-                              }}
+                              <span className="text-sm text-blue-400 hover:underline">
+                                Instagram
+                              </span>
+                            </a>
+                          )}
+
+                          {/* YouTube */}
+                          {event.event_youtube_link && (
+                            <a
+                              href={event.event_youtube_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 max-w-full"
                             >
-                              <img
-                                src={InstagramIcon.src}
-                                alt="Instagram"
-                                className="w-5 h-5"
-                                style={{ filter: "brightness(0) invert(1)" }}
-                              />
-                            </div>
+                              <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                style={{
+                                  background: "#FF0000",
+                                }}
+                              >
+                                <img
+                                  src={YoutubeIcon.src}
+                                  alt="YouTube"
+                                  className="w-5 h-5"
+                                  style={{ filter: "brightness(0) invert(1)" }}
+                                />
+                              </div>
 
-                            <span className="text-sm text-blue-400 hover:underline">
-                              Instagram
-                            </span>
-                          </a>
-                        )}
-
-                        {/* YouTube */}
-                        {event.event_youtube_link && (
-                          <a
-                            href={event.event_youtube_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 max-w-full"
-                          >
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{
-                                background: "#FF0000",
-                              }}
-                            >
-                              <img
-                                src={YoutubeIcon.src}
-                                alt="YouTube"
-                                className="w-5 h-5"
-                                style={{ filter: "brightness(0) invert(1)" }}
-                              />
-                            </div>
-
-                            <span className="text-sm text-red-400 hover:underline">
-                              YouTube
-                            </span>
-                          </a>
-                        )}
+                              <span className="text-sm text-red-400 hover:underline">
+                                YouTube
+                              </span>
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               )}
             </div>
@@ -1843,9 +1839,9 @@ export default function EventDetailPage() {
           onInitiateBooking={event?.payment_type === "free" ? handleFreeRegistration : initiateBooking}
           variant="BOOK"
           onViewMore={() => {
-             setShowBookingModal(false);
-             setIsViewTicketMode(false);
-             router.push('/events');
+            setShowBookingModal(false);
+            setIsViewTicketMode(false);
+            router.push('/events');
           }}
         />
         <BookingModal
@@ -1907,7 +1903,8 @@ export default function EventDetailPage() {
         )}
       </div>
       {/* Local Style to hide scrollbar while keeping scroll functionality */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         ::-webkit-scrollbar {
           display: none;
         }

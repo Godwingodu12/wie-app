@@ -18,7 +18,7 @@ const attendeeRecordSchema = new mongoose.Schema({
   venue:          { type: String, default: '' },
   totalAmount:    { type: Number, default: 0 },
   scannedAt:      { type: Date,   default: Date.now },
-  scannedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  scannedBy:      { type: String, ref: 'User' },
   status:         { type: String, enum: ['present', 'absent'], default: 'present' },
   qrData:         { type: String },
   subEventId:     { type: String, default: null },
@@ -26,7 +26,7 @@ const attendeeRecordSchema = new mongoose.Schema({
 
 const attendanceSchema = new mongoose.Schema({
   ticketId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', required: true },
-  subEventId:     { type: String, default: null },
+  subEventId:     { type: mongoose.Schema.Types.ObjectId, default: null },
   eventName:      { type: String },
   totalBooked:    { type: Number, default: 0 },
   totalPresent:   { type: Number, default: 0 },
@@ -34,7 +34,7 @@ const attendanceSchema = new mongoose.Schema({
   isCompleted:    { type: Boolean, default: false },
   startedAt:      { type: Date },
   completedAt:    { type: Date },
-  markedBy:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  markedBy:       { type: String, ref: 'User' },
 }, { timestamps: true });
 
 attendanceSchema.index({ ticketId: 1, subEventId: 1 }, { unique: true });

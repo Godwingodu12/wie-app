@@ -229,24 +229,10 @@ export const getUserBookings = async (params?: {
   });
   return response.data;
 };
-
 export const getBookingById = async (bookingId: string) => {
   const response = await transactionApi.get(`/bookings/${bookingId}`);
   return response.data;
 };
-
-//for ticket download, returns the scannable payload for QR code
-export const getBookingQRPayload = async (bookingId: string): Promise<string | null> => {
-  try {
-    const response = await transactionApi.get(`/bookings/${bookingId}`);
-    const booking = response.data?.data?.booking;
-    // qrPayload is the raw base64 string that was encoded into the QR image
-    return booking?.qrPayload || null;
-  } catch {
-    return null;
-  }
-};
-
 export const getGroupBookings = async (
   groupId: string,
   params?: {

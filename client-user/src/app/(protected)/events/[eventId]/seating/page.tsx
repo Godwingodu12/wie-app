@@ -88,6 +88,7 @@ export default function SeatedBookingPage() {
   const [isBooking, setIsBooking] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
 
   const { isDark, themeStyles } = useTheme();
 
@@ -178,7 +179,7 @@ export default function SeatedBookingPage() {
             ...(event.ticket_types || []),
             ...(event.offerTickets || [])
           ];
-          
+
           const tier = globalTiers.find(t =>
             (assignment?.ticketTypeId && t._id === assignment.ticketTypeId) ||
             (seat.ticketTypeId && Number(seat.ticketTypeId) === Number(t._id)) ||
@@ -266,6 +267,7 @@ export default function SeatedBookingPage() {
             });
 
             if (verifyData.success) {
+              setConfirmedBooking(verifyData.data.booking);
               setShowPaymentModal(false);
               setShowSuccessModal(true);
             }
@@ -490,21 +492,21 @@ export default function SeatedBookingPage() {
                 <img src={event.event_banner || event.event_images?.[0]?.path} alt={event.event_name} className="absolute inset-0 w-full h-full object-cover" />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <Ticket className="w-10 h-10 text-white/10" />
+                  <Ticket className="w-10 h-10 text-white/10" />
                 </div>
               )}
             </div>
 
             {/* Info */}
             <div className="w-full flex flex-col justify-start">
-               <div>
-                 <h2
-                   className="font-bold text-[22px] md:text-[24px] leading-tight line-clamp-3"
-                   style={{ color: themeStyles.text }}
-                 >
-                   {event.event_name}
-                 </h2>
-               </div>
+              <div>
+                <h2
+                  className="font-bold text-[22px] md:text-[24px] leading-tight line-clamp-3"
+                  style={{ color: themeStyles.text }}
+                >
+                  {event.event_name}
+                </h2>
+              </div>
             </div>
           </div>
 
@@ -663,7 +665,7 @@ export default function SeatedBookingPage() {
               )}
             </div>
 
-            <div 
+            <div
               className="fixed bottom-24 right-4 md:bottom-32 md:right-8 z-50 flex flex-col items-center gap-4 backdrop-blur-2xl p-4 rounded-[2rem] border transition-all duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
               style={{
                 background: isDark ? 'rgba(31, 31, 35, 0.7)' : 'rgba(255, 255, 255, 0.8)',
@@ -674,7 +676,7 @@ export default function SeatedBookingPage() {
                 <div className="text-[9px] font-black text-purple-500 uppercase tracking-widest leading-none">Zoom</div>
                 <div className="text-[10px] font-bold opacity-40">{Math.round(zoom * 100)}%</div>
               </div>
-              <button 
+              <button
                 onClick={() => setZoom(prev => Math.min(prev + 0.1, 1.5))}
                 className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-90 shadow-lg group"
                 style={{
@@ -711,7 +713,7 @@ export default function SeatedBookingPage() {
                   }}
                 />
               </div>
-              <button 
+              <button
                 onClick={() => setZoom(prev => Math.max(prev - 0.1, 0.5))}
                 className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-90 shadow-lg group"
                 style={{
@@ -750,23 +752,23 @@ export default function SeatedBookingPage() {
 
             {/* Seating Grid */}
             <div className="px-4">
-               {renderSeatingChart()}
+              {renderSeatingChart()}
             </div>
 
             {/* Seating Legend inside layout */}
             <div className="flex items-center justify-center gap-8 mt-16 mb-8 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-[#E5E7EB]" />
-                  Available
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-[#DC2626]" />
-                  Booked
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-[#8B5CF6]" />
-                  Selected
-                </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm bg-[#E5E7EB]" />
+                Available
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm bg-[#DC2626]" />
+                Booked
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm bg-[#8B5CF6]" />
+                Selected
+              </div>
             </div>
           </div>
 
@@ -777,38 +779,38 @@ export default function SeatedBookingPage() {
               borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
             }}
           >
-              <button
-                onClick={() => router.back()}
-                className="flex items-center justify-center transition-colors font-semibold shadow-sm hover:bg-black/5 dark:hover:bg-white/5"
-                style={{
-                  width: '230px',
-                  height: '48px',
-                  opacity: 1,
-                  gap: '10px',
-                  borderRadius: '25px',
-                  border: '0.4px solid #9575CD',
-                  padding: '8px 12px 8px 12px',
-                  color: themeStyles.text,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={showPaymentModal ? initiatePayment : handleProceedToPayment}
-                disabled={selectedSeats.length === 0 || isBooking}
-                className="flex items-center justify-center text-white font-semibold shadow-lg hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all outline-none"
-                style={{
-                  width: '230px',
-                  height: '48px',
-                  opacity: 1,
-                  gap: '10px',
-                  borderRadius: '25px',
-                  padding: '8px 12px 8px 12px',
-                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)'
-                }}
-              >
-                {isBooking ? 'Processing...' : selectedSeats.length > 0 ? `Pay ${calculateTotal().isFree ? 'FREE' : '₹' + calculateTotal().total}` : 'Select your seats'}
-              </button>
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center transition-colors font-semibold shadow-sm hover:bg-black/5 dark:hover:bg-white/5"
+              style={{
+                width: '230px',
+                height: '48px',
+                opacity: 1,
+                gap: '10px',
+                borderRadius: '25px',
+                border: '0.4px solid #9575CD',
+                padding: '8px 12px 8px 12px',
+                color: themeStyles.text,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={showPaymentModal ? initiatePayment : handleProceedToPayment}
+              disabled={selectedSeats.length === 0 || isBooking}
+              className="flex items-center justify-center text-white font-semibold shadow-lg hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all outline-none"
+              style={{
+                width: '230px',
+                height: '48px',
+                opacity: 1,
+                gap: '10px',
+                borderRadius: '25px',
+                padding: '8px 12px 8px 12px',
+                background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)'
+              }}
+            >
+              {isBooking ? 'Processing...' : selectedSeats.length > 0 ? `Pay ${calculateTotal().isFree ? 'FREE' : '₹' + calculateTotal().total}` : 'Select your seats'}
+            </button>
           </div>
         </div>
 
@@ -841,6 +843,7 @@ export default function SeatedBookingPage() {
           total={calculateTotal().total}
           platformFee={calculateTotal().platformFee}
           isFree={calculateTotal().isFree}
+          booking={confirmedBooking}
         />
       </div>
     </div>
