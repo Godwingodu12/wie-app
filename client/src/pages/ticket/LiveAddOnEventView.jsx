@@ -16,16 +16,18 @@ import { toast } from "react-hot-toast";
 import {
   getMyLiveEventView,
   getGroupView,
-  getTicketById,deleteSubEvent,  rehostSubEvent, goLiveSubEvent,
-  getAddOnEventLiveView,cancelSubEvent, getCancellationReport,
-  getEventMetrics, getTicketAuditBySubEvent,  initAttendance,
-  scanAttendanceQR,getAttendanceList,downloadAttendance,getEventFinancialSummary,getEventTransactions,
+  getTicketById, deleteSubEvent, rehostSubEvent, goLiveSubEvent,
+  getAddOnEventLiveView, cancelSubEvent, getCancellationReport,
+  getEventMetrics, getTicketAuditBySubEvent, initAttendance,
+  scanAttendanceQR, getAttendanceList, downloadAttendance,
+  completeAttendance, removeAttendee,
+  getEventFinancialSummary, getEventTransactions,
 } from "../../services/ticketService";
 import {
-  Radio,ArrowLeft,
-  Lock,LayoutGrid,X,Heart,Share2,Armchair,Users,MapPin,Landmark,Download,Bell,Ticket,
-  TrendingUp,History,BarChart2,DollarSign,Tag,Clock,ChevronLeft,ChevronRight,ChevronDown,Hash,Ban,
-   FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap,UserCheck, QrCode, CheckCircle,XCircle
+  Radio, ArrowLeft,
+  Lock, LayoutGrid, X, Heart, Share2, Armchair, Users, MapPin, Landmark, Download, Bell, Ticket,
+  TrendingUp, History, BarChart2, DollarSign, Tag, Clock, ChevronLeft, ChevronRight, ChevronDown, Hash, Ban,
+  FileSpreadsheet, AlertTriangle, RefreshCw, Trash2, Edit2, Zap, UserCheck, QrCode, CheckCircle, XCircle
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
@@ -78,42 +80,44 @@ const LiveAddOnEventView = () => {
   const eventDates = eventData?.event_dates || [];
   const rawStart = eventDates[0]?.start_date;
   const lastEntry = eventDates[eventDates.length - 1];
-  const rawEnd   = lastEntry?.end_date || lastEntry?.start_date;
+  const rawEnd = lastEntry?.end_date || lastEntry?.start_date;
   //Sub-Event Cancellation State
-  const [showCancelModal, setShowCancelModal]         = useState(false);
-  const [cancelReason, setCancelReason]               = useState("");
-  const [cancelReasonError, setCancelReasonError]     = useState("");
-  const [isCancelling, setIsCancelling]               = useState(false);
-  const [cancelSuccess, setCancelSuccess]             = useState(false);
-  const [showDownloadReport, setShowDownloadReport]   = useState(false);
-  const [isDownloading, setIsDownloading]             = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+  const [showDownloadReport, setShowDownloadReport] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [cancellationSummary, setCancellationSummary] = useState(null);
   const [downloadError, setDownloadError] = useState("");
-  const [showRehostModal, setShowRehostModal]         = useState(false);
-  const [isRehosting, setIsRehosting]                 = useState(false);
+  const [showRehostModal, setShowRehostModal] = useState(false);
+  const [isRehosting, setIsRehosting] = useState(false);
   // ── Go Live State
-  const [isGoingLive, setIsGoingLive]                 = useState(false);
+  const [isGoingLive, setIsGoingLive] = useState(false);
   // ── Delete State
-  const [showDeleteConfirm, setShowDeleteConfirm]     = useState(false);
-  const [isDeleting, setIsDeleting]                   = useState(false);
-  const [auditHistory, setAuditHistory]               = useState(null);
-  const [auditLoading, setAuditLoading]               = useState(false);
-  const [showAuditPanel, setShowAuditPanel]           = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [auditHistory, setAuditHistory] = useState(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [showAuditPanel, setShowAuditPanel] = useState(false);
   // ── Attendance State
-const [showAttendanceModal,    setShowAttendanceModal]    = useState(false);
-const [showAttendanceList,     setShowAttendanceList]     = useState(false);
-const [attendanceData,         setAttendanceData]         = useState(null);
-const [scanResult,             setScanResult]             = useState(null);
-const [scanCount,              setScanCount]              = useState(0);
-const [scanError,              setScanError]              = useState('');
-const [isInitingAttendance,    setIsInitingAttendance]    = useState(false);
-const [isDownloadingAtt,       setIsDownloadingAtt]       = useState(false);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showAttendanceList, setShowAttendanceList] = useState(false);
+  const [attendanceData, setAttendanceData] = useState(null);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanCount, setScanCount] = useState(0);
+  const [scanError, setScanError] = useState('');
+  const [isInitingAttendance, setIsInitingAttendance] = useState(false);
+  const [isDownloadingAtt, setIsDownloadingAtt] = useState(false);
 
-// ── Financial Summary State
-const [financialSummary,       setFinancialSummary]       = useState(null);
-const [loadingFinancial,       setLoadingFinancial]       = useState(false);
-const [showTransactionPanel,   setShowTransactionPanel]   = useState(false);
-const [transactionFilter,      setTransactionFilter]      = useState('all');
+  const [isCompletingAttendance, setIsCompletingAttendance] = React.useState(false);
+  const [scanResultTimeout, setScanResultTimeout] = React.useState(null);
+  // ── Financial Summary State
+  const [financialSummary, setFinancialSummary] = useState(null);
+  const [loadingFinancial, setLoadingFinancial] = useState(false);
+  const [showTransactionPanel, setShowTransactionPanel] = useState(false);
+  const [transactionFilter, setTransactionFilter] = useState('all');
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -131,7 +135,7 @@ const [transactionFilter,      setTransactionFilter]      = useState('all');
   const handlePrevGuide = () => {
     setCurrentGuideIndex((prev) => Math.max(0, prev - 1));
   };
-  
+
   const handleNextGuide = () => {
     const guidesToShow = viewportWidth >= 768 ? 3 : 2;
     const maxIndex = Math.max(0, (eventData?.guests?.length || 0) - guidesToShow);
@@ -264,57 +268,57 @@ const [transactionFilter,      setTransactionFilter]      = useState('all');
 
     fetchEventData();
   }, [ticketId]);
-  // ── Handle Sub-Event Cancellation 
-const handleCancelEvent = async () => {
-  if (!cancelReason.trim()) {
-    setCancelReasonError("Please provide a cancellation reason.");
-    return;
-  }
-  if (cancelReason.trim().length < 10) {
-    setCancelReasonError("Reason must be at least 10 characters.");
-    return;
-  }
-  // sub-event needs parentEventId + ticketId (subEventId)
-  const parentEventId = eventData?.parentEventId;
-  if (!parentEventId) {
-    setCancelReasonError("Parent event ID not found. Cannot cancel sub-event.");
-    return;
-  }
-  try {
-    setIsCancelling(true);
-    setCancelReasonError("");
-    const response = await cancelSubEvent(parentEventId, ticketId, cancelReason.trim());
-    if (response.success) {
-      setCancelSuccess(true);
-      setShowDownloadReport(true);
-      setCancellationSummary({
-        eventName:        eventData?.event_name,
-        totalBookings:    response.data?.affectedBookings || 0,
-        refundPercentage: response.data?.refundPercentage || 100,
-        isPaid:           eventData?.payment_type === "paid",
-        reason:           cancelReason.trim(),
-      });
-      setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
-      toast.success("Sub-event cancelled. All attendees have been notified.");
+  // ── Handle Sub-Event Cancellation
+  const handleCancelEvent = async () => {
+    if (!cancelReason.trim()) {
+      setCancelReasonError("Please provide a cancellation reason.");
+      return;
     }
-  } catch (err) {
-    const msg = err?.response?.data?.message || err.message || "Failed to cancel sub-event.";
-    toast.error(msg);
-    setCancelReasonError(msg);
-  } finally {
-    setIsCancelling(false);
-  }
-};
+    if (cancelReason.trim().length < 10) {
+      setCancelReasonError("Reason must be at least 10 characters.");
+      return;
+    }
+    // sub-event needs parentEventId + ticketId (subEventId)
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      setCancelReasonError("Parent event ID not found. Cannot cancel sub-event.");
+      return;
+    }
+    try {
+      setIsCancelling(true);
+      setCancelReasonError("");
+      const response = await cancelSubEvent(parentEventId, ticketId, cancelReason.trim());
+      if (response.success) {
+        setCancelSuccess(true);
+        setShowDownloadReport(true);
+        setCancellationSummary({
+          eventName: eventData?.event_name,
+          totalBookings: response.data?.affectedBookings || 0,
+          refundPercentage: response.data?.refundPercentage || 100,
+          isPaid: eventData?.payment_type === "paid",
+          reason: cancelReason.trim(),
+        });
+        setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
+        toast.success("Sub-event cancelled. All attendees have been notified.");
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to cancel sub-event.";
+      toast.error(msg);
+      setCancelReasonError(msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
-const handleCloseCancelModal = () => {
-  if (cancelSuccess) {
-    setShowCancelModal(false);
-  } else {
-    setShowCancelModal(false);
-    setCancelReason("");
-    setCancelReasonError("");
-  }
-};
+  const handleCloseCancelModal = () => {
+    if (cancelSuccess) {
+      setShowCancelModal(false);
+    } else {
+      setShowCancelModal(false);
+      setCancelReason("");
+      setCancelReasonError("");
+    }
+  };
 
   const handleDownloadReport = async () => {
     try {
@@ -433,9 +437,15 @@ const handleCloseCancelModal = () => {
   // ── Attendance Handlers ────────────────────────────────────────────────────
   const handleOpenAttendanceScanner = async () => {
     setIsInitingAttendance(true);
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      toast.error("Parent event ID is not loaded yet");
+      setIsInitingAttendance(false);
+      return;
+    }
     try {
-      await initAttendance(ticketId);
-      const res = await getAttendanceList(ticketId);
+      await initAttendance(parentEventId, ticketId);
+      const res = await getAttendanceList(parentEventId, ticketId);
       setAttendanceData(res?.data?.data || null);
       setScanCount(res?.data?.data?.totalPresent || 0);
       setScanResult(null);
@@ -450,8 +460,14 @@ const handleCloseCancelModal = () => {
 
   const handleQRScanned = async (qrData) => {
     setScanError('');
+    setScanResult(null);
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      setScanError("Parent event ID is not loaded yet");
+      return;
+    }
     try {
-      const res = await scanAttendanceQR(ticketId, qrData);
+      const res = await scanAttendanceQR(parentEventId, qrData, ticketId);
       const attendee = res?.data?.data?.scannedAttendee;
       setScanResult(attendee);
       setScanCount(prev => prev + 1);
@@ -460,16 +476,35 @@ const handleCloseCancelModal = () => {
           ? { ...prev, totalPresent: (prev.totalPresent || 0) + 1, attendees: [...(prev.attendees || []), attendee] }
           : prev
       );
+      // Reset result screen after 3 seconds
+      setTimeout(() => {
+        setScanResult(null);
+      }, 3000);
     } catch (err) {
       const msg = err?.response?.data?.message || 'Scan failed';
-      setScanError(msg);
+      const isDouble = err?.response?.status === 409 || msg.toLowerCase().includes('already been scanned');
+      const isBadQR = msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('not found');
+      const isCancel = msg.toLowerCase().includes('cancelled');
       setScanResult(null);
+      setScanError(
+        isDouble ? '⚠️ Already scanned — this ticket was marked present earlier'
+          : isCancel ? '❌ Booking is cancelled — cannot mark attendance'
+            : isBadQR ? '❌ Invalid QR code — does not belong to this sub-event'
+              : `❌ ${msg}`
+      );
+      // Reset error screen after 5 seconds
+      setTimeout(() => setScanError(''), 5000);
     }
   };
 
   const handleViewAttendanceList = async () => {
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      toast.error("Parent event ID is not loaded yet");
+      return;
+    }
     try {
-      const res = await getAttendanceList(ticketId);
+      const res = await getAttendanceList(parentEventId, ticketId);
       setAttendanceData(res?.data?.data || null);
       setShowAttendanceList(true);
     } catch (err) {
@@ -478,12 +513,17 @@ const handleCloseCancelModal = () => {
   };
 
   const handleDownloadAttendanceFile = async (format = 'excel') => {
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      toast.error("Parent event ID is not loaded yet");
+      return;
+    }
     setIsDownloadingAtt(true);
     try {
-      const res = await downloadAttendance(ticketId, format);
-      const url  = window.URL.createObjectURL(new Blob([res.data]));
+      const res = await downloadAttendance(parentEventId, format, ticketId);
+      const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href  = url;
+      link.href = url;
       link.setAttribute('download', format === 'pdf' ? 'attendance.pdf' : 'attendance.xlsx');
       document.body.appendChild(link);
       link.click();
@@ -495,9 +535,56 @@ const handleCloseCancelModal = () => {
       setIsDownloadingAtt(false);
     }
   };
-// Computed values from API data
-const computedEventData = eventData
-  ? {
+
+  const handleCompleteAttendance = async () => {
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      toast.error("Parent event ID is not loaded yet");
+      return;
+    }
+    try {
+      setIsCompletingAttendance(true);
+      await completeAttendance(parentEventId, ticketId);
+      toast.success('Attendance session completed');
+      setShowAttendanceModal(false);
+      setScanResult(null);
+      setScanError('');
+      // Refresh list so it reflects "Completed" status
+      const res = await getAttendanceList(parentEventId, ticketId);
+      setAttendanceData(res?.data?.data || null);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to complete session');
+    } finally {
+      setIsCompletingAttendance(false);
+    }
+  };
+
+  const handleRemoveAttendee = async (bookingId) => {
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      toast.error("Parent event ID is not loaded yet");
+      return;
+    }
+    try {
+      await removeAttendee(parentEventId, bookingId, ticketId);
+      setAttendanceData(prev =>
+        prev
+          ? {
+            ...prev,
+            totalPresent: Math.max(0, (prev.totalPresent || 1) - 1),
+            attendees: prev.attendees.filter(a => String(a.bookingId) !== String(bookingId)),
+          }
+          : prev
+      );
+      setScanCount(prev => Math.max(0, prev - 1));
+      toast.success('Attendee removed');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to remove attendee');
+    }
+  };
+  // Computed values from API data
+  const computedEventData = eventData
+    ? {
       name: eventData.event_name || "Event Name",
       creator: eventData.created_by || "Unknown Creator",
       // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
@@ -525,36 +612,36 @@ const computedEventData = eventData
     };
     return [currentEvent];
   }, [eventData, groupData]);
-// Google Maps API initialization
-useEffect(() => {
-  const callbackName = "initLiveEventMapCallback";
-  const scriptId = "google-maps-live-event-script";
+  // Google Maps API initialization
+  useEffect(() => {
+    const callbackName = "initLiveEventMapCallback";
+    const scriptId = "google-maps-live-event-script";
 
-  if (window.google && window.google.maps) {
-    setIsApiReady(true);
-    return;
-  }
-
-  if (!window[callbackName]) {
-    window[callbackName] = () => {
+    if (window.google && window.google.maps) {
       setIsApiReady(true);
-    };
-  }
+      return;
+    }
 
-  const existingScript = document.getElementById(scriptId);
-  if (existingScript) {
-    setIsApiReady(true);
-    return;
-  }
+    if (!window[callbackName]) {
+      window[callbackName] = () => {
+        setIsApiReady(true);
+      };
+    }
 
-  const script = document.createElement("script");
-  script.id = scriptId;
-  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-}, []);
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript) {
+      setIsApiReady(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, []);
   const handleLocationClick = () => {
     if (eventData.location_type === "offline") {
       setShowEventLocationModal(true);
@@ -886,9 +973,9 @@ useEffect(() => {
     );
   }
 
-  const formattedDate    = rawStart
-  ? new Date(rawStart).toLocaleDateString("en-US", dateOptions)
-  : "N/A";
+  const formattedDate = rawStart
+    ? new Date(rawStart).toLocaleDateString("en-US", dateOptions)
+    : "N/A";
   const formattedEndDate = rawEnd
     ? new Date(rawEnd).toLocaleDateString("en-US", dateOptions)
     : "N/A";
@@ -902,10 +989,10 @@ useEffect(() => {
     formattedDate === "N/A"
       ? "N/A"
       : isSameDay
-      ? formattedDate                              
-      : formattedEndDate !== "N/A"
-      ? `${formattedDate} – ${formattedEndDate}` 
-      : formattedDate;                            
+        ? formattedDate
+        : formattedEndDate !== "N/A"
+          ? `${formattedDate} – ${formattedEndDate}`
+          : formattedDate;
 
   return (
     <>
@@ -1241,30 +1328,30 @@ useEffect(() => {
                     {
                       label: 'Ticket Revenue',
                       value: `₹${financialSummary.revenue?.totalRevenue?.toFixed(2) || '0.00'}`,
-                      note:  'Gross ticket sales (your share)',
+                      note: 'Gross ticket sales (your share)',
                       color: 'text-emerald-400',
-                      bg:    isDark ? 'bg-emerald-900/20' : 'bg-emerald-50',
+                      bg: isDark ? 'bg-emerald-900/20' : 'bg-emerald-50',
                     },
                     {
                       label: 'Refunds Issued',
                       value: `₹${financialSummary.revenue?.totalRefunded?.toFixed(2) || '0.00'}`,
-                      note:  'Returned to attendees',
+                      note: 'Returned to attendees',
                       color: 'text-red-400',
-                      bg:    isDark ? 'bg-red-900/20' : 'bg-red-50',
+                      bg: isDark ? 'bg-red-900/20' : 'bg-red-50',
                     },
                     {
                       label: 'Net Payout',
                       value: `₹${financialSummary.revenue?.netHostPayout?.toFixed(2) || '0.00'}`,
-                      note:  'Revenue after refunds',
+                      note: 'Revenue after refunds',
                       color: 'text-blue-400',
-                      bg:    isDark ? 'bg-blue-900/20' : 'bg-blue-50',
+                      bg: isDark ? 'bg-blue-900/20' : 'bg-blue-50',
                     },
                     {
                       label: 'GST Collected',
                       value: `₹${financialSummary.revenue?.totalTax?.toFixed(2) || '0.00'}`,
-                      note:  'Tax on ticket price',
+                      note: 'Tax on ticket price',
                       color: 'text-amber-400',
-                      bg:    isDark ? 'bg-amber-900/20' : 'bg-amber-50',
+                      bg: isDark ? 'bg-amber-900/20' : 'bg-amber-50',
                     },
                   ].map((item, idx) => (
                     <div key={idx} className={`p-4 rounded-2xl ${item.bg}`}>
@@ -1347,11 +1434,10 @@ useEffect(() => {
                           <button
                             key={f}
                             onClick={() => setTransactionFilter(f)}
-                            className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                              transactionFilter === f
-                                ? 'bg-indigo-600 text-white'
-                                : `${theme.bg} ${theme.subText} border ${isDark ? 'border-gray-600' : 'border-gray-300'}`
-                            }`}
+                            className={`text-xs px-3 py-1 rounded-full transition-colors ${transactionFilter === f
+                              ? 'bg-indigo-600 text-white'
+                              : `${theme.bg} ${theme.subText} border ${isDark ? 'border-gray-600' : 'border-gray-300'}`
+                              }`}
                           >
                             {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
                           </button>
@@ -1393,13 +1479,12 @@ useEffect(() => {
                                   {t.paymentMethod || '—'}
                                 </td>
                                 <td className="px-3 py-2">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    t.bookingStatus === 'CONFIRMED'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : t.bookingStatus === 'CANCELLED'
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.bookingStatus === 'CONFIRMED'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : t.bookingStatus === 'CANCELLED'
                                       ? 'bg-red-500/20 text-red-400'
                                       : 'bg-gray-500/20 text-gray-400'
-                                  }`}>
+                                    }`}>
                                     {t.bookingStatus}
                                   </span>
                                 </td>
@@ -1413,8 +1498,8 @@ useEffect(() => {
                                 <td className={`px-3 py-2 whitespace-nowrap ${theme.subText}`}>
                                   {t.createdAt
                                     ? new Date(t.createdAt).toLocaleDateString('en-IN', {
-                                        day: '2-digit', month: 'short', year: '2-digit',
-                                      })
+                                      day: '2-digit', month: 'short', year: '2-digit',
+                                    })
                                     : '—'}
                                 </td>
                               </tr>
@@ -1424,10 +1509,10 @@ useEffect(() => {
                       {(financialSummary.recentTransactions || []).filter(
                         (t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter
                       ).length === 0 && (
-                        <div className={`text-center py-8 ${theme.subText}`}>
-                          No transactions found for this filter.
-                        </div>
-                      )}
+                          <div className={`text-center py-8 ${theme.subText}`}>
+                            No transactions found for this filter.
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}
@@ -1460,11 +1545,10 @@ useEffect(() => {
                       <button
                         onClick={handlePrevGuide}
                         disabled={currentGuideIndex === 0}
-                        className={`flex-shrink-0 p-2 rounded-full ${
-                          currentGuideIndex === 0
-                            ? "opacity-30 cursor-not-allowed"
-                            : "hover:opacity-70 cursor-pointer"
-                        } ${theme.text}`}
+                        className={`flex-shrink-0 p-2 rounded-full ${currentGuideIndex === 0
+                          ? "opacity-30 cursor-not-allowed"
+                          : "hover:opacity-70 cursor-pointer"
+                          } ${theme.text}`}
                       >
                         <ChevronLeft size={20} />
                       </button>
@@ -1474,9 +1558,8 @@ useEffect(() => {
                           <div
                             className="flex items-center gap-4 transition-transform duration-300 -mt-2"
                             style={{
-                              transform: `translateX(calc(-${
-                                currentGuideIndex * (viewportWidth >= 768 ? 33.33 : 50)
-                              }%))`,
+                              transform: `translateX(calc(-${currentGuideIndex * (viewportWidth >= 768 ? 33.33 : 50)
+                                }%))`,
                             }}
                           >
                             {eventData.guests.map((guest, index) => (
@@ -1525,12 +1608,11 @@ useEffect(() => {
                           currentGuideIndex >=
                           (eventData?.guests?.length || 0) - (viewportWidth >= 768 ? 3 : 2)
                         }
-                        className={`flex-shrink-0 p-2 rounded-full ${
-                          currentGuideIndex >=
+                        className={`flex-shrink-0 p-2 rounded-full ${currentGuideIndex >=
                           (eventData?.guests?.length || 0) - (viewportWidth >= 768 ? 3 : 2)
-                            ? "opacity-30 cursor-not-allowed"
-                            : "hover:opacity-70 cursor-pointer"
-                        } ${theme.text}`}
+                          ? "opacity-30 cursor-not-allowed"
+                          : "hover:opacity-70 cursor-pointer"
+                          } ${theme.text}`}
                       >
                         <ChevronRight size={20} />
                       </button>
@@ -1682,8 +1764,8 @@ useEffect(() => {
                               }
                               disabled={currentIndex === 0}
                               className={`text-xs ${currentIndex === 0
-                                  ? "opacity-30 cursor-not-allowed"
-                                  : "hover:opacity-80 cursor-pointer"
+                                ? "opacity-30 cursor-not-allowed"
+                                : "hover:opacity-80 cursor-pointer"
                                 } ${theme.text}`}
                             >
                               ←
@@ -1696,12 +1778,12 @@ useEffect(() => {
                                     setCurrentBankDetailsIndex(index)
                                   }
                                   className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${index === currentIndex
-                                      ? isDark
-                                        ? "bg-purple-500"
-                                        : "bg-purple-600"
-                                      : isDark
-                                        ? "bg-gray-600"
-                                        : "bg-gray-400"
+                                    ? isDark
+                                      ? "bg-purple-500"
+                                      : "bg-purple-600"
+                                    : isDark
+                                      ? "bg-gray-600"
+                                      : "bg-gray-400"
                                     }`}
                                 ></div>
                               ))}
@@ -1717,8 +1799,8 @@ useEffect(() => {
                               }
                               disabled={currentIndex === bankDetails.length - 1}
                               className={`text-xs ${currentIndex === bankDetails.length - 1
-                                  ? "opacity-30 cursor-not-allowed"
-                                  : "hover:opacity-80 cursor-pointer"
+                                ? "opacity-30 cursor-not-allowed"
+                                : "hover:opacity-80 cursor-pointer"
                                 } ${theme.text}`}
                             >
                               →
@@ -2053,9 +2135,8 @@ useEffect(() => {
                   </div>
                   <button
                     onClick={() => setShowAuditPanel(false)}
-                    className={`text-xs px-3 py-1.5 rounded-full border ${
-                      isDark ? "border-gray-600 text-gray-400 hover:bg-gray-700" : "border-gray-300 text-gray-500 hover:bg-gray-100"
-                    } transition-colors`}
+                    className={`text-xs px-3 py-1.5 rounded-full border ${isDark ? "border-gray-600 text-gray-400 hover:bg-gray-700" : "border-gray-300 text-gray-500 hover:bg-gray-100"
+                      } transition-colors`}
                   >
                     Dismiss
                   </button>
@@ -2074,9 +2155,9 @@ useEffect(() => {
                     <span className={`text-sm font-bold ${theme.text}`}>
                       {auditHistory.cancelled_at
                         ? new Date(auditHistory.cancelled_at).toLocaleString("en-US", {
-                            month: "short", day: "numeric", year: "numeric",
-                            hour: "2-digit", minute: "2-digit",
-                          })
+                          month: "short", day: "numeric", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })
                         : "N/A"}
                     </span>
                   </div>
@@ -2147,12 +2228,12 @@ useEffect(() => {
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {[
-                      { label: "Bookings",     value: auditHistory.metrics_snapshot?.totalBookings      ?? 0, color: "text-blue-400"   },
-                      { label: "Tickets Sold", value: auditHistory.metrics_snapshot?.totalTicketsSold   ?? 0, color: "text-purple-400" },
-                      { label: "Revenue",      value: `₹${auditHistory.metrics_snapshot?.revenue        ?? 0}`, color: "text-emerald-400" },
-                      { label: "Likes",        value: auditHistory.metrics_snapshot?.like                ?? 0, color: "text-pink-400"   },
-                      { label: "Shares",       value: auditHistory.metrics_snapshot?.share               ?? 0, color: "text-cyan-400"   },
-                      { label: "Cancellations",value: auditHistory.metrics_snapshot?.total_cancellation ?? 0, color: "text-red-400"    },
+                      { label: "Bookings", value: auditHistory.metrics_snapshot?.totalBookings ?? 0, color: "text-blue-400" },
+                      { label: "Tickets Sold", value: auditHistory.metrics_snapshot?.totalTicketsSold ?? 0, color: "text-purple-400" },
+                      { label: "Revenue", value: `₹${auditHistory.metrics_snapshot?.revenue ?? 0}`, color: "text-emerald-400" },
+                      { label: "Likes", value: auditHistory.metrics_snapshot?.like ?? 0, color: "text-pink-400" },
+                      { label: "Shares", value: auditHistory.metrics_snapshot?.share ?? 0, color: "text-cyan-400" },
+                      { label: "Cancellations", value: auditHistory.metrics_snapshot?.total_cancellation ?? 0, color: "text-red-400" },
                     ].map(({ label, value, color }) => (
                       <div
                         key={label}
@@ -2172,13 +2253,13 @@ useEffect(() => {
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
                     {[
-                      { label: "Event Name",    value: auditHistory.event_structure?.event_name },
-                      { label: "Category",      value: auditHistory.event_structure?.event_category },
-                      { label: "Sub-Category",  value: auditHistory.event_structure?.event_subcategory },
-                      { label: "Event Type",    value: auditHistory.event_structure?.event_type },
-                      { label: "Payment Type",  value: auditHistory.event_structure?.payment_type },
+                      { label: "Event Name", value: auditHistory.event_structure?.event_name },
+                      { label: "Category", value: auditHistory.event_structure?.event_category },
+                      { label: "Sub-Category", value: auditHistory.event_structure?.event_subcategory },
+                      { label: "Event Type", value: auditHistory.event_structure?.event_type },
+                      { label: "Payment Type", value: auditHistory.event_structure?.payment_type },
                       { label: "Location Type", value: auditHistory.event_structure?.location_type },
-                      { label: "Venue",         value: auditHistory.event_structure?.venue },
+                      { label: "Venue", value: auditHistory.event_structure?.venue },
                     ]
                       .filter(({ value }) => value)
                       .map(({ label, value }) => (
@@ -2313,8 +2394,8 @@ useEffect(() => {
                 onClick={() => setShowDeleteConfirm(false)}
                 className={`flex-1 py-3 rounded-full font-semibold text-sm border transition-all
                            ${isDark
-                             ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                             : "border-gray-300 text-gray-700 hover:bg-gray-100"}`}
+                    ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-100"}`}
               >
                 Cancel
               </button>
@@ -2349,6 +2430,8 @@ useEffect(() => {
           isDark={isDark}
           onClose={() => { setShowAttendanceModal(false); setScanResult(null); setScanError(''); }}
           onScan={handleQRScanned}
+          onComplete={handleCompleteAttendance}
+          isCompleting={isCompletingAttendance}
           scanResult={scanResult}
           scanError={scanError}
           scanCount={scanCount}
@@ -2365,6 +2448,7 @@ useEffect(() => {
           attendanceData={attendanceData}
           onDownload={handleDownloadAttendanceFile}
           isDownloading={isDownloadingAtt}
+          onRemove={handleRemoveAttendee}
         />
       )}
     </>
@@ -2409,8 +2493,8 @@ function MonthSelector({
         <button
           key={monthName}
           className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
             }`}
           onClick={() => {
             onSelectMonth(index);
@@ -2444,8 +2528,8 @@ function YearSelector({
         <button
           key={yearNum}
           className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
             }`}
           onClick={() => {
             onSelectYear(yearNum);
@@ -2484,17 +2568,17 @@ const FooterButton = ({ theme, icon, text, onClick }) => (
     <span>{text}</span>
   </button>
 );
-// ── Sub-event QR Scanner Modal — jsQR fast scanning 
 const SubEventAttendanceScannerModal = ({
-  theme, isDark, onClose, onScan, scanResult, scanError, scanCount, eventName,
+  theme, isDark, onClose, onScan, onComplete, isCompleting,
+  scanResult, scanError, scanCount, eventName,
 }) => {
-  const videoRef    = React.useRef(null);
-  const canvasRef   = React.useRef(null);
-  const streamRef   = React.useRef(null);
-  const rafRef      = React.useRef(null);
+  const videoRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const rafRef = React.useRef(null);
   const lastScanRef = React.useRef(0);
-  const [camError,  setCamError]  = React.useState('');
-  const [camReady,  setCamReady]  = React.useState(false);
+  const [camError, setCamError] = React.useState('');
+  const [camReady, setCamReady] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -2569,11 +2653,26 @@ const SubEventAttendanceScannerModal = ({
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, margin: 0 }}>{eventName}</p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
               <UserCheck style={{ width: 13, height: 13, color: '#fff' }} />
               <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{scanCount} scanned</span>
             </div>
+            {onComplete && (
+              <button
+                onClick={onComplete}
+                disabled={isCompleting}
+                style={{
+                  background: 'rgba(16,185,129,0.22)', border: '1px solid rgba(16,185,129,0.45)',
+                  borderRadius: 10, padding: '5px 11px', cursor: 'pointer', color: '#10B981',
+                  fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                  opacity: isCompleting ? 0.6 : 1,
+                }}
+              >
+                <CheckCircle style={{ width: 12, height: 12 }} />
+                {isCompleting ? 'Saving...' : 'Done'}
+              </button>
+            )}
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X style={{ width: 15, height: 15, color: '#fff' }} />
             </button>
@@ -2601,10 +2700,10 @@ const SubEventAttendanceScannerModal = ({
               <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', WebkitMaskImage: 'radial-gradient(ellipse 56% 56% at 50% 50%, transparent 0%, black 100%)', maskImage: 'radial-gradient(ellipse 56% 56% at 50% 50%, transparent 0%, black 100%)' }} />
               <div style={{ position: 'absolute', left: '22%', right: '22%', top: '22%', bottom: '22%', pointerEvents: 'none' }}>
                 {[
-                  { top: 0,    left: 0,    borderTop: '3px solid #6549B8',    borderLeft:  '3px solid #6549B8',  borderRadius: '4px 0 0 0' },
-                  { top: 0,    right: 0,   borderTop: '3px solid #6549B8',    borderRight: '3px solid #6549B8',  borderRadius: '0 4px 0 0' },
-                  { bottom: 0, left: 0,    borderBottom: '3px solid #6549B8', borderLeft:  '3px solid #6549B8',  borderRadius: '0 0 0 4px' },
-                  { bottom: 0, right: 0,   borderBottom: '3px solid #6549B8', borderRight: '3px solid #6549B8',  borderRadius: '0 0 4px 0' },
+                  { top: 0, left: 0, borderTop: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '4px 0 0 0' },
+                  { top: 0, right: 0, borderTop: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 4px 0 0' },
+                  { bottom: 0, left: 0, borderBottom: '3px solid #6549B8', borderLeft: '3px solid #6549B8', borderRadius: '0 0 0 4px' },
+                  { bottom: 0, right: 0, borderBottom: '3px solid #6549B8', borderRight: '3px solid #6549B8', borderRadius: '0 0 4px 0' },
                 ].map((s, i) => <div key={i} style={{ position: 'absolute', width: 22, height: 22, ...s }} />)}
                 <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, #6549B8, #a78bfa, #6549B8, transparent)', animation: 'scanLine 1.6s ease-in-out infinite', boxShadow: '0 0 8px #6549B8' }} />
               </div>
@@ -2638,18 +2737,18 @@ const SubEventAttendanceScannerModal = ({
               </div>
               <div style={{ padding: '9px 11px 11px' }}>
                 <SubScanRow label="Ticket holder" value={scanResult.holderName || scanResult.userName || '—'} isDark={isDark} fullWidth />
-                <SubScanRow label="Event"         value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
+                <SubScanRow label="Event" value={scanResult.eventName || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 5, marginBottom: 5 }}>
                   <SubScanRow label="Type" value={scanResult.ticketType || '—'} isDark={isDark} />
-                  <SubScanRow label="Qty"  value={String(scanResult.quantity ?? 1)} isDark={isDark} />
+                  <SubScanRow label="Qty" value={String(scanResult.quantity ?? 1)} isDark={isDark} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
                   <SubScanRow label="Event date" value={scanResult.eventDate || '—'} isDark={isDark} />
-                  <SubScanRow label="Time"       value={scanResult.eventTime || '—'} isDark={isDark} />
+                  <SubScanRow label="Time" value={scanResult.eventTime || '—'} isDark={isDark} />
                 </div>
                 <SubScanRow label="Venue" value={scanResult.venue || '—'} isDark={isDark} fullWidth />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
-                  <SubScanRow label="Payment"    value={scanResult.paymentMethod || '—'} isDark={isDark} />
+                  <SubScanRow label="Payment" value={scanResult.paymentMethod || '—'} isDark={isDark} />
                   <SubScanRow label="Amount paid" value={scanResult.totalAmount > 0 ? `₹${Number(scanResult.totalAmount).toLocaleString('en-IN')}` : 'Free'} isDark={isDark} highlight />
                 </div>
                 <SubScanRow label="Transaction ID" value={scanResult.bookingRef || scanResult.transactionId || scanResult.bookingId || '—'} isDark={isDark} fullWidth mono />
@@ -2674,9 +2773,9 @@ const SubEventAttendanceScannerModal = ({
   );
 };
 
-// Sub-Event Attendance List Modal 
+// Sub-Event Attendance List Modal
 const SubEventAttendanceListModal = ({
-  theme, isDark, onClose, attendanceData, onDownload, isDownloading,
+  theme, isDark, onClose, attendanceData, onDownload, isDownloading, onRemove,
 }) => {
   const rows = attendanceData?.attendees || [];
 
@@ -2723,9 +2822,9 @@ const SubEventAttendanceListModal = ({
         {/* Summary strip */}
         <div style={{ padding: '10px 22px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`, display: 'flex', gap: 24, flexShrink: 0 }}>
           {[
-            { label: 'Total Booked', val: attendanceData?.totalBooked || 0,   color: '#6549B8' },
-            { label: 'Present',      val: attendanceData?.totalPresent || 0,  color: '#10B981' },
-            { label: 'Absent',       val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
+            { label: 'Total Booked', val: attendanceData?.totalBooked || 0, color: '#6549B8' },
+            { label: 'Present', val: attendanceData?.totalPresent || 0, color: '#10B981' },
+            { label: 'Absent', val: Math.max(0, (attendanceData?.totalBooked || 0) - (attendanceData?.totalPresent || 0)), color: '#EF4444' },
           ].map(({ label, val, color }) => (
             <div key={label}>
               <p style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 10, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
@@ -2745,7 +2844,7 @@ const SubEventAttendanceListModal = ({
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
-                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Transaction ID', 'Scanned At'].map((h) => (
+                  {['#', 'Name', 'Ticket Type', 'Qty', 'Payment', 'Transaction ID', 'Scanned At', ''].map((h) => (
                     <th key={h} style={{ padding: '9px 12px', textAlign: 'left', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontWeight: 500, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {h}
                     </th>
@@ -2764,6 +2863,21 @@ const SubEventAttendanceListModal = ({
                     <td style={{ padding: '9px 12px', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 11 }}>
                       {att.scannedAt ? new Date(att.scannedAt).toLocaleTimeString() : '—'}
                     </td>
+                    {onRemove && (
+                      <td style={{ padding: '9px 12px' }}>
+                        <button
+                          onClick={() => onRemove(att.bookingId)}
+                          title="Undo scan"
+                          style={{
+                            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                            borderRadius: 6, padding: '3px 8px', cursor: 'pointer', color: '#EF4444',
+                            fontSize: 11, display: 'flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          <XCircle style={{ width: 11, height: 11 }} /> Undo
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -2778,29 +2892,29 @@ const SubEventAttendanceListModal = ({
 function SubScanRow({ label, value, isDark, fullWidth = false, mono = false, highlight = false }) {
   return (
     <div style={{
-      background:   isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+      background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
       borderRadius: 7,
-      padding:      '5px 8px',
+      padding: '5px 8px',
       marginBottom: fullWidth ? 5 : 0,
-      width:        '100%',
+      width: '100%',
     }}>
       <p style={{
-        color:         isDark ? 'rgba(209,250,229,0.38)' : 'rgba(6,95,70,0.42)',
-        fontSize:      8,
-        fontWeight:    700,
+        color: isDark ? 'rgba(209,250,229,0.38)' : 'rgba(6,95,70,0.42)',
+        fontSize: 8,
+        fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '0.06em',
-        margin:        '0 0 2px',
+        margin: '0 0 2px',
       }}>
         {label}
       </p>
       <p style={{
-        color:      highlight ? '#10B981' : isDark ? '#d1fae5' : '#065f46',
-        fontSize:   11,
+        color: highlight ? '#10B981' : isDark ? '#d1fae5' : '#065f46',
+        fontSize: 11,
         fontWeight: highlight ? 700 : 600,
-        margin:     0,
+        margin: 0,
         fontFamily: mono ? 'monospace' : 'inherit',
-        wordBreak:  'break-all',
+        wordBreak: 'break-all',
         lineHeight: 1.4,
       }}>
         {value}
