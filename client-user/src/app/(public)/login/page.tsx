@@ -7,6 +7,8 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import WIEImage from '@/assets/Auth/WieLogo.png';
 import WIEImageWhite from '@/assets/Auth/WieLogoWhite.png';
+import WieLight from '@/assets/Home/WieLight.png';
+import WieDark from '@/assets/Home/WieDark.png';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { AppleAuthButton } from '@/components/auth/AppleAuthButton';
 import { MicrosoftAuthButton } from '@/components/auth/MicrosoftAuthButton';
@@ -59,9 +61,11 @@ function LoginContent() {
               />
             )}
           </div>
-          <h1 className={`mt-4 text-3xl font-bold tracking-tight transition-colors duration-300 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Wie
-          </h1>
+          <img
+            src={isDark ? WieDark.src : WieLight.src}
+            alt="Wie"
+            className="mt-4 h-12 w-auto object-contain"
+          />
         </div>
 
         {/* Top image - subtle and themed */}

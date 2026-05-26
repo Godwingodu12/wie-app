@@ -59,10 +59,10 @@ export default function FilterSearchEvents({
     setIsLoading(true);
     try {
       const params: FilterEventsParams = {};
-      if (selectedCategory)    params.category = selectedCategory;
+      if (selectedCategory) params.category = selectedCategory;
       if (selectedSubcategory) params.subcategory = selectedSubcategory;
-      if (startDate)           params.startDate = startDate;
-      if (endDate)             params.endDate = endDate;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
       if (location.trim()) {
         params.location = location.trim();
@@ -76,7 +76,6 @@ export default function FilterSearchEvents({
 
         const raw = [
           ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
-          ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
         ] as any[];
 
         const seen = new Set<string>();
@@ -101,7 +100,7 @@ export default function FilterSearchEvents({
       }
 
       if (userLocation) {
-        params.latitude  = userLocation.latitude;
+        params.latitude = userLocation.latitude;
         params.longitude = userLocation.longitude;
         if (currentDistance) params.radius = currentDistance;
       }
@@ -181,15 +180,15 @@ export default function FilterSearchEvents({
                     style={
                       isActive
                         ? {
-                            background: 'var(--chat_color, #5494FF)',
-                            color: '#fff',
-                            border: 'none',
-                          }
+                          background: 'var(--chat_color, #5494FF)',
+                          color: '#fff',
+                          border: 'none',
+                        }
                         : {
-                            background: themeStyles.hoverBg,
-                            color: themeStyles.textSecondary,
-                            border: `1px solid ${themeStyles.border}`,
-                          }
+                          background: themeStyles.hoverBg,
+                          color: themeStyles.textSecondary,
+                          border: `1px solid ${themeStyles.border}`,
+                        }
                     }
                   >
                     {shortLabel}
@@ -214,15 +213,15 @@ export default function FilterSearchEvents({
                       style={
                         isActive
                           ? {
-                              background: 'var(--chat_color, #5494FF)',
-                              color: '#fff',
-                              border: 'none',
-                            }
+                            background: 'var(--chat_color, #5494FF)',
+                            color: '#fff',
+                            border: 'none',
+                          }
                           : {
-                              background: themeStyles.hoverBg,
-                              color: themeStyles.textSecondary,
-                              border: `1px solid ${themeStyles.border}`,
-                            }
+                            background: themeStyles.hoverBg,
+                            color: themeStyles.textSecondary,
+                            border: `1px solid ${themeStyles.border}`,
+                          }
                       }
                     >
                       {sub}
@@ -246,10 +245,10 @@ export default function FilterSearchEvents({
                   : `Enter city, state or country (e.g. Kochi, Kerala)`
               }
               className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
-              style={{ 
-                backgroundColor: themeStyles.hoverBg, 
-                border: `1px solid ${themeStyles.border}`, 
-                color: themeStyles.text 
+              style={{
+                backgroundColor: themeStyles.hoverBg,
+                border: `1px solid ${themeStyles.border}`,
+                color: themeStyles.text
               }}
             />
             {userLocation && !location.trim() && (
@@ -291,10 +290,10 @@ export default function FilterSearchEvents({
                   onChange={(e) => setCustomDistance(e.target.value)}
                   placeholder="Enter custom distance (km)"
                   className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50"
-                  style={{ 
-                    backgroundColor: themeStyles.hoverBg, 
-                    border: `1px solid ${themeStyles.border}`, 
-                    color: themeStyles.text 
+                  style={{
+                    backgroundColor: themeStyles.hoverBg,
+                    border: `1px solid ${themeStyles.border}`,
+                    color: themeStyles.text
                   }}
                   min={51}
                 />
