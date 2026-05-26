@@ -1,11 +1,12 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import QRCodeLib from 'qrcode';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import Header from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { getBookingById, cancelBooking, Booking, QRPayload } from '@/services/transactionService';
+import { getBookingById, cancelBooking, Booking } from '@/services/transactionService';
 import SideBar from "@/components/home/SideBar";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { useTheme } from '@/components/home/ThemeContext';
@@ -46,24 +47,7 @@ export default function BookingDetailPage({ params }: { params: { bookingId: str
     </SidebarProvider>
   );
 }
-function QRCodeImage({ value, size = 180 }: { value: string | QRPayload; size?: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (!canvasRef.current || !value) return;
-    // Always encode as base64(JSON) — the same format verifyQRCode expects
-    const stringValue =
-      typeof value === 'string'
-        ? value   // already a base64 string stored from generateQRCodeWithPayload
-        : Buffer.from(JSON.stringify(value)).toString('base64');
-    QRCodeLib.toCanvas(canvasRef.current, stringValue, {
-      width: size,
-      margin: 2,
-      errorCorrectionLevel: 'H',
-      color: { dark: '#000000', light: '#FFFFFF' },
-    }).catch(console.error);
-  }, [value, size]);
-  return <canvas ref={canvasRef} width={size} height={size} />;
-}
+
 function BookingDetailContent({ bookingId }: { bookingId: string }) {
   useAuth(true);
   const router = useRouter();
@@ -129,6 +113,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
       const dataUrl = await toPng(ticketElement, {
         cacheBust: true,
         backgroundColor: isDark ? '#0C1014' : '#FFFFFF',
+        pixelRatio: 4,
       });
       const link = document.createElement('a');
       link.href = dataUrl;
@@ -469,31 +454,16 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     <div className="relative group">
                       <div className="absolute -inset-2 bg-gradient-to-tr from-[#8860D9] to-fuchsia-500 rounded-2xl blur-lg opacity-15 group-hover:opacity-35 transition-opacity" />
                       <div className="relative bg-white p-2.5 rounded-2xl border border-black/5 shadow-md">
-                        {/* QR Code — the image IS the scannable QR */}
-                        {booking.qrCode ? (
-                          <img
-                            src={booking.qrCode}
-                            alt="Ticket QR Code"
-                            style={{ width: 180, height: 180, objectFit: 'contain', display: 'block' }}
-                            crossOrigin="anonymous"
-                          />
-                        ) : (booking as any).qrPayload ? (
-                          <QRCodeImage
-                            value={(booking as any).qrPayload}
-                            size={180}
-                          />
-                        ) : (
-                          <div
-                            style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            className="bg-gray-100 rounded-lg text-xs text-gray-400 text-center p-4"
-                          >
-                            QR code not available
-                          </div>
-                        )}
+                        <img
+                          src={booking.qrCode}
+                          alt="Ticket QR Code"
+                          className="w-48 h-48 object-contain"
+                          crossOrigin="anonymous"
+                        />
                       </div>
                     </div>
                   </div>
-
+                  1
                   {/* ── Scan hint ── */}
                   <p className={`text-center text-[9px] font-bold uppercase tracking-widest mb-3 ${isDark ? 'text-white/25' : 'text-black/25'}`}>
                     {booking.eventDetails?.location_type?.toLowerCase() === 'online' || booking.eventDetails?.location_type?.toLowerCase() === 'recorded'
