@@ -66,8 +66,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   // Normalize data from booking or props
   const bookingData = booking as any;
   const currentQuantity = bookingData?.quantity || quantity || (selectedSeats?.length || 0) || 1;
-const FEE_PER_TICKET = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE ?? 5);
-const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee ?? (isFreeEvent ? 0 : currentQuantity * FEE_PER_TICKET);
+  const FEE_PER_TICKET = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE ?? 5);
+  const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee ?? (isFreeEvent ? 0 : currentQuantity * FEE_PER_TICKET);
   const currentTotal = propTotal !== undefined ? propTotal : (bookingData?.totalAmount ?? bookingData?.total_amount ?? bookingData?.total);
 
   const currentSelectedTicket = ticketTypes.find((t: any) => t._id === (selectedTicketType || bookingData?.ticketTypeId))
@@ -106,9 +106,8 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
         onClick={onClose}
       >
         <div
-          className={`relative border rounded-3xl p-5 sm:p-8 pt-6 w-[92vw] sm:w-full sm:max-w-[420px] shadow-2xl flex flex-col items-center transition-all duration-500 transform ${
-            show ? "scale-100 translate-y-0" : "scale-95 translate-y-8"
-          }`}
+          className={`relative border rounded-3xl p-5 sm:p-8 pt-6 w-[92vw] sm:w-full sm:max-w-[420px] shadow-2xl flex flex-col items-center transition-all duration-500 transform ${show ? "scale-100 translate-y-0" : "scale-95 translate-y-8"
+            }`}
           style={{
             background: isDark ? "rgba(28, 32, 36, 0.4)" : "rgba(255, 255, 255, 0.3)",
             backdropFilter: "blur(60px) saturate(180%)",
@@ -171,9 +170,8 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
       onClick={onClose}
     >
       <div
-        className={`relative w-[95vw] sm:w-full sm:max-w-[420px] rounded-3xl border shadow-2xl overflow-hidden flex flex-col transition-all duration-500 transform ${
-          show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-8'
-        }`}
+        className={`relative w-[95vw] sm:w-full sm:max-w-[420px] rounded-3xl border shadow-2xl overflow-hidden flex flex-col transition-all duration-500 transform ${show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-8'
+          }`}
         style={{
           background: isDark ? "rgba(26, 28, 46, 0.75)" : "rgba(255, 255, 255, 0.95)",
           backdropFilter: "blur(40px) saturate(180%)",
@@ -207,7 +205,7 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
                 <img src={imageUrl} alt={event.event_name} className="absolute inset-0 w-full h-full object-cover" />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <Ticket className={`w-10 h-10 ${isDark ? 'text-white/10' : 'text-black/10'}`} />
+                  <Ticket className={`w-10 h-10 ${isDark ? 'text-white/10' : 'text-black/10'}`} />
                 </div>
               )}
             </div>
@@ -267,11 +265,10 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
                                 setSelectedTicketType?.(type._id);
                                 setIsDropdownOpen(false);
                               }}
-                              className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
-                                selectedTicketType === type._id
+                              className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${selectedTicketType === type._id
                                   ? (isDark ? 'text-white bg-white/10' : 'text-gray-900 bg-black/5')
                                   : (isDark ? 'text-[#94A3B8] hover:bg-white/5' : 'text-gray-600 hover:bg-black/5')
-                              }`}
+                                }`}
                             >
                               <span className="font-bold text-[13px] text-left truncate pr-2">{type.ticket_type}</span>
                               <span className={`font-bold text-[13px] shrink-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -283,8 +280,8 @@ const currentPlatformFee = bookingData?.platformFee ?? bookingData?.platform_fee
                       )}
                     </div>
                   </div>
-                   {/* Quantity */}
-                   {(() => {
+                  {/* Quantity */}
+                  {(() => {
                     const multipleAllowed = event?.restrict_booking !== true;
                     const maxQty = multipleAllowed ? 50 : 1;
                     return (
