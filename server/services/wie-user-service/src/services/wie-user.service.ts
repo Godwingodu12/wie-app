@@ -273,6 +273,7 @@ export const signupVerifyOtp = async (
       .json({ message: "Registration failed", error: error.message });
   }
 };
+
 export const setupProfile = async (
   req: Request,
   res: Response,
@@ -284,13 +285,13 @@ export const setupProfile = async (
       return;
     }
 
-    const { username } = req.body;
+    const { username, name, bio, accountPrivacy } = req.body;
     let profilePicture: string | null = null;
     if ((req as any).file) {
       try {
-        profilePicture = await uploadProfileImage((req as any).file.path);
-      } catch {
-        profilePicture = (req as any).file.path ?? null;
+        profilePicture = await uploadProfileImage((req as any).file.buffer);
+      } catch (err) {
+        console.error("Cloudinary upload failed in setupProfile:", err);
       }
     }
     if (!username || username.trim().length < 4) {
@@ -308,6 +309,18 @@ export const setupProfile = async (
       return;
     }
 
+    // Validate name only if provided
+    if (name && validateName(name)) {
+      res.status(400).json({ message: "Name must be at least 2 characters" });
+      return;
+    }
+
+    // Validate account privacy only if provided
+    if (accountPrivacy && accountPrivacy !== "public" && accountPrivacy !== "private") {
+      res.status(400).json({ message: "Invalid account privacy setting" });
+      return;
+    }
+
     // Check uniqueness
     const existing = await WIEUSER.findByUsername(
       username.trim().toLowerCase(),
@@ -318,6 +331,9 @@ export const setupProfile = async (
     }
 
     const updateData: any = { username: username.trim().toLowerCase() };
+    if (name) updateData.name = name.trim();
+    if (bio !== undefined) updateData.bio = bio.trim();
+    if (accountPrivacy) updateData.accountPrivacy = accountPrivacy;
     if (profilePicture) updateData.profile_picture = profilePicture;
 
     const updatedUser = await WIEUSER.updateProfile(userId, updateData);
@@ -347,6 +363,7 @@ export const setupProfile = async (
       .json({ message: "Failed to setup profile", error: error.message });
   }
 };
+
 export const googleAuth = async (
   req: Request,
   res: Response,
@@ -1378,7 +1395,7 @@ export const forgotPassword = async (
     } else if (contact_no) {
       user = await WIEUSER.findByContactNo(contact_no);
     } else if (username) {
-      user = await WIEUSER.findByUsername(username);
+      user = await WIEUSER.findByUsername(username.trim().toLowerCase());
     }
 
     if (!user) {
@@ -1428,17 +1445,48 @@ export const forgotPassword = async (
       throw otpError; // Re-throw other errors
     }
 
+    // Masking helpers
+    const maskEmail = (e: string): string => {
+      const [local, domain] = e.split("@");
+      if (!domain) return e;
+      if (local.length <= 2) return `${local[0]}***@${domain}`;
+      return `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}@${domain}`;
+    };
+
+    const maskPhone = (p: string): string => {
+      if (p.length <= 4) return "****";
+      return p.slice(0, 2) + "*".repeat(p.length - 6) + p.slice(-4);
+    };
+
     // Send OTP via email or SMS
+    let deliveryTarget = "";
     if (email) {
       await sendEmail(email, otp);
+      deliveryTarget = maskEmail(email);
     } else if (contact_no) {
       await sendSMSOTP(contact_no, otp);
+      deliveryTarget = maskPhone(contact_no);
+    } else if (username) {
+      if (user.email) {
+        await sendEmail(user.email, otp);
+        deliveryTarget = maskEmail(user.email);
+      } else if (user.contact_no) {
+        await sendSMSOTP(user.contact_no, otp);
+        deliveryTarget = maskPhone(user.contact_no);
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "No email or contact number associated with this username",
+        });
+        return;
+      }
     }
     res.status(200).json({
       success: true,
       message: "OTP sent successfully for password reset",
       data: {
         userId: user.id,
+        deliveryTarget,
       },
       remainingAttempts: limitCheck.remainingAttempts - 1, // Include remaining attempts
       expiresIn: "10 minutes",
