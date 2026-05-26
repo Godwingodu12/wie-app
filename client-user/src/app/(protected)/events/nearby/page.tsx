@@ -22,7 +22,7 @@ import {
 import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings, getUserRehostedBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
 import EnableLocation from '@/components/events/EnableLocation';
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle,MapPin, Navigation } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, MapPin, Navigation } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { EventCard } from '@/components/events/EventCard';
@@ -45,7 +45,7 @@ function EventRow({
   isWrappingGrid = false,
   isNearby = false,
   likedIds = new Set<string>(),
-  savedIds  = new Set<string>(),
+  savedIds = new Set<string>(),
 }: {
   title: string;
   events: EventWithLocation[];
@@ -54,7 +54,7 @@ function EventRow({
   isWrappingGrid?: boolean;
   isNearby?: boolean;
   likedIds?: Set<string>;
-  savedIds?:  Set<string>;
+  savedIds?: Set<string>;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const { themeStyles } = useTheme();
@@ -113,13 +113,13 @@ function EventRow({
             isNearby
               ? "grid grid-cols-1 xl:grid-cols-2 gap-6"
               : isWrappingGrid
-              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-6"
-              : isGrid
-              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-5 gap-y-6"
-              : "flex gap-5 overflow-x-auto scrollbar-hide pb-2"
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-6"
+                : isGrid
+                  ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-5 gap-y-6"
+                  : "flex gap-5 overflow-x-auto scrollbar-hide pb-2"
           }
         >
-         {events.map((ev, idx) =>
+          {events.map((ev, idx) =>
             isNearby ? (
               <NearbyEventCard
                 key={`${ev._id ?? 'ev'}-${idx}`}
@@ -257,22 +257,22 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
                   style={{
                     background:
                       ev.refundStatus === 'COMPLETED' ? 'rgba(34,197,94,0.15)' :
-                      ev.refundStatus === 'PROCESSING' ? 'rgba(234,179,8,0.15)' :
-                      'rgba(239,68,68,0.15)',
+                        ev.refundStatus === 'PROCESSING' ? 'rgba(234,179,8,0.15)' :
+                          'rgba(239,68,68,0.15)',
                     color:
                       ev.refundStatus === 'COMPLETED' ? '#22c55e' :
-                      ev.refundStatus === 'PROCESSING' ? '#eab308' :
-                      '#ef4444',
+                        ev.refundStatus === 'PROCESSING' ? '#eab308' :
+                          '#ef4444',
                   }}
                 >
-                    {ev.refundStatus === 'COMPLETED'  ? '✓ Refunded' :
-                     ev.refundStatus === 'PROCESSING' ? '↻ Processing' :
-                     '⏳ Refund Pending'}
-                  </span>
-                  {ev.refundAmount && (
-                    <span className="text-[10px]" style={{ color: themeStyles.textSecondary }}>₹{ev.refundAmount}</span>
-                  )}
-                </div>
+                  {ev.refundStatus === 'COMPLETED' ? '✓ Refunded' :
+                    ev.refundStatus === 'PROCESSING' ? '↻ Processing' :
+                      '⏳ Refund Pending'}
+                </span>
+                {ev.refundAmount && (
+                  <span className="text-[10px]" style={{ color: themeStyles.textSecondary }}>₹{ev.refundAmount}</span>
+                )}
+              </div>
             </div>
 
             {/* Track refund button */}
@@ -435,7 +435,7 @@ function RehostedEventsSection({ events }: { events: any[] }) {
 }
 export default function NearbyEventsPage() {
   const authData = useAuth(true);
-  const userId: string | null = (authData as any)?.user?.id ?? null;  const router = useRouter();
+  const userId: string | null = (authData as any)?.user?.id ?? null; const router = useRouter();
   const { isCollapsed, isMobile } = useSidebar();
   const { themeStyles, isDark } = useTheme();
 
@@ -613,7 +613,7 @@ export default function NearbyEventsPage() {
                     longitude: loc.longitude,
                   });
                 })
-                .catch(() => {/* keep saved location */});
+                .catch(() => {/* keep saved location */ });
               return;
             } else {
               // Manual location with no coords — search by name
@@ -710,8 +710,8 @@ export default function NearbyEventsPage() {
       // Flatten all category buckets into one list
       const catFlat = catRes
         ? deduplicateEvents(
-            Object.values(catRes.data?.eventsByCategory ?? {}).flat() as NearbyEvent[],
-          )
+          Object.values(catRes.data?.eventsByCategory ?? {}).flat() as NearbyEvent[],
+        )
         : [];
 
       const popularList: EventWithLocation[] = (popularRes?.data?.events ?? []) as EventWithLocation[];
@@ -815,68 +815,66 @@ export default function NearbyEventsPage() {
   };
 
   const handleSearch = async () => {
-  const q = searchQuery.trim();
-  if (!q) {
-    setSearchResults(null);
-    setHasSearched(false);
-    return;
-  }
-  setLoading(true);
-  setHasSearched(true);
-  try {
-    // Try name search first
-    const nameRes = await searchEventsByName({ searchQuery: q });
-    const nameFlat = deduplicateEvents(
-      Object.values(nameRes.data.eventsByCategory ?? {}).flat() as NearbyEvent[]
-    );
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      setHasSearched(false);
+      return;
+    }
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      // Try name search first
+      const nameRes = await searchEventsByName({ searchQuery: q });
+      const nameFlat = deduplicateEvents(
+        Object.values(nameRes.data.eventsByCategory ?? {}).flat() as NearbyEvent[]
+      );
 
-    // Also try location search in parallel
-    const locRes = await searchEventsByLocation({
-      location: q,
-      radius: 500,
-      ...(userLocation ?? {}),
-    }).catch(() => null);
+      // Also try location search in parallel
+      const locRes = await searchEventsByLocation({
+        location: q,
+        radius: 500,
+      }).catch(() => null);
 
-    const locFlat = locRes
-      ? deduplicateEvents([
+      const locFlat = locRes
+        ? deduplicateEvents([
           ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
-          ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
         ] as NearbyEvent[])
-      : [];
+        : [];
 
-    // Merge, deduplicate again
-    const merged = deduplicateEvents([...nameFlat, ...locFlat]);
-    setSearchResults(merged as EventWithLocation[]);
-    setFilterResults(null);
-  } catch {
-    setSearchResults([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      // Merge, deduplicate again
+      const merged = deduplicateEvents([...nameFlat, ...locFlat]);
+      setSearchResults(merged as EventWithLocation[]);
+      setFilterResults(null);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const handleFilterApply = (response: any, filters: FilterEventsParams) => {
-  const byCategory = response.data?.eventsByCategory ?? {};
+  const handleFilterApply = (response: any, filters: FilterEventsParams) => {
+    const byCategory = response.data?.eventsByCategory ?? {};
 
-  // Final dedup pass across all categories (in case filter modal missed any)
-  const globalSeen = new Set<string>();
-  const cleanByCategory: Record<string, EventWithLocation[]> = {};
-  Object.entries(byCategory).forEach(([cat, evs]) => {
-    const filtered = (evs as any[]).filter((ev) => {
-      const id = ev._id?.toString() || '';
-      if (!id || globalSeen.has(id)) return false;
-      globalSeen.add(id);
-      return true;
+    // Final dedup pass across all categories (in case filter modal missed any)
+    const globalSeen = new Set<string>();
+    const cleanByCategory: Record<string, EventWithLocation[]> = {};
+    Object.entries(byCategory).forEach(([cat, evs]) => {
+      const filtered = (evs as any[]).filter((ev) => {
+        const id = ev._id?.toString() || '';
+        if (!id || globalSeen.has(id)) return false;
+        globalSeen.add(id);
+        return true;
+      });
+      if (filtered.length > 0) cleanByCategory[cat] = filtered as EventWithLocation[];
     });
-    if (filtered.length > 0) cleanByCategory[cat] = filtered as EventWithLocation[];
-  });
 
-  setFilterResultsByCategory(cleanByCategory);
-  setFilterResults(Object.values(cleanByCategory).flat() as EventWithLocation[]);
-  setSearchResults(null);
-  setActiveFilters(filters);
-  setHasSearched(true);
-};
+    setFilterResultsByCategory(cleanByCategory);
+    setFilterResults(Object.values(cleanByCategory).flat() as EventWithLocation[]);
+    setSearchResults(null);
+    setActiveFilters(filters);
+    setHasSearched(true);
+  };
 
   const renderEventsSection = () => {
     if (!nearbyEvents.length) return null;
@@ -920,81 +918,81 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                 border: `1px solid ${themeStyles.border}`,
               }}
             >
-    {/* Location pill / icon on left */}
-    <button
-      onClick={() => setLocationModalOpen(true)}
-      className={`flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
-      style={{
-        background: locationSource !== 'none' ? 'rgba(136,96,217,0.18)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
-        border: `1px solid ${locationSource !== 'none' ? 'rgba(136,96,217,0.4)' : themeStyles.border}`,
-        maxWidth: 160,
-      }}
-      title="Set location"
-    >
-      {locationSource === 'gps' ? (
-        <Navigation className="w-3 h-3 text-green-400 flex-shrink-0" />
-      ) : locationSource === 'manual' ? (
-        <MapPin className="w-3 h-3 text-purple-400 flex-shrink-0" />
-      ) : (
-        <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }} />
-      )}
-      <span
-        className="text-xs truncate"
-        style={{
-          color: locationSource !== 'none' ? (isDark ? '#c4b5fd' : '#8860D9') : themeStyles.textSecondary,
-          maxWidth: 110,
-        }}
-      >
-        {locationSource !== 'none'
-          ? locationDisplayName || 'My location'
-          : 'Set location'}
-      </span>
-    </button>
+              {/* Location pill / icon on left */}
+              <button
+                onClick={() => setLocationModalOpen(true)}
+                className={`flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
+                style={{
+                  background: locationSource !== 'none' ? 'rgba(136,96,217,0.18)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                  border: `1px solid ${locationSource !== 'none' ? 'rgba(136,96,217,0.4)' : themeStyles.border}`,
+                  maxWidth: 160,
+                }}
+                title="Set location"
+              >
+                {locationSource === 'gps' ? (
+                  <Navigation className="w-3 h-3 text-green-400 flex-shrink-0" />
+                ) : locationSource === 'manual' ? (
+                  <MapPin className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                ) : (
+                  <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }} />
+                )}
+                <span
+                  className="text-xs truncate"
+                  style={{
+                    color: locationSource !== 'none' ? (isDark ? '#c4b5fd' : '#8860D9') : themeStyles.textSecondary,
+                    maxWidth: 110,
+                  }}
+                >
+                  {locationSource !== 'none'
+                    ? locationDisplayName || 'My location'
+                    : 'Set location'}
+                </span>
+              </button>
 
-    {/* Divider */}
-    <div className="w-px h-5 flex-shrink-0" style={{ background: themeStyles.border }} />
+              {/* Divider */}
+              <div className="w-px h-5 flex-shrink-0" style={{ background: themeStyles.border }} />
 
-    {/* Search input */}
-    <Image
-      src={SearchIcon}
-      alt="Search"
-      width={16}
-      height={16}
-      style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
-    />
-    <input
-      type="text"
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-      placeholder="Search events, location, categories…"
-      className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "placeholder-white/25" : "placeholder-black/40"}`}
-      style={{ color: themeStyles.text, opacity: 1 }}
-    />
-    {searchQuery && (
-      <button
-        onClick={() => {
-          setSearchQuery('');
-          setSearchResults(null);
-          setHasSearched(false);
-        }}
-        className="text-xs transition-colors flex-shrink-0"
-        style={{ color: themeStyles.textSecondary }}
-      >
-        ✕
-      </button>
-    )}
+              {/* Search input */}
+              <Image
+                src={SearchIcon}
+                alt="Search"
+                width={16}
+                height={16}
+                style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Search events, location, categories…"
+                className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "placeholder-white/25" : "placeholder-black/40"}`}
+                style={{ color: themeStyles.text, opacity: 1 }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults(null);
+                    setHasSearched(false);
+                  }}
+                  className="text-xs transition-colors flex-shrink-0"
+                  style={{ color: themeStyles.textSecondary }}
+                >
+                  ✕
+                </button>
+              )}
 
-    {/* Filter button inside bar */}
-    <button
-      onClick={() => setIsFilterOpen(true)}
-      className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all"
-      style={{ border: `1px solid ${themeStyles.border}`, backgroundColor: themeStyles.hoverBg }}
-    >
-      <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
-    </button>
-  </div>
-</div>
+              {/* Filter button inside bar */}
+              <button
+                onClick={() => setIsFilterOpen(true)}
+                className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all"
+                style={{ border: `1px solid ${themeStyles.border}`, backgroundColor: themeStyles.hoverBg }}
+              >
+                <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
+              </button>
+            </div>
+          </div>
           {/* ── Active filter chips ── */}
           {Object.keys(activeFilters).length > 0 && (filterResults || filterResultsByCategory) && (
             <div className="flex flex-wrap gap-2 mb-4">
@@ -1091,12 +1089,12 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                   {Object.keys(filterResultsByCategory).length > 0 ? (
                     Object.entries(filterResultsByCategory).map(([cat, evs]) => (
                       <EventRow
-                      key={cat}
-                      title={cat}
-                      events={evs as EventWithLocation[]}
-                      likedIds={likedTicketIds}
-                      savedIds={savedTicketIds}
-                    />
+                        key={cat}
+                        title={cat}
+                        events={evs as EventWithLocation[]}
+                        likedIds={likedTicketIds}
+                        savedIds={savedTicketIds}
+                      />
                     ))
                   ) : (
                     <p className="text-sm py-8 text-center" style={{ color: themeStyles.textSecondary }}>
