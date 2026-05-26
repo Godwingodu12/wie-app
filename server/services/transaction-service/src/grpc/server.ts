@@ -666,23 +666,13 @@ export const verifyBookingQR = async (call: any, callback: any) => {
       });
     }
 
-    // Try exact match first; fall back to internal UUID match for legacy bookings
-    let booking = await prisma.booking.findFirst({
+    // Look up the booking by its external bookingId string
+    const booking = await prisma.booking.findFirst({
       where: {
         bookingId: parsed.bookingId,
         bookingStatus: { in: ["CONFIRMED", "PENDING"] },
       },
     });
-
-    // Fallback: some legacy bookings stored UUID as id not bookingId
-    if (!booking) {
-      booking = await prisma.booking.findFirst({
-        where: {
-          id: parsed.bookingId,
-          bookingStatus: { in: ["CONFIRMED", "PENDING"] },
-        },
-      });
-    }
 
     if (!booking) {
       return callback(null, {
@@ -719,7 +709,6 @@ export const verifyBookingQR = async (call: any, callback: any) => {
       eventTime: eventDet.eventTime || parsed.eventTime || "",
       eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
       venue: eventDet.venue || eventDet.location || parsed.venue || "",
-      // Financials
       totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
       subtotal: parseFloat((booking as any).subtotal?.toString() || "0"),
       // Event image for scanner display
