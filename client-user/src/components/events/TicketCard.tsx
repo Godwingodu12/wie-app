@@ -88,12 +88,16 @@ export const TicketCard: React.FC<TicketCardProps> = ({
   React.useEffect(() => {
     if (!showQR) return;
 
-    // If booking already has a valid data URL QR code, use it
+    // ── Always prefer the server-generated QR (stored as data:image/png;base64,…)
+    // This is the authoritative QR that matches what was scanned at booking time.
     if (booking?.qrCode?.startsWith("data:image/")) {
       setClientQrCode(booking.qrCode);
       return;
     }
 
+    // ── Fallback: regenerate client-side only when the server QR is absent.
+    // Uses TextEncoder → btoa which is byte-identical to Node's
+    // Buffer.from(str, 'utf8').toString('base64').
     const generateClientQR = async () => {
       try {
         const payload = {
@@ -101,25 +105,30 @@ export const TicketCard: React.FC<TicketCardProps> = ({
           userId: (bookingData?.userId || "").toString(),
           ticketId: (bookingData?.ticketId || eventData?.id || eventData?._id || eventData?.ticketId || "").toString(),
           eventName: eventName || "",
-          ticketType: ticketType || bookingData?.ticketType || bookingData?.ticket_type || eventData?.ticketType || "General Admission",
+          ticketType: ticketType || bookingData?.ticketType || bookingData?.ticket_type || "General Admission",
           quantity: Number(displayQuantity) || 1,
-          holderName: bookingData?.userDetails?.userName || bookingData?.userDetails?.name || bookingData?.user_details?.userName || bookingData?.user_details?.name || "GUEST",
+          holderName: bookingData?.userDetails?.name || bookingData?.user_details?.name || "GUEST",
           eventDate: eventData?.eventDate || eventData?.start_date || eventData?.event_dates?.[0]?.start_date || "",
           eventTime: eventData?.eventTime || eventData?.start_time || eventData?.event_dates?.[0]?.start_time || "",
           venue: eventData?.venue || eventData?.location || eventData?.location_name || "",
           paymentMethod: bookingData?.paymentMethod || bookingData?.payment_method || (displayIsFree ? "free" : ""),
           totalAmount: Number(displayTotal) || 0,
-          subtotal: Number(bookingData?.subtotal) || (Number(bookingData?.pricePerTicket || bookingData?.price_per_ticket || 0) * Number(displayQuantity || 1)) || 0,
+          subtotal: Number(bookingData?.subtotal) || 0,
           v: 1,
         };
 
-        const qrString = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+        // Encode exactly like the server: Buffer.from(JSON.stringify(payload)).toString("base64")
+        const jsonStr = JSON.stringify(payload);
+        const bytes = new TextEncoder().encode(jsonStr);
+        let binary = "";
+        bytes.forEach(b => { binary += String.fromCharCode(b); });
+        const qrString = btoa(binary);
 
         const QRCodeLib = await import("qrcode");
         const dataUrl = await QRCodeLib.toDataURL(qrString, {
-          errorCorrectionLevel: "H",
-          width: 400,
-          margin: 2,
+          errorCorrectionLevel: "M",   // Match server setting
+          width: 512,
+          margin: 3,
           color: { dark: "#000000", light: "#FFFFFF" },
         });
         setClientQrCode(dataUrl);
@@ -129,18 +138,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({
     };
 
     generateClientQR();
-  }, [
-    showQR,
-    booking,
-    event,
-    bookingData,
-    eventData,
-    eventName,
-    ticketType,
-    displayQuantity,
-    displayTotal,
-    displayIsFree,
-  ]);
+  }, [showQR, booking?.qrCode]);
 
   const qrCodeUrl = React.useMemo(() => {
     if (!showQR) return "";
