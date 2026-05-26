@@ -14,13 +14,14 @@ import {
   getRehostedEvents,
 } from "../grpc/ticketClient";
 import { getUserById } from "../clients/userServiceClient";
-import { generateQRCode, generateQRCodeWithPayload } from "../utils/qrGenerator";
+import { generateQRCode } from "../utils/qrGenerator";
 import { createNotification } from "../utils/notificationHelper";
 import { LedgerModel } from "../models/ledger.model";
 import { BookingModel, PaymentTransactionModel } from "../models";
 import { calculateFeeBreakdown } from "../utils/platformFeeEngine";
 import { calculateRefund } from "../utils/refundPolicyEngine";
 import { determineSettlementMode } from "../utils/settlementModeEngine";
+
 async function safeUpdateTicketStats(
   ticketId: string,
   field: "like" | "share" | "totalBookings" | "totalTicketsSold" | "revenue",
@@ -49,19 +50,6 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       });
     }
 
-    const existingActiveBooking = await BookingModel.findOne({
-      userId,
-      ticketId,
-      bookingStatus: { in: ["CONFIRMED", "PENDING"] },
-    });
-
-    if (existingActiveBooking) {
-      return res.status(400).json({
-        success: false,
-        message: "You have already registered for this event",
-      });
-    }
-
     const ticket = await getTicketById(ticketId);
     if (!ticket) {
       return res
@@ -76,12 +64,27 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       });
     }
 
-    // restrict_booking: true = allow multiple; false/absent = 1 ticket per person
-    if (!ticket.restrict_booking && quantity > 1) {
-      return res.status(400).json({
-        success: false,
-        message: "Only 1 ticket allowed per person for this event",
+    // restrict_booking: true = restrict to 1 ticket; false/absent = allow multiple
+    if (ticket.restrict_booking) {
+      const existingActiveBooking = await BookingModel.findOne({
+        userId,
+        ticketId,
+        bookingStatus: { in: ["CONFIRMED", "PENDING"] },
       });
+
+      if (existingActiveBooking) {
+        return res.status(400).json({
+          success: false,
+          message: "You have already registered for this event",
+        });
+      }
+
+      if (quantity > 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Only 1 ticket allowed per person for this event",
+        });
+      }
     }
 
     const user = await getUserById(userId);
@@ -124,7 +127,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       },
     });
 
-    const { qrDataURL, qrPayload } = await generateQRCodeWithPayload({
+    const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
@@ -144,9 +147,8 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
     const confirmedBooking = await BookingModel.update(booking.id, {
       paymentStatus: "COMPLETED",
       bookingStatus: "CONFIRMED",
-      qrCode: qrDataURL,
-      qrPayload,
-    } as any);
+      qrCode,
+    });
 
     await safeUpdateTicketStats(ticketId, "totalBookings", 1);
     await safeUpdateTicketStats(ticketId, "totalTicketsSold", quantity);
@@ -164,7 +166,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: "Free event registration successful",
-      data: { booking: confirmedBooking, qrCode: qrDataURL, qrPayload },
+      data: { booking: confirmedBooking, qrCode },
     });
   } catch (error: any) {
     console.error("❌ Error registering for free event:", error);
@@ -236,9 +238,9 @@ export const createBooking = async (req: Request, res: Response) => {
     });
     const totalUserTickets = userExistingBookings._sum.quantity || 0;
 
-    // restrict_booking: true = allow multiple (up to 50); false/absent = 1 ticket per person
-    const multipleAllowed = ticket.restrict_booking === true;
-    if (!multipleAllowed) {
+    // restrict_booking: true = 1 ticket per person; false/absent = allow multiple (up to 50)
+    const restrictBooking = ticket.restrict_booking === true;
+    if (restrictBooking) {
       if (totalUserTickets > 0) {
         return res.status(400).json({
           success: false,
@@ -495,13 +497,20 @@ export const verifyPayment = async (req: Request, res: Response) => {
       razorpayPaymentId,
     );
 
-    const { qrDataURL, qrPayload } = await generateQRCodeWithPayload({
+    // Generate QR code — structured base64 payload (v1)
+    const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
       eventName: (booking.eventDetails as any).eventName || "",
-      location: (booking.eventDetails as any).location || (booking.eventDetails as any).venue || "",
-      venue: (booking.eventDetails as any).venue || (booking.eventDetails as any).location || "",
+      location:
+        (booking.eventDetails as any).location ||
+        (booking.eventDetails as any).venue ||
+        "",
+      venue:
+        (booking.eventDetails as any).venue ||
+        (booking.eventDetails as any).location ||
+        "",
       eventDate: (booking.eventDetails as any).eventDate || "",
       eventTime: (booking.eventDetails as any).eventTime || "",
       quantity: booking.quantity,
@@ -512,16 +521,15 @@ export const verifyPayment = async (req: Request, res: Response) => {
       paymentMethod: paymentDetails.method || "",
     });
 
-    // Confirm booking — store both the image (for display) and the raw payload (for scanning)
+    // Confirm booking
     const updatedBooking = await BookingModel.update(booking.id, {
       paymentStatus: "COMPLETED",
       bookingStatus: "CONFIRMED",
       razorpayPaymentId,
       razorpaySignature,
       paymentMethod: paymentDetails.method,
-      qrCode: qrDataURL,   // PNG data URL — shown in ticket UI
-      qrPayload,                       // raw base64 string — what the scanner actually reads
-    } as any);
+      qrCode,
+    });
 
     await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
       status: "COMPLETED",
@@ -608,7 +616,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: "Payment verified successfully",
-      data: { booking: updatedBooking, qrCode: qrDataURL, qrPayload },
+      data: { booking: updatedBooking, qrCode },
     });
   } catch (error: any) {
     console.error("❌ Error verifying payment:", error);
@@ -672,15 +680,15 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // restrict_booking: true = allow multiple seats; false/absent = 1 seat per person
-    if (!ticket.restrict_booking && selectedSeats.length > 1) {
+    // restrict_booking: true = 1 seat/ticket per person; false/absent = allow multiple
+    if (ticket.restrict_booking && selectedSeats.length > 1) {
       return res.status(400).json({
         success: false,
         message: "Only 1 seat allowed per person for this event",
       });
     }
 
-    if (!ticket.restrict_booking) {
+    if (ticket.restrict_booking) {
       const existingUserBooking = await prisma.booking.findFirst({
         where: {
           userId,
@@ -945,8 +953,8 @@ export const getUserBookings = async (req: Request, res: Response) => {
         groupId: booking.groupId || "",
         v: 1,
       };
-      const storedQrPayload = (booking as any).qrPayload || null;
-      return { ...booking, qrPayload: storedQrPayload || qrPayload };
+
+      return { ...booking, qrPayload };
     });
 
     res.status(200).json({
@@ -1039,14 +1047,12 @@ export const getBookingById = async (req: Request, res: Response) => {
       v: 1,
     };
 
-    const storedQrPayload = (booking as any).qrPayload || null;
     res.status(200).json({
       success: true,
       data: {
         booking: {
           ...booking,
-          qrPayload: storedQrPayload || qrPayload,
-          qrCode: (booking as any).qrCode || null,
+          qrPayload,
           event_link: eventLink,
           event_code: eventCode,
         },
@@ -1813,13 +1819,10 @@ export const markAsRead = async (req: Request, res: Response) => {
 export const countUnread = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-
     const counts = await BookingModel.countUnread(userId);
-
     res.status(200).json({ success: true, data: counts });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
