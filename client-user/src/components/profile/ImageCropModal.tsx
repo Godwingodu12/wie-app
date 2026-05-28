@@ -31,6 +31,31 @@ export default function ImageCropModal({
   });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
 
+  const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { width, height } = e.currentTarget;
+    const size = Math.min(width, height) * 0.9;
+    const x = (width - size) / 2;
+    const y = (height - size) / 2;
+
+    const initialCompletedCrop: PixelCrop = {
+      unit: "px",
+      x,
+      y,
+      width: size,
+      height: size,
+    };
+
+    setCompletedCrop(initialCompletedCrop);
+
+    setCrop({
+      unit: "%",
+      x: (x / width) * 100,
+      y: (y / height) * 100,
+      width: (size / width) * 100,
+      height: (size / height) * 100,
+    });
+  };
+
   const getCroppedImg = useCallback(async () => {
     if (!completedCrop || !imgRef.current) return null;
 
@@ -116,6 +141,7 @@ export default function ImageCropModal({
                 ref={imgRef}
                 src={imageSrc}
                 alt="Crop"
+                onLoad={onImageLoad}
                 style={{ maxHeight: "60vh", maxWidth: "100%" }}
               />
             </ReactCrop>
