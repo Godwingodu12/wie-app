@@ -363,7 +363,6 @@ export const setupProfile = async (
       .json({ message: "Failed to setup profile", error: error.message });
   }
 };
-
 export const googleAuth = async (
   req: Request,
   res: Response,
@@ -397,6 +396,7 @@ export const googleCallback = async (
       );
       return;
     }
+
     const googleUser = await getGoogleUserInfo(code);
     if (!googleUser.verified_email) {
       res.redirect(
@@ -404,62 +404,64 @@ export const googleCallback = async (
       );
       return;
     }
+
     let user = await WIEUSER.findByGoogleId(googleUser.id);
+
     if (!user) {
       const existingUser = await WIEUSER.findByEmail(googleUser.email);
+
       if (existingUser) {
         if (
           existingUser.auth_provider === "local" ||
           !existingUser.auth_provider
         ) {
+          // Local user signing in with Google for the first time — link accounts
+          // ✅ Keep existing profile_picture; only use Google's if none set
           user = await WIEUSER.linkGoogleAccount(existingUser.id, {
             google_id: googleUser.id,
             profile_picture:
-              googleUser.picture || existingUser.profile_picture || undefined,
+              existingUser.profile_picture ||   // ✅ prefer existing picture
+              googleUser.picture ||
+              undefined,
             auth_provider: "hybrid",
           });
-        } else if (existingUser.auth_provider === "google") {
+
+        } else if (
+          existingUser.auth_provider === "google" ||
+          existingUser.auth_provider === "hybrid"
+        ) {
+          // Already linked — just use existing user, never touch the picture
           user = existingUser;
-        } else if (existingUser.auth_provider === "hybrid") {
-          user = existingUser;
-          if (
-            googleUser.picture &&
-            user.profile_picture !== googleUser.picture
-          ) {
-            user = await WIEUSER.updateProfile(user.id, {
-              profile_picture: googleUser.picture,
-            });
-          }
+
         } else {
           res.redirect(
             `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("An account with this email already exists with a different login method.")}`,
           );
           return;
         }
+
       } else {
+        // Brand new user — create with Google picture
         user = await WIEUSER.create({
           email: googleUser.email,
           name: googleUser.name,
-          profile_picture: googleUser.picture,
+          profile_picture: googleUser.picture,  // ✅ fine for new users
           google_id: googleUser.id,
           auth_provider: "google",
           password: undefined,
         });
       }
-    } else {
-      // Update existing Google user's profile picture if changed
-      if (googleUser.picture && user.profile_picture !== googleUser.picture) {
-        user = await WIEUSER.updateProfile(user.id, {
-          profile_picture: googleUser.picture,
-        });
-      }
+
     }
+    // ✅ Existing Google user found by google_id — never update picture on login
+
     if (user.is_blocked) {
       res.redirect(
         `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Your account has been blocked. Please contact support.")}`,
       );
       return;
     }
+
     await WIEUSER.updateOnlineStatus(user.id, true);
     const token = generateToken(user);
     const userData = {
@@ -473,6 +475,7 @@ export const googleCallback = async (
       is_verified: user.is_verified,
       auth_provider: user.auth_provider,
     };
+
     const encodedUser = encodeURIComponent(JSON.stringify(userData));
     res.redirect(
       `${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`,
