@@ -108,7 +108,7 @@ const startServer = async (): Promise<void> => {
     app.listen(PORT, () => {
       console.log(`🚀 Connection Service HTTP  → http://localhost:${PORT}`);
     });
-
+    console.log(`🔗 Face detector URL: ${process.env.FACE_DETECTOR_URL}`);
     await startGRPCServer(Number(GRPC_PORT));
     console.log(`🚀 Connection Service gRPC  → port ${GRPC_PORT}`);
   } catch (error: any) {
