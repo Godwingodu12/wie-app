@@ -74,7 +74,9 @@ export async function registerFaceEmbeddings(
       embeddings_stored: response.data.embeddings_stored,
     };
   } catch (err: any) {
-    const detail = err.response?.data?.detail || err.message;
+    const detail =
+      err.response?.data?.detail ||
+      "Failed to register face embeddings due to an internal service error.";
     return { success: false, error: detail };
   }
 }
@@ -106,7 +108,9 @@ export async function startVerificationSession(
       expires_in_seconds: response.data.expires_in_seconds,
     };
   } catch (err: any) {
-    const detail = err.response?.data?.detail || err.message;
+    const detail =
+      err.response?.data?.detail ||
+      "Failed to register face embeddings due to an internal service error.";
     return { success: false, error: detail };
   }
 }
