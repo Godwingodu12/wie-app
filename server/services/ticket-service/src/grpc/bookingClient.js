@@ -202,3 +202,37 @@ export const verifyBookingQR = (qrData) => {
     );
   });
 };
+
+export const getEventUserResponses = (ticketId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetEventUserResponses(
+      { ticket_id: ticketId },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getEventUserResponses error:', error.message);
+          resolve({ success: false, responses: [], count: 0 });
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};
+
+export const getBookingAddons = (bookingId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetBookingAddons(
+      { booking_id: bookingId },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getBookingAddons error:', error.message);
+          resolve({ success: false });
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};
