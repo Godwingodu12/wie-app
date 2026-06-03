@@ -52,9 +52,7 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
 
     const ticket = await getTicketById(ticketId);
     if (!ticket) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Ticket not found" });
+      return res.status(404).json({ success: false, message: "Ticket not found" });
     }
 
     if (ticket.payment_type !== "free") {
@@ -64,12 +62,13 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       });
     }
 
-    // restrict_booking: true = restrict to 1 ticket; false/absent = allow multiple
-    if (ticket.restrict_booking) {
+    // restrict_booking OR seating event = restrict to 1 ticket per person
+    const isRestricted = ticket.restrict_booking || !!ticket.seating_layout;
+    if (isRestricted) {
       const existingActiveBooking = await BookingModel.findOne({
         userId,
         ticketId,
-        bookingStatus: { in: ["CONFIRMED", "PENDING"] },
+        bookingStatus: "CONFIRMED",
       });
 
       if (existingActiveBooking) {
@@ -88,86 +87,229 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
     }
 
     const user = await getUserById(userId);
+    const { questionAnswers, foodAddon, accommodationAddon } = req.body;
 
-    const bookingId = `FR${Date.now()}${Math.random()
-      .toString(36)
-      .substr(2, 9)
-      .toUpperCase()}`;
+    // Validate question answers
+    if (ticket.question_data) {
+      const qd = ticket.question_details || {};
+      const qa = questionAnswers || {};
+      const missing: string[] = [];
 
-    // Free event — all amounts are 0, no platform fee
+      if (qd.name && !qa.name?.trim()) missing.push('name');
+      if (qd.email && !qa.email?.trim()) missing.push('email');
+      if (qd.phone_number && !qa.phone_number?.trim()) missing.push('phone_number');
+      if (qd.position && !qa.position?.trim()) missing.push('position');
+
+      if (Array.isArray(qd.custom_questions)) {
+        const customAnswers = qa.custom_answers || qa.customAnswers || {};
+        qd.custom_questions.forEach((q: any) => {
+          if (q.is_required) {
+            const val = customAnswers[q.question_id] ?? customAnswers[q.question_text];
+            if (val === undefined || val === null || String(val).trim() === '') {
+              missing.push(q.question_text || q.question_id);
+            }
+          }
+        });
+      }
+
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please fill all required event questions before booking',
+          missingFields: missing,
+        });
+      }
+    }
+
+    // Calculate addon amounts
+    let foodAddonAmount = 0;
+    let accommodationAddonAmount = 0;
+
+    if (ticket.food_accoum) {
+      if (foodAddon?.selected && typeof foodAddon.index === 'number') {
+        const foodItem = ticket.food_details?.[foodAddon.index];
+        if (foodItem) foodAddonAmount = Number(foodItem.food_price) || 0;
+      }
+      if (accommodationAddon?.selected && typeof accommodationAddon.index === 'number') {
+        const accItem = ticket.accommodation_details?.[accommodationAddon.index];
+        if (accItem) accommodationAddonAmount = Number(accItem.accommodation_price) || 0;
+      }
+    }
+
+    const totalAmount = foodAddonAmount + accommodationAddonAmount;
+
+    const bookingId = `FR${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+    // Get selectedSeats from request body (present for seated free events)
+    const { selectedSeats } = req.body;
+
     const booking = await BookingModel.create({
       bookingId,
       userId,
       ticketId,
       groupId: ticket.groupId,
-      ticketType: ticketTypeId || "Free Entry",
+      ticketType: ticketTypeId || 'Free Entry',
       quantity,
       pricePerTicket: 0,
       subtotal: 0,
       tax: 0,
       platformFee: 0,
-      totalAmount: 0,
-      currency: "INR",
+      totalAmount,
+      food_addon_amount: foodAddonAmount,
+      accommodation_addon_amount: accommodationAddonAmount,
+      currency: 'INR',
       userDetails: {
-        name: user.name || "",
-        email: user.email || "",
-        phone: user.contactNo || "",
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.contactNo || '',
       },
       eventDetails: {
         eventName: ticket.event_name,
-        eventDate: ticket.event_dates[0]?.start_date || "",
-        eventTime: ticket.event_dates[0]?.start_time || "",
-        eventEndDate:
-          ticket.event_dates[ticket.event_dates.length - 1]?.end_date || "",
-        venue: ticket.venue || ticket.location || "",
-        location: ticket.location || ticket.venue || "",
-        event_portrait: ticket.event_portrait || "",
-        event_banner: ticket.event_banner || "",
-        image: ticket.event_portrait || ticket.event_banner || "",
+        eventDate: ticket.event_dates[0]?.start_date || '',
+        eventTime: ticket.event_dates[0]?.start_time || '',
+        eventEndDate: ticket.event_dates[ticket.event_dates.length - 1]?.end_date || '',
+        venue: ticket.venue || ticket.location || '',
+        location: ticket.location || ticket.venue || '',
+        event_portrait: ticket.event_portrait || '',
+        event_banner: ticket.event_banner || '',
+        image: ticket.event_portrait || ticket.event_banner || '',
+      },
+      // ── Seat details for free seated events
+      ...(selectedSeats && selectedSeats.length > 0 ? {
+        selectedSeats,
+        seatDetails: { selectedSeats, seats: [] },
+      } : {}),
+      paymentStatus: totalAmount > 0 ? 'PENDING' : 'COMPLETED',
+      bookingStatus: totalAmount > 0 ? 'PENDING' : 'CONFIRMED',
+    });
+
+    // ── FREE with NO addons → confirm immediately, return QR ────────────
+    if (totalAmount === 0) {
+      const qrCode = await generateQRCode({
+        bookingId: booking.bookingId,
+        userId: booking.userId,
+        ticketId: booking.ticketId,
+        eventName: ticket.event_name || '',
+        location: ticket.location || ticket.venue || '',
+        venue: ticket.venue || ticket.location || '',
+        eventDate: ticket.event_dates[0]?.start_date || '',
+        eventTime: ticket.event_dates[0]?.start_time || '',
+        quantity: booking.quantity,
+        userName: user.name || '',
+        ticketType: booking.ticketType || 'Free Entry',
+        pricePerTicket: 0,
+        totalAmount: 0,
+        paymentMethod: 'free',
+        foodAddonAmount: 0,
+        accommodationAddonAmount: 0,
+      });
+
+      const confirmedBooking = await BookingModel.update(booking.id, {
+        paymentStatus: 'COMPLETED',
+        bookingStatus: 'CONFIRMED',
+        qrCode,
+      });
+
+      await _saveEventUserResponse({
+        bookingId: booking.bookingId,
+        ticketId,
+        groupId: String(ticket.groupId),
+        userId,
+        ticket,
+        questionAnswers,
+        foodAddon,
+        accommodationAddon,
+      });
+
+      await safeUpdateTicketStats(ticketId, 'totalBookings', 1);
+      await safeUpdateTicketStats(ticketId, 'totalTicketsSold', quantity);
+
+      await createNotification({
+        userId,
+        type: "booking_confirmed",
+        title: "Registration Confirmed!",
+        message: `Your registration for ${ticket.event_name} is confirmed`,
+        bookingId: String(booking.id),
+        ticketId,
+        link: `/bookings/${booking.id}`,
+      });
+
+      return res.status(201).json({
+        success: true,
+        requiresPayment: false,
+        message: "Free event registration successful",
+        data: { booking: confirmedBooking, qrCode },
+      });
+    }
+
+    // ── FREE with PAID addons → create Razorpay order ────────────────────
+    const razorpay = RazorpayService.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!,
+    );
+
+    const razorpayOrder = await RazorpayService.createOrder(
+      razorpay,
+      totalAmount,
+      "INR",
+      bookingId,
+      {
+        bookingId: booking.id,
+        userId,
+        ticketId,
+        eventName: ticket.event_name,
+        platformFee: 0,
+        organizationAmount: totalAmount,
+        addonPayment: true,
+      },
+    );
+
+    await BookingModel.update(booking.id, {
+      razorpayOrderId: razorpayOrder.id,
+    });
+
+    await PaymentTransactionModel.create({
+      bookingId: booking.id,
+      razorpayOrderId: razorpayOrder.id,
+      amount: totalAmount,
+      currency: "INR",
+      status: "PENDING",
+    });
+
+    // Save question answers now (payment pending)
+    await _saveEventUserResponse({
+      bookingId: booking.bookingId,
+      ticketId,
+      groupId: String(ticket.groupId),
+      userId,
+      ticket,
+      questionAnswers,
+      foodAddon,
+      accommodationAddon,
+    });
+
+    return res.status(201).json({
+      success: true,
+      requiresPayment: true,
+      message: "Addon payment required",
+      data: {
+        booking: {
+          id: booking.id,
+          bookingId: booking.bookingId,
+          totalAmount,
+          food_addon_amount: foodAddonAmount,
+          accommodation_addon_amount: accommodationAddonAmount,
+          currency: 'INR',
+        },
+        razorpayOrder: {
+          id: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+        },
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID,
       },
     });
 
-    const qrCode = await generateQRCode({
-      bookingId: booking.bookingId,
-      userId: booking.userId,
-      ticketId: booking.ticketId,
-      eventName: ticket.event_name || "",
-      location: ticket.location || ticket.venue || "",
-      venue: ticket.venue || ticket.location || "",
-      eventDate: ticket.event_dates[0]?.start_date || "",
-      eventTime: ticket.event_dates[0]?.start_time || "",
-      quantity: booking.quantity,
-      userName: user.name || "",
-      ticketType: booking.ticketType || "Free Entry",
-      pricePerTicket: 0,
-      totalAmount: 0,
-      paymentMethod: "free",
-    });
-
-    const confirmedBooking = await BookingModel.update(booking.id, {
-      paymentStatus: "COMPLETED",
-      bookingStatus: "CONFIRMED",
-      qrCode,
-    });
-
-    await safeUpdateTicketStats(ticketId, "totalBookings", 1);
-    await safeUpdateTicketStats(ticketId, "totalTicketsSold", quantity);
-
-    await createNotification({
-      userId,
-      type: "booking_confirmed",
-      title: "Registration Confirmed!",
-      message: `Your registration for ${ticket.event_name} is confirmed`,
-      bookingId: String(booking.id),
-      ticketId,
-      link: `/bookings/${booking.id}`,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Free event registration successful",
-      data: { booking: confirmedBooking, qrCode },
-    });
   } catch (error: any) {
     console.error("❌ Error registering for free event:", error);
     res.status(500).json({ success: false, message: error.message });
@@ -227,12 +369,11 @@ export const createBooking = async (req: Request, res: Response) => {
       }
     }
 
-    // Check per-user ticket limit
     const userExistingBookings = await prisma.booking.aggregate({
       where: {
         userId,
         ticketId,
-        bookingStatus: { in: ["CONFIRMED", "PENDING"] },
+        bookingStatus: "CONFIRMED",
       },
       _sum: { quantity: true },
     });
@@ -246,6 +387,34 @@ export const createBooking = async (req: Request, res: Response) => {
           success: false,
           message: "Only 1 ticket allowed per person for this event",
         });
+      }
+      // Cancel any abandoned PENDING bookings for this user+ticket 
+      // This happens when user opened Razorpay and clicked back without paying.
+      // We cancel the stale PENDING booking so they can try again cleanly.
+      try {
+        const stalePending = await prisma.booking.findFirst({
+          where: {
+            userId,
+            ticketId,
+            bookingStatus: "PENDING",
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (stalePending) {
+          await prisma.booking.update({
+            where: { id: stalePending.id },
+            data: {
+              bookingStatus: "CANCELLED",
+              cancellationReason: "Payment abandoned — user returned to booking",
+              cancelledAt: new Date(),
+            },
+          });
+          console.log(`🔄 Auto-cancelled stale PENDING booking ${stalePending.bookingId} for user ${userId}`);
+        }
+      } catch (err: any) {
+        console.warn("⚠️ Could not auto-cancel stale pending booking:", err.message);
+        // Non-fatal — proceed with new booking attempt
       }
       if (quantity > 1) {
         return res.status(400).json({
@@ -262,15 +431,68 @@ export const createBooking = async (req: Request, res: Response) => {
 
     const user = await getUserById(userId);
     const group = await getGroupById(ticket.groupId);
+    // ── Validate question_data answers
+    const { questionAnswers, foodAddon, accommodationAddon } = req.body;
+
+    if (ticket.question_data) {
+      const qd = ticket.question_details || {};
+      const qa = questionAnswers || {};
+      const missing: string[] = [];
+
+      // Standard predefined fields
+      if (qd.name && !qa.name?.trim()) missing.push('name');
+      if (qd.email && !qa.email?.trim()) missing.push('email');
+      if (qd.phone_number && !qa.phone_number?.trim()) missing.push('phone_number');
+      if (qd.position && !qa.position?.trim()) missing.push('position');
+
+      // Custom questions — validate required ones
+      if (Array.isArray(qd.custom_questions)) {
+        const customAnswers = qa.custom_answers || qa.customAnswers || {};
+        qd.custom_questions.forEach((q: any) => {
+          if (q.is_required) {
+            const val = customAnswers[q.question_id] ?? customAnswers[q.question_text];
+            if (val === undefined || val === null || String(val).trim() === '') {
+              missing.push(q.question_text || q.question_id);
+            }
+          }
+        });
+      }
+
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please fill all required event questions before booking',
+          missingFields: missing,
+        });
+      }
+    }
+
+    // Add-on amounts 
+    let foodAddonAmount = 0;
+    let accommodationAddonAmount = 0;
+
+    if (ticket.food_accoum) {
+      if (foodAddon?.selected && typeof foodAddon.index === 'number') {
+        const foodItem = ticket.food_details?.[foodAddon.index];
+        if (foodItem) foodAddonAmount = Number(foodItem.food_price) || 0;
+      }
+      if (accommodationAddon?.selected && typeof accommodationAddon.index === 'number') {
+        const accItem = ticket.accommodation_details?.[accommodationAddon.index];
+        if (accItem) accommodationAddonAmount = Number(accItem.accommodation_price) || 0;
+      }
+    }
+
     // ticket_price already contains GST if organiser enabled it — we never add tax here
     const fees = calculateFeeBreakdown(ticketType.ticket_price, quantity);
     const {
       ticketSubtotal: subtotal,
       platformFee,
       gatewayFeeAbsorbed,
-      totalAmount,
     } = fees;
-    const convenienceFee = gatewayFeeAbsorbed; // internal accounting only — not shown to user
+    const convenienceFee = gatewayFeeAbsorbed;
+    const totalAmount = parseFloat(
+      (subtotal + platformFee + foodAddonAmount + accommodationAddonAmount).toFixed(2)
+    );
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
@@ -297,6 +519,8 @@ export const createBooking = async (req: Request, res: Response) => {
       subtotal, // ticket_price × qty (GST already inside if organiser set it)
       tax: 0, // GST is the organiser's responsibility — not tracked here
       platformFee, // ₹5 flat WIE fee — shown to user as "Convenience Fee"
+      food_addon_amount: foodAddonAmount,
+      accommodation_addon_amount: accommodationAddonAmount,
       totalAmount, // ticketSubtotal + platformFee
       currency: "INR",
       userDetails: {
@@ -322,6 +546,7 @@ export const createBooking = async (req: Request, res: Response) => {
       refundPolicyId: "DEFAULT",
       financialState: "CREATED",
     });
+
     const razorpay = RazorpayService.getInstance(
       process.env.RAZORPAY_KEY_ID!,
       process.env.RAZORPAY_KEY_SECRET!,
@@ -396,6 +621,17 @@ export const createBooking = async (req: Request, res: Response) => {
       currency: "INR",
       status: "PENDING",
     });
+    //Save question answers + addon selections (pending payment — saved now, confirmed on verify) ──
+    await _saveEventUserResponse({
+      bookingId: booking.bookingId,
+      ticketId,
+      groupId: String(ticket.groupId),
+      userId,
+      ticket,
+      questionAnswers: req.body.questionAnswers,
+      foodAddon: req.body.foodAddon,
+      accommodationAddon: req.body.accommodationAddon,
+    });
 
     res.status(201).json({
       success: true,
@@ -411,17 +647,38 @@ export const createBooking = async (req: Request, res: Response) => {
           feeBreakdown: {
             lines: [
               {
-                label: "Ticket price",
+                label: 'Ticket price',
                 amount: subtotal,
-                note: `₹${ticketType.ticket_price} × ${quantity} (GST included if applicable)`,
+                note: `₹${ticketType.ticket_price} × ${quantity}${ticketType ? ' (GST incl.)' : ''}`,
               },
               {
-                label: "Convenience fee",
+                label: 'Convenience fee',
                 amount: platformFee,
-                note: "WIE platform fee",
+                note: 'WIE platform fee',
               },
+              // ✅ Food addon line — only if user selected food
+              ...(foodAddonAmount > 0
+                ? [{
+                  label: 'Food package',
+                  amount: foodAddonAmount,
+                  note: 'Selected catering package',
+                }]
+                : []),
+              // ✅ Accommodation addon line — only if user selected accommodation
+              ...(accommodationAddonAmount > 0
+                ? [{
+                  label: 'Accommodation',
+                  amount: accommodationAddonAmount,
+                  note: 'Selected lodging package',
+                }]
+                : []),
             ],
-            total: totalAmount,
+            subtotal,                    // ticket value only
+            platformFee,
+            foodAddonAmount,
+            accommodationAddonAmount,
+            addonTotal: foodAddonAmount + accommodationAddonAmount,
+            total: totalAmount,          // grand total (what Razorpay charges)
           },
         },
         razorpayOrder: {
@@ -497,28 +754,27 @@ export const verifyPayment = async (req: Request, res: Response) => {
       razorpayPaymentId,
     );
 
-    // Generate QR code — structured base64 payload (v1)
+    // Fetch addon amounts for QR enrichment
+    const foodAddonAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+    const accAddonAmt = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+
     const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
       userId: booking.userId,
       ticketId: booking.ticketId,
-      eventName: (booking.eventDetails as any).eventName || "",
-      location:
-        (booking.eventDetails as any).location ||
-        (booking.eventDetails as any).venue ||
-        "",
-      venue:
-        (booking.eventDetails as any).venue ||
-        (booking.eventDetails as any).location ||
-        "",
-      eventDate: (booking.eventDetails as any).eventDate || "",
-      eventTime: (booking.eventDetails as any).eventTime || "",
+      eventName: (booking.eventDetails as any).eventName || '',
+      location: (booking.eventDetails as any).location || (booking.eventDetails as any).venue || '',
+      venue: (booking.eventDetails as any).venue || (booking.eventDetails as any).location || '',
+      eventDate: (booking.eventDetails as any).eventDate || '',
+      eventTime: (booking.eventDetails as any).eventTime || '',
       quantity: booking.quantity,
-      userName: (booking.userDetails as any)?.name || "",
-      ticketType: booking.ticketType || "",
+      userName: (booking.userDetails as any)?.name || '',
+      ticketType: booking.ticketType || '',
       pricePerTicket: Number(booking.pricePerTicket),
       totalAmount: Number(booking.totalAmount),
-      paymentMethod: paymentDetails.method || "",
+      paymentMethod: paymentDetails.method || '',
+      foodAddonAmount: foodAddonAmt,
+      accommodationAddonAmount: accAddonAmt,
     });
 
     // Confirm booking
@@ -546,22 +802,27 @@ export const verifyPayment = async (req: Request, res: Response) => {
     });
 
     // Update ticket stats
-    await safeUpdateTicketStats(booking.ticketId, "totalBookings", 1);
-    await safeUpdateTicketStats(
-      booking.ticketId,
-      "totalTicketsSold",
-      booking.quantity,
-    );
-    await safeUpdateTicketStats(
-      booking.ticketId,
-      "revenue",
-      parseFloat(booking.subtotal.toString()), // only ticket value (host's share) as revenue
-    );
+    await safeUpdateTicketStats(booking.ticketId, 'totalBookings', 1);
+    await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', booking.quantity);
+    // Only track revenue for non-zero subtotal.
+    // Free events with only addon payment should not count as ticket revenue.
+    const bookingSubtotal = parseFloat(booking.subtotal.toString());
+    if (bookingSubtotal > 0) {
+      await safeUpdateTicketStats(booking.ticketId, 'revenue', bookingSubtotal);
+    }
     await createNotification({
       userId,
-      type: "payment_success",
-      title: "Booking Confirmed!",
-      message: `Your booking for ${(booking.eventDetails as any).eventName} is confirmed. Payment of ₹${booking.totalAmount} received.`,
+      type: 'payment_success',
+      title: 'Booking Confirmed!',
+      message: (() => {
+        const addonAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0') +
+          parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+        const ticketAmt = parseFloat(booking.subtotal.toString());
+        if (ticketAmt === 0 && addonAmt > 0) {
+          return `Your free registration for ${(booking.eventDetails as any).eventName} is confirmed. Add-on payment of ₹${addonAmt.toFixed(2)} received.`;
+        }
+        return `Your booking for ${(booking.eventDetails as any).eventName} is confirmed. Payment of ₹${booking.totalAmount} received.`;
+      })(),
       bookingId: String(booking.id),
       ticketId: booking.ticketId,
       link: `/bookings/${booking.id}`,
@@ -613,10 +874,28 @@ export const verifyPayment = async (req: Request, res: Response) => {
       referenceId: razorpayPaymentId,
     });
 
+    // ── Fetch EventUserResponse (question answers + addon selections) ──────
+    let eventUserResponse = null;
+    try {
+      eventUserResponse = await BookingModel.getEventUserResponseByBookingId(booking.bookingId);
+    } catch { /* non-fatal */ }
     res.status(200).json({
       success: true,
-      message: "Payment verified successfully",
-      data: { booking: updatedBooking, qrCode },
+      message: 'Payment verified successfully',
+      data: {
+        booking: updatedBooking,
+        qrCode,
+        eventUserResponse,
+        addonSummary: {
+          hasFoodAddon: foodAddonAmt > 0,
+          hasAccommodationAddon: accAddonAmt > 0,
+          foodAddonAmount: foodAddonAmt,
+          accommodationAddonAmount: accAddonAmt,
+          ticketSubtotal: parseFloat(booking.subtotal.toString()),
+          platformFee: parseFloat(booking.platformFee.toString()),
+          grandTotal: parseFloat(booking.totalAmount.toString()),
+        },
+      },
     });
   } catch (error: any) {
     console.error("❌ Error verifying payment:", error);
@@ -688,12 +967,32 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       });
     }
 
+    // ── Cancel stale PENDING seated bookings before new attempt
+    try {
+      const stalePending = await prisma.booking.findFirst({
+        where: { userId, ticketId, bookingStatus: "PENDING" },
+        orderBy: { createdAt: "desc" },
+      });
+      if (stalePending) {
+        await prisma.booking.update({
+          where: { id: stalePending.id },
+          data: {
+            bookingStatus: "CANCELLED",
+            cancellationReason: "Payment abandoned — user returned to seat selection",
+            cancelledAt: new Date(),
+          },
+        });
+      }
+    } catch (err: any) {
+      console.warn("⚠️ Could not auto-cancel stale seated pending booking:", err.message);
+    }
+
     if (ticket.restrict_booking) {
       const existingUserBooking = await prisma.booking.findFirst({
         where: {
           userId,
           ticketId,
-          bookingStatus: { in: ["CONFIRMED", "PENDING"] },
+          bookingStatus: "CONFIRMED",
         },
       });
       if (existingUserBooking) {
@@ -706,6 +1005,54 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
 
     const user = await getUserById(userId);
     const group = await getGroupById(ticket.groupId);
+    // Validate question_data answers
+    const { questionAnswers, foodAddon, accommodationAddon } = req.body;
+    if (ticket.question_data) {
+      const qd = ticket.question_details || {};
+      const qa = questionAnswers || {};
+      const missing: string[] = [];
+
+      // Standard predefined fields
+      if (qd.name && !qa.name?.trim()) missing.push('name');
+      if (qd.email && !qa.email?.trim()) missing.push('email');
+      if (qd.phone_number && !qa.phone_number?.trim()) missing.push('phone_number');
+      if (qd.position && !qa.position?.trim()) missing.push('position');
+
+      // Custom questions — validate required ones
+      if (Array.isArray(qd.custom_questions)) {
+        const customAnswers = qa.custom_answers || qa.customAnswers || {};
+        qd.custom_questions.forEach((q: any) => {
+          if (q.is_required) {
+            const val = customAnswers[q.question_id] ?? customAnswers[q.question_text];
+            if (val === undefined || val === null || String(val).trim() === '') {
+              missing.push(q.question_text || q.question_id);
+            }
+          }
+        });
+      }
+
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please fill all required event questions before booking',
+          missingFields: missing,
+        });
+      }
+    }
+
+    // Add-on amounts
+    let foodAddonAmount = 0;
+    let accommodationAddonAmount = 0;
+    if (ticket.food_accoum) {
+      if (foodAddon?.selected && typeof foodAddon.index === 'number') {
+        const fi = ticket.food_details?.[foodAddon.index];
+        if (fi) foodAddonAmount = Number(fi.food_price) || 0;
+      }
+      if (accommodationAddon?.selected && typeof accommodationAddon.index === 'number') {
+        const ai = ticket.accommodation_details?.[accommodationAddon.index];
+        if (ai) accommodationAddonAmount = Number(ai.accommodation_price) || 0;
+      }
+    }
 
     // Build seat details and calculate subtotal from seat prices
     let subtotal = 0;
@@ -740,8 +1087,7 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
     const platformFee = seatedFees.platformFee;
     const convenienceFee = seatedFees.gatewayFeeAbsorbed; // internal accounting only
     // Recalculate using actual subtotal (not avg-rounded value from engine)
-    const totalAmount = parseFloat((subtotal + platformFee).toFixed(2));
-
+    const totalAmount = parseFloat((subtotal + platformFee + foodAddonAmount + accommodationAddonAmount).toFixed(2));
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
@@ -787,6 +1133,8 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       },
       selectedSeats,
       seatDetails: { selectedSeats, seats: seatDetails },
+      food_addon_amount: foodAddonAmount,
+      accommodation_addon_amount: accommodationAddonAmount,
     });
 
     const razorpay = RazorpayService.getInstance(
@@ -822,7 +1170,17 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       currency: "INR",
       status: "PENDING",
     });
-
+    // Save question answers + addon selections
+    await _saveEventUserResponse({
+      bookingId: booking.bookingId,
+      ticketId,
+      groupId: String(ticket.groupId),
+      userId,
+      ticket,
+      questionAnswers,
+      foodAddon,
+      accommodationAddon,
+    });
     res.status(201).json({
       success: true,
       message: "Seated booking created successfully",
@@ -834,13 +1192,17 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
           platformFee: booking.platformFee,
           tax: 0,
           convenienceFee: convenienceFee,
+          food_addon_amount: foodAddonAmount,
+          accommodation_addon_amount: accommodationAddonAmount,
           totalAmount: booking.totalAmount,
           currency: booking.currency,
           seatDetails,
           feeBreakdown: {
-            subtotal, // GST-inclusive seat total
-            platformFee, // WIE flat fee
-            convenienceFee, // internal: gateway fee WIE absorbs
+            subtotal,
+            platformFee,
+            convenienceFee,
+            foodAddonAmount,
+            accommodationAddonAmount,
             total: totalAmount,
           },
         },
@@ -874,6 +1236,7 @@ export const getBookedSeats = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const checkUserBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -883,16 +1246,38 @@ export const checkUserBooking = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const existingBooking = await BookingModel.findOne({
-      userId,
-      ticketId,
-      bookingStatus: { in: ["CONFIRMED", "PENDING"] },
-    });
+    // Fetch confirmed booking and event metadata in parallel
+    const [existingBooking, ticket] = await Promise.all([
+      BookingModel.findOne({ userId, ticketId, bookingStatus: "CONFIRMED" }),
+      getTicketById(ticketId).catch(() => null), // non-fatal if ticket service is down
+    ]);
+
+    // Only check pending if no confirmed booking
+    const pendingBooking = !existingBooking
+      ? await BookingModel.findOne({ userId, ticketId, bookingStatus: "PENDING" })
+      : null;
+
+    // Derive whether this event type forces "View Ticket" for any confirmed user
+    const isFreeEvent = ticket?.payment_type === "free";
+    const isRestrictedEvent = ticket?.restrict_booking === true;
+
+    // showViewTicket = true means the frontend must show "View Ticket" button
+    // (not "Book Tickets") when hasBooked is true
+    const showViewTicket = !!existingBooking && (isFreeEvent || isRestrictedEvent);
 
     res.status(200).json({
       success: true,
       hasBooked: !!existingBooking,
+      hasPending: !!pendingBooking,
       booking: existingBooking || null,
+      // Event metadata for button display decisions
+      eventMeta: {
+        isFreeEvent,
+        isRestrictedEvent,
+        showViewTicket,
+        paymentType: ticket?.payment_type || null,
+        restrictBooking: ticket?.restrict_booking || false,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -914,53 +1299,61 @@ export const getUserBookings = async (req: Request, res: Response) => {
       skip: parseInt(skip as string),
     });
 
-    // Build qrPayload for each booking (mirrors getBookingById logic)
     const enrichedBookings = result.bookings.map((booking: any) => {
       const eventDet = booking.eventDetails || {};
       const userDet = booking.userDetails || {};
       const rawPaymentMethod =
         booking.paymentMethod ||
         booking.paymentTransaction?.method ||
-        booking.PaymentTransaction?.method ||
-        "";
-
+        booking.PaymentTransaction?.method || '';
       const qrPayload = {
         bookingId: booking.bookingId || String(booking.id),
         userId: booking.userId,
         ticketId: booking.ticketId,
-        eventName: eventDet.eventName || "",
-        ticketType: booking.ticketType || "",
+        eventName: eventDet.eventName || '',
+        ticketType: booking.ticketType || '',
         quantity: booking.quantity || 1,
-        holderName: userDet.name || "",
-        userEmail: userDet.email || "",
-        userPhone: userDet.phone || userDet.contact || "",
-        eventDate: eventDet.eventDate || eventDet.start_date || "",
-        eventTime: eventDet.eventTime || eventDet.start_time || "",
-        eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
-        venue: eventDet.venue || eventDet.location || "",
-        location: eventDet.location || eventDet.venue || "",
+        holderName: userDet.name || '',
+        userEmail: userDet.email || '',
+        userPhone: userDet.phone || userDet.contact || '',
+        eventDate: eventDet.eventDate || eventDet.start_date || '',
+        eventTime: eventDet.eventTime || eventDet.start_time || '',
+        eventEndDate: eventDet.eventEndDate || eventDet.end_date || '',
+        venue: eventDet.venue || eventDet.location || '',
+        location: eventDet.location || eventDet.venue || '',
         paymentMethod: rawPaymentMethod,
-        subtotal: parseFloat(booking.subtotal?.toString() || "0"),
-        tax: parseFloat(booking.tax?.toString() || "0"),
-        platformFee: parseFloat(booking.platformFee?.toString() || "0"),
-        totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
-        eventImage:
-          eventDet.event_portrait ||
-          eventDet.event_banner ||
-          eventDet.image ||
-          "",
-        bookingStatus: booking.bookingStatus || "",
-        groupId: booking.groupId || "",
+        subtotal: parseFloat(booking.subtotal?.toString() || '0'),
+        tax: parseFloat(booking.tax?.toString() || '0'),
+        platformFee: parseFloat(booking.platformFee?.toString() || '0'),
+        totalAmount: parseFloat(booking.totalAmount?.toString() || '0'),
+        //Addon amounts
+        foodAddonAmount: parseFloat(booking.food_addon_amount?.toString() || '0'),
+        accommodationAddonAmount: parseFloat(booking.accommodation_addon_amount?.toString() || '0'),
+        hasFoodAddon: (parseFloat(booking.food_addon_amount?.toString() || '0')) > 0,
+        hasAccommodationAddon: (parseFloat(booking.accommodation_addon_amount?.toString() || '0')) > 0,
+        eventImage: eventDet.event_portrait || eventDet.event_banner || eventDet.image || '',
+        bookingStatus: booking.bookingStatus || '',
+        groupId: booking.groupId || '',
         v: 1,
       };
 
       return { ...booking, qrPayload };
     });
 
+    // ── Batch fetch EventUserResponses (question answers + addon selections)
+    const bookingStringIds = result.bookings.map((b: any) => b.bookingId);
+    const userResponses = await BookingModel.getEventUserResponsesByBookingIds(bookingStringIds);
+    const responseMap = Object.fromEntries(userResponses.map(r => [r.booking_id, r]));
+
+    const finalBookings = enrichedBookings.map((b: any) => ({
+      ...b,
+      eventUserResponse: responseMap[b.bookingId] || null,
+    }));
+
     res.status(200).json({
       success: true,
       data: {
-        bookings: enrichedBookings,
+        bookings: finalBookings,
         total: result.total,
         limit: parseInt(limit as string),
         skip: parseInt(skip as string),
@@ -1047,14 +1440,42 @@ export const getBookingById = async (req: Request, res: Response) => {
       v: 1,
     };
 
+    // Fetch EventUserResponse (question answers + addon selections)
+    let eventUserResponse = null;
+    try {
+      eventUserResponse = await BookingModel.getEventUserResponseByBookingId(
+        booking.bookingId || String(booking.id)
+      );
+    } catch { /* non-fatal */ }
+    //Addon amounts from booking record
+    const foodAddonAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+    const accAddonAmt = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+    // Enrich qrPayload with addon amounts
+    const enrichedQrPayload = {
+      ...qrPayload,
+      foodAddonAmount: foodAddonAmt,
+      accommodationAddonAmount: accAddonAmt,
+      hasFoodAddon: foodAddonAmt > 0,
+      hasAccommodationAddon: accAddonAmt > 0,
+    };
     res.status(200).json({
       success: true,
       data: {
         booking: {
           ...booking,
-          qrPayload,
+          qrPayload: enrichedQrPayload,
           event_link: eventLink,
           event_code: eventCode,
+          eventUserResponse,
+          addonSummary: {
+            hasFoodAddon: foodAddonAmt > 0,
+            hasAccommodationAddon: accAddonAmt > 0,
+            foodAddonAmount: foodAddonAmt,
+            accommodationAddonAmount: accAddonAmt,
+            ticketSubtotal: parseFloat((booking as any).subtotal?.toString() || '0'),
+            platformFee: parseFloat((booking as any).platformFee?.toString() || '0'),
+            grandTotal: parseFloat(booking.totalAmount?.toString() || '0'),
+          },
         },
       },
     });
@@ -1138,7 +1559,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       }
     }
 
-    // ── Step 3: Cancel the booking record ────────────────────────────────────
+    // ── Step 3: Cancel the booking record
     const updatedBooking = await BookingModel.cancel(
       bookingId,
       cancellationReason,
@@ -1147,19 +1568,23 @@ export const cancelBooking = async (req: Request, res: Response) => {
     const subtotal = parseFloat(booking.subtotal.toString());
     const platformFee = parseFloat(booking.platformFee.toString());
     const totalPaid = parseFloat(booking.totalAmount.toString());
+    // Addon amounts — always fully refunded on cancellation
+    const foodAddonAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+    const accAddonAmt = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+    const addonTotal = foodAddonAmt + accAddonAmt;
 
     const isPaidBooking =
       totalPaid > 0 &&
       booking.paymentStatus === "COMPLETED" &&
       !!booking.razorpayPaymentId;
 
-    // ── Step 4: Refund logic (paid bookings only) ─────────────────────────────
+    // Step 4: Refund logic (paid bookings only)
     if (isPaidBooking) {
       // Use fetched eventStartDate; fall back to far-future so refund is always eligible
       const refundEventDate =
         eventStartDate ?? new Date(Date.now() + 999 * 60 * 60 * 1000);
 
-      // ── Policy-driven refund calculation ──────────────────────────────────
+      // ── Policy-driven refund calculation
       const refundResult = calculateRefund({
         subtotal,
         platformFee,
@@ -1189,7 +1614,9 @@ export const cancelBooking = async (req: Request, res: Response) => {
 
         return res.json({
           success: true,
-          message: "Booking cancelled. No refund applicable per policy.",
+          message: addonTotal > 0
+            ? `Booking cancelled. Ticket is non-refundable per policy, but addon refund of ₹${addonTotal.toFixed(2)} may apply — contact support.`
+            : "Booking cancelled. No refund applicable per policy.",
           data: {
             booking: updatedBooking,
             refundStatus: "NOT_APPLICABLE",
@@ -1203,9 +1630,10 @@ export const cancelBooking = async (req: Request, res: Response) => {
           },
         });
       }
-
-      const refundAmount = refundResult.refundAmount;
-
+      // ✅ Ticket refund per policy + full addon refund (addons always 100% back)
+      const refundAmount = parseFloat(
+        (refundResult.refundAmount + (refundResult.eligible ? addonTotal : 0)).toFixed(2)
+      );
       try {
         const razorpay = RazorpayService.getInstance(
           process.env.RAZORPAY_KEY_ID!,
@@ -1767,6 +2195,143 @@ export const getUserRehostedBookings = async (req: Request, res: Response) => {
   }
 };
 
+async function _saveEventUserResponse({
+  bookingId,
+  ticketId,
+  groupId,
+  userId,
+  ticket,
+  questionAnswers,
+  foodAddon,
+  accommodationAddon,
+}: {
+  bookingId: string;
+  ticketId: string;
+  groupId: string;
+  userId: string;
+  ticket: any;
+  questionAnswers?: any;
+  foodAddon?: any;
+  accommodationAddon?: any;
+}) {
+  try {
+    const qa = questionAnswers || {};
+    const qd = ticket.question_details || {};
+
+    // ── Standard predefined fields ─────────────────────────────────────────
+    const answerName = qd.name ? (qa.name || '') : undefined;
+    const answerEmail = qd.email ? (qa.email || '') : undefined;
+    const answerPhone = qd.phone_number ? (qa.phone_number || '') : undefined;
+    const answerPosition = qd.position ? (qa.position || '') : undefined;
+
+    // ── Custom questions ───────────────────────────────────────────────────
+    let customAnswers: Array<{
+      question_id: string;
+      question_text: string;
+      answer_type: string;
+      answer_value: string | number | boolean;
+    }> = [];
+
+    if (Array.isArray(qd.custom_questions) && qd.custom_questions.length > 0) {
+      const customQAnswers = qa.custom_answers || qa.customAnswers || {};
+      customAnswers = qd.custom_questions.map((q: any) => {
+        const rawVal = customQAnswers[q.question_id] ?? customQAnswers[q.question_text] ?? '';
+        let typedVal: string | number | boolean = String(rawVal);
+        if (q.answer_type === 'number') typedVal = Number(rawVal) || 0;
+        if (q.answer_type === 'boolean') typedVal = rawVal === true || rawVal === 'true';
+        return {
+          question_id: q.question_id || '',
+          question_text: q.question_text || '',
+          answer_type: q.answer_type || 'string',
+          answer_value: typedVal,
+        };
+      });
+    }
+
+    // ── Food addon ─────────────────────────────────────────────────────────
+    let foodSelected = false, foodQuantity = 0, foodMenu: string[] = [];
+    let foodCateringName = '', foodPrice = 0, foodPicture = '';
+
+    let accSelected = false, accQuantity = 0, accType: string[] = [];
+    let accCateringName = '', accPrice = 0, accPicture = '';
+
+    if (ticket.food_accoum) {
+      const foodAccType = ticket.food_accoum_type || 'food_accommodation';
+      const hasFood = foodAccType === 'food_accommodation' || foodAccType === 'food_only';
+      const hasAcc = foodAccType === 'food_accommodation' || foodAccType === 'accommodation_only';
+
+      if (hasFood && foodAddon?.selected && typeof foodAddon.index === 'number') {
+        const fi = ticket.food_details?.[foodAddon.index];
+        if (fi) {
+          foodSelected = true;
+          foodQuantity = Number(fi.food_quantity) || 0;
+          foodMenu = Array.isArray(fi.food_menu) ? fi.food_menu : [];
+          foodCateringName = fi.food_catering_name || '';
+          foodPrice = Number(fi.food_price) || 0;
+          foodPicture = fi.food_picture || '';
+        }
+      }
+
+      if (hasAcc && accommodationAddon?.selected && typeof accommodationAddon.index === 'number') {
+        const ai = ticket.accommodation_details?.[accommodationAddon.index];
+        if (ai) {
+          accSelected = true;
+          accQuantity = Number(ai.accommodation_quantity) || 0;
+          accType = Array.isArray(ai.accommodation_type) ? ai.accommodation_type : [];
+          accCateringName = ai.accommodation_catering_name || '';
+          accPrice = Number(ai.accommodation_price) || 0;
+          accPicture = ai.accommodation_picture || '';
+        }
+      }
+    }
+
+    await BookingModel.createEventUserResponse({
+      booking_id: bookingId,
+      ticket_id: ticketId,
+      group_id: groupId,
+      user_id: userId,
+      answer_name: answerName,
+      answer_email: answerEmail,
+      answer_phone: answerPhone,
+      answer_position: answerPosition,
+      custom_answers: customAnswers.length > 0 ? customAnswers : undefined,
+      food_selected: foodSelected,
+      food_quantity: foodQuantity,
+      food_menu: foodMenu,
+      food_catering_name: foodCateringName || undefined,
+      food_price: foodPrice,
+      food_picture: foodPicture || undefined,
+      accommodation_selected: accSelected,
+      accommodation_quantity: accQuantity,
+      accommodation_type: accType,
+      accommodation_catering_name: accCateringName || undefined,
+      accommodation_price: accPrice,
+      accommodation_picture: accPicture || undefined,
+    });
+  } catch (err: any) {
+    console.error('⚠️ _saveEventUserResponse failed (non-fatal):', err.message);
+  }
+}
+
+export const getEventUserResponse = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const booking = await BookingModel.findById(bookingId);
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    if (booking.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const response = await BookingModel.getEventUserResponseByBookingId(
+      booking.bookingId || String(booking.id)
+    );
+    res.status(200).json({ success: true, data: { eventUserResponse: response } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const markAsRead = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -1825,6 +2390,54 @@ export const countUnread = async (req: Request, res: Response) => {
     const counts = await BookingModel.countUnread(userId);
     res.status(200).json({ success: true, data: counts });
   } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ── DELETE /bookings/pending/:bookingId
+// Called by frontend when user dismisses Razorpay modal (clicks back/close).
+// Cleans up the PENDING booking so the user can attempt to book again freely.
+export const cancelPendingBooking = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const booking = await BookingModel.findById(bookingId);
+    if (!booking) {
+      // Already gone — treat as success (idempotent)
+      return res.status(200).json({ success: true, message: "Booking not found — already cleaned up" });
+    }
+
+    if (booking.userId !== userId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    // Only cancel if still PENDING — don't touch CONFIRMED or already CANCELLED
+    if (booking.bookingStatus !== "PENDING") {
+      return res.status(200).json({
+        success: true,
+        message: `Booking is ${booking.bookingStatus} — no action needed`,
+        bookingStatus: booking.bookingStatus,
+      });
+    }
+
+    await BookingModel.update(booking.id, {
+      bookingStatus: "CANCELLED",
+      cancellationReason: "Payment dismissed by user",
+      cancelledAt: new Date(),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Pending booking cancelled — user may try again",
+      bookingId: booking.bookingId,
+    });
+  } catch (error: any) {
+    console.error("❌ cancelPendingBooking error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
