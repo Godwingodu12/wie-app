@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getEventById } from '@/services/ticketUserService';
-import { createSeatedBooking, getBookedSeats, verifyPayment } from '@/services/transactionService';
+import { createSeatedBooking, registerFreeEvent, getBookedSeats, verifyPayment, checkUserBooking, cancelPendingBooking } from '@/services/transactionService';
 import { Event, SeatInfo, SeatingLayout } from '@/types/ticket';
 import {
   ArrowLeft,
@@ -28,6 +28,8 @@ import { Card } from '@/components/ui/Card';
 import { useTheme } from '@/components/home/ThemeContext';
 import { BookingModal } from '@/components/events/BookingModal';
 import { ConfirmSelectionModal } from '@/components/events/ConfirmSelectionModal';
+import { QuestionModal, QuestionAnswers } from '@/components/events/QuestionModal';
+import { AddonModal, AddonSelection } from '@/components/events/AddonModal';
 
 import TicketIconSVG from "@/assets/Event/TicketIcon.svg";
 import LocationIconSVG from "@/assets/Event/LocationIcon.svg";
@@ -89,14 +91,18 @@ export default function SeatedBookingPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
-
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [showAddonModal, setShowAddonModal] = useState(false);
+  const [collectedAnswers, setCollectedAnswers] = useState<QuestionAnswers | null>(null);
+  const [collectedAddons, setCollectedAddons] = useState<AddonSelection | null>(null);
   const { isDark, themeStyles } = useTheme();
-
+  const [hasBooked, setHasBooked] = useState(false);
+  const [existingBookingId, setExistingBookingId] = useState<string | null>(null);
   // Date/Time selection states
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
   const [selectedTimeId, setSelectedTimeId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-
+  // ── Add these state declarations at the top of the seating page component ──
   useEffect(() => {
     loadEventAndSeats();
   }, [eventId]);
@@ -134,14 +140,51 @@ export default function SeatedBookingPage() {
     }
   };
 
+  // Check if user already has a confirmed booking for this event
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!eventId) return;
+      try {
+        const result = await checkUserBooking(eventId);
+        if (result.hasBooked && result.booking?.id) {
+          setHasBooked(true);
+          setExistingBookingId(result.booking.id);
+        }
+        // eventMeta.showViewTicket covers free + restricted events correctly
+        // For seating page, any confirmed booking means "View Ticket"
+        if (result.hasBooked && result.booking?.id) {
+          setHasBooked(true);
+          setExistingBookingId(result.booking.id);
+        }
+      } catch (err) {
+        console.error('Failed to check existing booking:', err);
+      }
+    };
+    checkExisting();
+  }, [eventId]);
+
   const handleSeatClick = (seatId: string, isAvailable: boolean) => {
     if (!isAvailable || bookedSeats.includes(seatId)) return;
 
-    setSelectedSeats(prev =>
-      prev.includes(seatId)
+    const isFreeEvent = event?.payment_type === 'free';
+
+    setSelectedSeats(prev => {
+      // Free event → only 1 seat allowed
+      if (isFreeEvent) {
+        if (prev.includes(seatId)) return []; // deselect
+        return [seatId];                       // select only this one
+      }
+      // Paid restricted → only 1 seat allowed
+      const isRestricted = !!(event as any)?.restrict_booking;
+      if (isRestricted) {
+        if (prev.includes(seatId)) return [];
+        return [seatId];
+      }
+      // Paid unrestricted → toggle normally
+      return prev.includes(seatId)
         ? prev.filter(id => id !== seatId)
-        : [...prev, seatId]
-    );
+        : [...prev, seatId];
+    });
   };
 
   const calculateTotal = () => {
@@ -238,26 +281,229 @@ export default function SeatedBookingPage() {
       alert('Please select at least one seat');
       return;
     }
+
+    const isFreeEvent = event?.payment_type === 'free';
+    const isRestricted = !!(event as any).restrict_booking;
+
+    if ((isFreeEvent || isRestricted) && selectedSeats.length > 1) {
+      alert('Only 1 seat allowed per person for this event');
+      return;
+    }
+
+    // Step 1: Questions (mandatory if question_data === true)
+    const rawQD = (event as any).question_data;
+    if (rawQD === true || rawQD === 1 || rawQD === 'true') {
+      setShowQuestionModal(true);
+      return;
+    }
+
+    // Step 2: Addon modal (if event has addons)
+    const rawFA = (event as any).food_accoum;
+    if (rawFA === true || rawFA === 1 || rawFA === 'true') {
+      setShowAddonModal(true);
+      return;
+    }
+
+    // Step 3: Confirm selection modal
     setShowPaymentModal(true);
+  };
+
+  const handleSeatingQuestionSubmit = (answers: QuestionAnswers) => {
+    setCollectedAnswers(answers);
+    setShowQuestionModal(false);
+
+    // After questions → check for addons
+    const rawFA = (event as any).food_accoum;
+    if (rawFA === true || rawFA === 1 || rawFA === 'true') {
+      setShowAddonModal(true);
+      return;
+    }
+
+    // No addons → go to confirm modal
+    setShowPaymentModal(true);
+  };
+
+  // Addon submitted → save addons → go to confirm modal
+  const handleSeatingAddonSubmit = (selection: AddonSelection) => {
+    setCollectedAddons(selection);
+    setShowAddonModal(false);
+    // Go directly to confirm modal (NOT back to addon)
+    setShowPaymentModal(true);
+  };
+
+  const handleSeatingAddonSkip = () => {
+    setCollectedAddons(null);
+    setShowAddonModal(false);
+    setShowPaymentModal(true);
+  };
+
+  // Confirm modal "Confirm" button clicked → run payment
+  const handleConfirmSelection = () => {
+    setShowPaymentModal(false);
+    initiatePayment();
   };
 
   const initiatePayment = async () => {
     setIsBooking(true);
     try {
+      const isFreeEvent = event?.payment_type === 'free';
+
+      // ── FREE seated event ────────────────────────────────────────────────
+      if (isFreeEvent) {
+        const data = await registerFreeEvent(
+          eventId,
+          1,                                              // always 1 seat for free seated
+          collectedAnswers || undefined,
+          collectedAddons?.foodAddon || undefined,
+          collectedAddons?.accommodationAddon || undefined,
+          selectedSeats,                                  // ← pass seats
+        );
+
+        if (!data.success) {
+          alert(data.message || 'Registration failed');
+          setIsBooking(false);
+          return;
+        }
+
+        // ── FREE with NO paid addons → confirmed immediately ─────────────
+        if (!data.requiresPayment) {
+          setConfirmedBooking(data.data.booking);
+          setShowSuccessModal(true);
+          setIsBooking(false);
+          // Route to booking page after 2s so success modal is visible
+          setTimeout(() => {
+            router.push(`/bookings/${data.data.booking.id}`);
+          }, 2000);
+          return;
+        }
+
+        // ── FREE with PAID addons → open Razorpay for addon amount only ──
+        const { booking, razorpayOrder, razorpayKeyId } = data.data;
+
+        if (!razorpayOrder || !razorpayKeyId) {
+          alert('Payment order could not be created. Please try again.');
+          setIsBooking(false);
+          return;
+        }
+
+        const foodAmt = Number(booking.food_addon_amount) || 0;
+        const accAmt = Number(booking.accommodation_addon_amount) || 0;
+        const descParts: string[] = [];
+        if (foodAmt > 0) descParts.push(`Food: ₹${foodAmt.toFixed(2)}`);
+        if (accAmt > 0) descParts.push(`Stay: ₹${accAmt.toFixed(2)}`);
+
+        const freeAddonOptions = {
+          key: razorpayKeyId,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          name: event?.event_name || 'Event Registration',
+          description: `Add-ons — ${descParts.join(' | ')}`,
+          order_id: razorpayOrder.id,
+
+          handler: async function (response: any) {
+            try {
+              const verifyData = await verifyPayment({
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+              if (verifyData.success) {
+                setConfirmedBooking(verifyData.data.booking);
+                setShowSuccessModal(true);
+                // Route to booking page after success modal
+                setTimeout(() => {
+                  router.push(`/bookings/${verifyData.data.booking.id}`);
+                }, 2000);
+              } else {
+                alert('Payment verification failed. Please contact support.');
+              }
+            } catch (error: any) {
+              alert(error.response?.data?.message || 'Payment verification failed');
+            } finally {
+              setIsBooking(false);
+            }
+          },
+
+          prefill: { name: '', email: '', contact: '9999999999' },
+          method: { upi: true, card: true, netbanking: true, wallet: true, emi: false, paylater: false },
+          config: {
+            display: {
+              blocks: {
+                banks: {
+                  name: 'All Payment Methods',
+                  instruments: [
+                    { method: 'upi' },
+                    { method: 'card' },
+                    { method: 'netbanking' },
+                    { method: 'wallet' },
+                  ],
+                },
+              },
+              sequence: ['block.banks'],
+              preferences: { show_default_blocks: true },
+            },
+          },
+          notes: {
+            bookingId: booking.bookingId || booking.id,
+            eventName: event?.event_name || '',
+            foodAddonAmount: String(foodAmt),
+            accommodationAddonAmount: String(accAmt),
+            seats: selectedSeats.join(', '),
+            addonPayment: 'true',
+          },
+          theme: { color: '#8B5CF6', hide_topbar: false },
+          modal: {
+            backdropclose: false,
+            escape: false,
+            handleback: true,
+            confirm_close: true,
+            animation: true,
+            ondismiss: async function () {
+              // Cancel the pending booking so seat is freed
+              if (booking?.id) {
+                await cancelPendingBooking(booking.id);
+              }
+              setIsBooking(false);
+            },
+          },
+        };
+
+        const razorpayInstance = new window.Razorpay(freeAddonOptions);
+        razorpayInstance.open();
+        return; // keep isBooking true until handler/ondismiss fires
+      }
+
+      // ── PAID seated event ────────────────────────────────────────────────
       const bookingResponse = await createSeatedBooking({
         ticketId: eventId,
         selectedSeats,
+        ...(collectedAnswers ? { questionAnswers: collectedAnswers } : {}),
+        ...(collectedAddons?.foodAddon ? { foodAddon: collectedAddons.foodAddon } : {}),
+        ...(collectedAddons?.accommodationAddon ? { accommodationAddon: collectedAddons.accommodationAddon } : {}),
       });
 
       const { booking, razorpayOrder, razorpayKeyId } = bookingResponse.data;
 
-      const options = {
+      const feeBreakdown = (booking as any).feeBreakdown || {};
+      const foodAmt = Number(feeBreakdown.foodAddonAmount) || Number((booking as any).food_addon_amount) || 0;
+      const accAmt = Number(feeBreakdown.accommodationAddonAmount) || Number((booking as any).accommodation_addon_amount) || 0;
+      const ticketSubtotal = Number(feeBreakdown.subtotal) || Number(booking.subtotal) || 0;
+      const convFee = Number(feeBreakdown.platformFee) || Number(booking.platformFee) || 0;
+      const grandTotal = Number(feeBreakdown.total) || Number(booking.totalAmount) || 0;
+
+      const descParts: string[] = [`Seats: ₹${ticketSubtotal.toFixed(2)}`];
+      if (foodAmt > 0) descParts.push(`Food: ₹${foodAmt.toFixed(2)}`);
+      if (accAmt > 0) descParts.push(`Stay: ₹${accAmt.toFixed(2)}`);
+      descParts.push(`Fee: ₹${convFee.toFixed(2)}`);
+
+      const paidOptions = {
         key: razorpayKeyId,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         name: event?.event_name || 'Event Booking',
-        description: `Seated booking for ${event?.event_name}`,
+        description: `Seated booking — ${descParts.join(' | ')}`,
         order_id: razorpayOrder.id,
+
         handler: async function (response: any) {
           try {
             const verifyData = await verifyPayment({
@@ -265,28 +511,68 @@ export default function SeatedBookingPage() {
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-
             if (verifyData.success) {
               setConfirmedBooking(verifyData.data.booking);
-              setShowPaymentModal(false);
               setShowSuccessModal(true);
+              setTimeout(() => {
+                router.push(`/bookings/${verifyData.data.booking.id}`);
+              }, 2000);
             }
           } catch (error: any) {
             alert(error.response?.data?.message || 'Payment verification failed');
+          } finally {
+            setIsBooking(false);
           }
         },
-        prefill: { name: '', email: '', contact: '' },
-        theme: { color: '#8B5CF6' },
+
+        prefill: { name: '', email: '', contact: '9999999999' },
+        method: { upi: true, card: true, netbanking: true, wallet: true, emi: false, paylater: false },
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: 'All Payment Methods',
+                instruments: [
+                  { method: 'upi' },
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
+                ],
+              },
+            },
+            sequence: ['block.banks'],
+            preferences: { show_default_blocks: true },
+          },
+        },
+        notes: {
+          bookingId: booking.bookingId,
+          eventName: event?.event_name || '',
+          ticketSubtotal: String(ticketSubtotal),
+          platformFee: String(convFee),
+          foodAddonAmount: String(foodAmt),
+          accommodationAddonAmount: String(accAmt),
+          grandTotal: String(grandTotal),
+          seats: selectedSeats.join(', '),
+        },
+        theme: { color: '#8B5CF6', hide_topbar: false },
         modal: {
-          ondismiss: function () {
+          backdropclose: false,
+          escape: false,
+          handleback: true,
+          confirm_close: true,
+          animation: true,
+          ondismiss: async function () {
+            if (booking?.id) {
+              await cancelPendingBooking(booking.id);
+            }
             setIsBooking(false);
-            setShowPaymentModal(false);
           },
         },
       };
 
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
+      const razorpayInstance = new window.Razorpay(paidOptions);
+      razorpayInstance.open();
+
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create booking');
       setIsBooking(false);
@@ -578,7 +864,6 @@ export default function SeatedBookingPage() {
                       }}
                       className="my-3 max-w-full"
                     />
-
                     <div className="flex flex-col gap-3 w-full max-w-[277px]">
                       <div className="flex justify-between items-center text-[14px] font-medium">
                         <span style={{ color: themeStyles.textSecondary }}>Tickets Subtotal</span>
@@ -590,9 +875,46 @@ export default function SeatedBookingPage() {
                           <span style={{ color: themeStyles.textSecondary }}>₹{platformFee}</span>
                         </div>
                       )}
+                      {/* ✅ Food addon line */}
+                      {collectedAddons?.foodAddon?.selected && (() => {
+                        const fi = event?.food_details?.[collectedAddons.foodAddon.index];
+                        const foodPrice = Number(fi?.food_price || 0);
+                        return foodPrice > 0 ? (
+                          <div className="flex justify-between items-center text-[13px] font-medium">
+                            <span style={{ color: themeStyles.textSecondary }}>Food package</span>
+                            <span style={{ color: themeStyles.textSecondary }}>₹{foodPrice}</span>
+                          </div>
+                        ) : null;
+                      })()}
+                      {/* ✅ Accommodation addon line */}
+                      {collectedAddons?.accommodationAddon?.selected && (() => {
+                        const ai = event?.accommodation_details?.[collectedAddons.accommodationAddon.index];
+                        const accPrice = Number(ai?.accommodation_price || 0);
+                        return accPrice > 0 ? (
+                          <div className="flex justify-between items-center text-[13px] font-medium border-b border-gray-500/10 pb-3">
+                            <span style={{ color: themeStyles.textSecondary }}>Accommodation</span>
+                            <span style={{ color: themeStyles.textSecondary }}>₹{accPrice}</span>
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="flex justify-between items-center text-[18px] font-bold">
                         <span style={{ color: themeStyles.text }}>Grand Total</span>
-                        <span className="text-[#8B5CF6]">{isFree ? 'FREE' : `₹${total}`}</span>
+                        <span className="text-[#8B5CF6]">
+                          {isFree
+                            ? (() => {
+                              const addonTotal =
+                                (collectedAddons?.foodAddon?.selected ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0) +
+                                (collectedAddons?.accommodationAddon?.selected ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0);
+                              return addonTotal > 0 ? `₹${addonTotal}` : 'FREE';
+                            })()
+                            : (() => {
+                              const addonTotal =
+                                (collectedAddons?.foodAddon?.selected ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0) +
+                                (collectedAddons?.accommodationAddon?.selected ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0);
+                              return `₹${total + addonTotal}`;
+                            })()
+                          }
+                        </span>
                       </div>
                     </div>
                   </>
@@ -771,7 +1093,7 @@ export default function SeatedBookingPage() {
               </div>
             </div>
           </div>
-
+          {/* Bottom action bar */}
           <div
             className="sticky bottom-0 w-full p-4 lg:p-6 flex flex-col md:flex-row justify-center items-center gap-4 border-t z-50 transition-all duration-300"
             style={{
@@ -785,62 +1107,139 @@ export default function SeatedBookingPage() {
               style={{
                 width: '230px',
                 height: '48px',
-                opacity: 1,
-                gap: '10px',
                 borderRadius: '25px',
                 border: '0.4px solid #9575CD',
-                padding: '8px 12px 8px 12px',
+                padding: '8px 12px',
                 color: themeStyles.text,
               }}
             >
               Cancel
             </button>
-            <button
-              onClick={showPaymentModal ? initiatePayment : handleProceedToPayment}
-              disabled={selectedSeats.length === 0 || isBooking}
-              className="flex items-center justify-center text-white font-semibold shadow-lg hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all outline-none"
-              style={{
-                width: '230px',
-                height: '48px',
-                opacity: 1,
-                gap: '10px',
-                borderRadius: '25px',
-                padding: '8px 12px 8px 12px',
-                background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)'
-              }}
-            >
-              {isBooking ? 'Processing...' : selectedSeats.length > 0 ? `Pay ${calculateTotal().isFree ? 'FREE' : '₹' + calculateTotal().total}` : 'Select your seats'}
-            </button>
+
+            {/* ── If already booked → View Ticket; else → Proceed to payment ── */}
+            {hasBooked && existingBookingId ? (
+              <button
+                onClick={() => router.push(`/bookings/${existingBookingId}`)}
+                className="flex items-center justify-center text-white font-semibold shadow-lg hover:-translate-y-0.5 transition-all outline-none"
+                style={{
+                  width: '230px',
+                  height: '48px',
+                  borderRadius: '25px',
+                  padding: '8px 12px',
+                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                }}
+              >
+                View Ticket
+              </button>
+            ) : (
+              <button
+                onClick={handleProceedToPayment}
+                disabled={selectedSeats.length === 0 || isBooking}
+                className="flex items-center justify-center text-white font-semibold shadow-lg hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all outline-none"
+                style={{
+                  width: '230px',
+                  height: '48px',
+                  borderRadius: '25px',
+                  padding: '8px 12px',
+                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                }}
+              >
+                {(() => {
+                  if (isBooking) return 'Processing...';
+                  if (selectedSeats.length === 0) return 'Select your seat';
+
+                  const isFreeEvent = event?.payment_type === 'free';
+                  const calc = calculateTotal();
+
+                  const addonTotal =
+                    (collectedAddons?.foodAddon?.selected && typeof collectedAddons.foodAddon.index === 'number'
+                      ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0) +
+                    (collectedAddons?.accommodationAddon?.selected && typeof collectedAddons.accommodationAddon.index === 'number'
+                      ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0);
+
+                  if (isFreeEvent) {
+                    return addonTotal > 0 ? `Pay ₹${addonTotal} for add-ons` : 'Register FREE';
+                  }
+                  return `Pay ₹${calc.total + addonTotal}`;
+                })()}
+              </button>
+            )}
           </div>
         </div>
-
-        {/* Modal Overlay */}
         {/* Confirm Selection Modal */}
         <ConfirmSelectionModal
           show={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          onConfirm={initiatePayment}
+          onConfirm={handleConfirmSelection}
           event={event}
           selectedSeats={selectedSeats}
           seatPrices={seatPrices}
-          total={total}
+          total={(() => {
+            const calc = calculateTotal();
+            const foodAmt = collectedAddons?.foodAddon?.selected && typeof collectedAddons.foodAddon.index === 'number'
+              ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0;
+            const accAmt = collectedAddons?.accommodationAddon?.selected && typeof collectedAddons.accommodationAddon.index === 'number'
+              ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0;
+            return calc.total + foodAmt + accAmt;
+          })()}
           isFree={isFree}
           platformFee={platformFee}
           isBooking={isBooking}
         />
+        {/* Seating Question Modal */}
+        {(() => {
+          const rawQD = (event as any).question_data;
+          const hasQuestions = rawQD === true || rawQD === 1 || rawQD === 'true';
+          return event && hasQuestions ? (
+            <QuestionModal
+              show={showQuestionModal}
+              onClose={() => {
+                setShowQuestionModal(false);
+              }}
+              onSubmit={handleSeatingQuestionSubmit}
+              questionDetails={(event as any).question_details || {}}
+              eventName={event.event_name}
+            />
+          ) : null;
+        })()}
 
+        {/* Seating Addon Modal */}
+        {(() => {
+          const rawFA = (event as any).food_accoum;
+          const hasAddons = rawFA === true || rawFA === 1 || rawFA === 'true';
+          return event && hasAddons ? (
+            <AddonModal
+              show={showAddonModal}
+              onClose={() => setShowAddonModal(false)}
+              onSubmit={handleSeatingAddonSubmit}
+              onSkip={handleSeatingAddonSkip}
+              event={event}
+              ticketSubtotal={calculateTotal().subtotal}
+              ticketType="Seated"
+              quantity={selectedSeats.length}
+            />
+          ) : null;
+        })()}
         {/* Success / Ticket Modal */}
         <BookingModal
           show={showSuccessModal}
           variant="SUCCESS"
           onClose={() => {
             setShowSuccessModal(false);
+            // Route to event page — user can see their booking from there
             router.push(`/events/${eventId as string}`);
           }}
           event={event}
           selectedSeats={selectedSeats}
           quantity={selectedSeats.length}
-          total={calculateTotal().total}
+          total={(() => {
+            const calc = calculateTotal();
+            const foodAmt = collectedAddons?.foodAddon?.selected && typeof collectedAddons.foodAddon.index === 'number'
+              ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0;
+            const accAmt = collectedAddons?.accommodationAddon?.selected && typeof collectedAddons.accommodationAddon.index === 'number'
+              ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0;
+            return calc.total + foodAmt + accAmt;
+          })()}
           platformFee={calculateTotal().platformFee}
           isFree={calculateTotal().isFree}
           booking={confirmedBooking}
