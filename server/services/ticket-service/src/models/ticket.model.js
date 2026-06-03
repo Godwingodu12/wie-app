@@ -58,6 +58,34 @@ const fileSchema = new mongoose.Schema({
   content: { type: String }, // For text type
   uploadedAt: { type: Date, default: Date.now }
 });
+
+// Food Schema
+const foodSchema = new mongoose.Schema({
+  food_quantity: { type: Number, default: 0 },
+  food_menu: [String],
+  food_catering_name: { type: String },
+  food_price: { type: Number },
+  food_picture: { type: String },
+});
+
+// Accommodation Schema
+const accommodationSchema = new mongoose.Schema({
+  accommodation_quantity: { type: Number, default: 0 },
+  accommodation_type: [String],
+  accommodation_price: { type: Number },
+  accommodation_catering_name: { type: String },
+  accommodation_picture: { type: String },
+});
+
+// Question Details Schema
+const questionDetailsSchema = new mongoose.Schema({
+  name: { type: Boolean, default: false },
+  email: { type: Boolean, default: false },
+  phone_number: { type: Boolean, default: false },
+  position: { type: Boolean, default: false },
+  custom_questions: { type: Array, default: [] }
+}, { _id: false, strict: false });
+
 // Sub Event Schema (for add-on events)
 const subEventSchema = new mongoose.Schema({
   event_name: { type: String, required: true },
@@ -189,6 +217,12 @@ const subEventSchema = new mongoose.Schema({
   },
   total_capacity: { type: String, required: false },
   attendance_count: { type: Boolean, default: false },
+  food_accoum: { type: Boolean, default: false },
+  food_accoum_type: { type: String, default: 'none' },
+  food_details: [foodSchema],
+  accommodation_details: [accommodationSchema],
+  question_data: { type: Boolean, default: false },
+  question_details: { type: questionDetailsSchema, default: () => ({}) },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   restrict_booking: { type: Boolean, default: false },
@@ -322,6 +356,12 @@ const ticketSchema = new mongoose.Schema({
   POCS: [POCSchema],
   total_capacity: { type: String, required: false },
   attendance_count: { type: Boolean, default: false },
+  food_accoum: { type: Boolean, default: false },
+  food_accoum_type: { type: String, default: 'none' },
+  food_details: [foodSchema],
+  accommodation_details: [accommodationSchema],
+  question_data: { type: Boolean, default: false },
+  question_details: { type: questionDetailsSchema, default: () => ({}) },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   restrict_booking: { type: Boolean, default: false },
