@@ -123,6 +123,44 @@ export interface SubEvent {
   parentEventBanner?: string;
   parentEventLogo?: string;
   restrict_booking?: boolean;
+  question_data?: boolean;
+  question_details?: {
+    name?: boolean;
+    email?: boolean;
+    phone_number?: boolean;
+    position?: boolean;
+    custom_questions?: Array<{
+      question_id: string;
+      question_text: string;
+      answer_type: 'string' | 'number' | 'boolean' | 'text' | 'select';
+      is_required: boolean;
+      options: string[];
+    }>;
+  };
+  gst_applicable?: boolean;
+  gst_percentage?: number;
+  food_accoum?: boolean;
+  food_accoum_type?: "none" | "food_accommodation" | "food_only" | "accommodation_only";
+  food_details?: Array<{
+    name: string;
+    food_catering_name: string;
+    food_price: number;
+    food_quantity: number;
+    food_menu: string[];
+    food_picture: string;
+    price?: number;
+    quantity?: number;
+  }>;
+  accommodation_details?: Array<{
+    name: string;
+    accommodation_catering_name: string;
+    accommodation_price: number;
+    accommodation_quantity: number;
+    accommodation_type: string[];
+    accommodation_picture: string;
+    price?: number;
+    quantity?: number;
+  }>;
 }
 export interface Event {
   _id: string;
@@ -180,6 +218,44 @@ export interface Event {
   seating_layout?: SeatingLayout;
   restrict_booking?: boolean;
   __v?: number;
+  question_data?: boolean;
+  question_details?: {
+    name?: boolean;
+    email?: boolean;
+    phone_number?: boolean;
+    position?: boolean;
+    custom_questions?: Array<{
+      question_id: string;
+      question_text: string;
+      answer_type: 'string' | 'number' | 'boolean' | 'text' | 'select';
+      is_required: boolean;
+      options: string[];
+    }>;
+  };
+  gst_applicable?: boolean;
+  gst_percentage?: number;
+  food_accoum?: boolean;
+  food_accoum_type?: "none" | "food_accommodation" | "food_only" | "accommodation_only";
+  food_details?: Array<{
+    name: string;
+    food_catering_name: string;
+    food_price: number;
+    food_quantity: number;
+    food_menu: string[];
+    food_picture: string;
+    price?: number;
+    quantity?: number;
+  }>;
+  accommodation_details?: Array<{
+    name: string;
+    accommodation_catering_name: string;
+    accommodation_price: number;
+    accommodation_quantity: number;
+    accommodation_type: string[];
+    accommodation_picture: string;
+    price?: number;
+    quantity?: number;
+  }>;
 }
 export interface SearchLocation {
   latitude: number;
@@ -411,11 +487,11 @@ export interface FilteredEventsResponse {
     locationAvailable: boolean;
     locationSource: "gps" | "manual" | "saved" | "country" | "none";
     searchLocation?:
-      | {
-          latitude: number;
-          longitude: number;
-        }
-      | string;
+    | {
+      latitude: number;
+      longitude: number;
+    }
+    | string;
     searchRadius?: number | null;
     appliedFilters: {
       category: string | null;
@@ -469,12 +545,12 @@ export interface CategoryEventsResponse {
     locationAvailable: boolean;
     locationSource: "gps" | "manual" | "saved" | "country" | "none";
     searchLocation?:
-      | {
-          latitude: number;
-          longitude: number;
-        }
-      | string
-      | null;
+    | {
+      latitude: number;
+      longitude: number;
+    }
+    | string
+    | null;
     searchQuery?: string | null;
     searchRadius?: number | null;
     categories: string[];

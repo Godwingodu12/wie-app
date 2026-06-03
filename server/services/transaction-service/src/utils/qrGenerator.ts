@@ -14,6 +14,8 @@ export interface QRCodeData {
   pricePerTicket: number;
   totalAmount: number;
   paymentMethod?: string;
+  foodAddonAmount?: number;
+  accommodationAddonAmount?: number;
   venue?: string;
 }
 
@@ -40,6 +42,10 @@ export interface QRPayload {
   eventImage?: string;
   bookingStatus?: string;
   groupId?: string;
+  foodAddonAmount?: number;
+  accommodationAddonAmount?: number;
+  hasFoodAddon?: boolean;
+  hasAccommodationAddon?: boolean;
   v: number;
 }
 
@@ -66,6 +72,10 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
       paymentMethod: data.paymentMethod || "",
       totalAmount: Number(data.totalAmount) || 0,
       subtotal: Number(data.pricePerTicket) * data.quantity || 0,
+      foodAddonAmount: Number(data.foodAddonAmount) || 0,
+      accommodationAddonAmount: Number(data.accommodationAddonAmount) || 0,
+      hasFoodAddon: (data.foodAddonAmount || 0) > 0,
+      hasAccommodationAddon: (data.accommodationAddonAmount || 0) > 0,
       v: 1,
     };
 

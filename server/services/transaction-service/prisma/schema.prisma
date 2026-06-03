@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native"]
 }
 
 datasource db {
@@ -58,6 +59,8 @@ model Booking {
   refundReason        String?              @map("refund_reason")
   isAdminCancelled    Boolean              @default(false) @map("is_admin_cancelled")
   isRead              Boolean              @default(false) @map("is_read")
+  food_addon_amount   Decimal              @default(0) @map("food_addon_amount") @db.Decimal(10, 2)
+  accommodation_addon_amount Decimal       @default(0) @map("accommodation_addon_amount") @db.Decimal(10, 2)
   paymentTransactions PaymentTransaction[]
 
   @@index([userId], map: "idx_bookings_user_id")
@@ -213,6 +216,46 @@ model OrganizerTrustScore {
 
   @@index([group_id])
   @@map("organizer_trust_scores")
+  @@schema("transactions")
+}
+
+model EventUserResponse {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id      String   @db.VarChar(100)
+  ticket_id       String   @db.VarChar(50)
+  group_id        String   @db.VarChar(50)
+  user_id         String   @db.Uuid
+
+  // Standard question answers (when event uses predefined fields)
+  answer_name     String?  @db.VarChar(255)
+  answer_email    String?  @db.VarChar(255)
+  answer_phone    String?  @db.VarChar(50)
+  answer_position String?  @db.VarChar(255)
+  custom_answers  Json?    @map("custom_answers")
+  // Food add-on
+  food_selected         Boolean  @default(false)
+  food_quantity         Int      @default(0)
+  food_menu             Json?
+  food_catering_name    String?  @db.VarChar(255)
+  food_price            Decimal  @default(0) @db.Decimal(10, 2)
+  food_picture          String?
+
+  // Accommodation add-on
+  accommodation_selected       Boolean  @default(false)
+  accommodation_quantity       Int      @default(0)
+  accommodation_type           Json?
+  accommodation_catering_name  String?  @db.VarChar(255)
+  accommodation_price          Decimal  @default(0) @db.Decimal(10, 2)
+  accommodation_picture        String?
+
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+  updated_at  DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_event_user_responses_booking_id")
+  @@index([ticket_id],  map: "idx_event_user_responses_ticket_id")
+  @@index([group_id],   map: "idx_event_user_responses_group_id")
+  @@index([user_id],    map: "idx_event_user_responses_user_id")
+  @@map("event_user_responses")
   @@schema("transactions")
 }
 

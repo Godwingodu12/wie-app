@@ -19,7 +19,8 @@ import {
   processGroupFileUploads,
   cleanupTempFile,
   uploadGeneratedLayoutToCloudinary,
-  downloadFileFromCloudinary
+  downloadFileFromCloudinary,
+  extractPublicId
 } from "../utils/cloudinaryHelper.js";
 import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
@@ -969,7 +970,7 @@ export const getGroups = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-const sanitizeDescriptionHtml = (html) => {
+export const sanitizeDescriptionHtml = (html) => {
   if (!html || typeof html !== "string") return "";
 
   return html
@@ -1015,7 +1016,7 @@ const sanitizeDescriptionHtml = (html) => {
     .trim();
 };
 
-const stripHtmlForValidation = (html) => {
+export const stripHtmlForValidation = (html) => {
   if (!html) return "";
   return html
     .replace(/<[^>]*>/g, "")
@@ -1034,6 +1035,8 @@ export const createTicketBasicInfo = async (req, res) => {
     const eventRulesFiles = [];
     const videoFiles = {};
     const previewImageFiles = {};
+    const foodPictureFiles = {};
+    const accommodationPictureFiles = {};
 
     // Handle file upload first using Promise wrapper
     await new Promise((resolve, reject) => {
@@ -1084,6 +1087,14 @@ export const createTicketBasicInfo = async (req, res) => {
       POCS,
       event_description,
       groupId: bodyGroupId,
+
+      // Attendance Marketing details
+      food_accoum,
+      food_accoum_type,
+      food_details,
+      accommodation_details,
+      question_data,
+      question_details,
     } = req.body;
     // Get uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
@@ -1101,6 +1112,32 @@ export const createTicketBasicInfo = async (req, res) => {
             guestProfileFiles[parseInt(index)] = fileData[0];
           } else if (fileData && typeof fileData === "object" && fileData.path) {
             guestProfileFiles[parseInt(index)] = fileData;
+          }
+        }
+      }
+      if (fieldName.startsWith("food_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            foodPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            foodPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            foodPictureFiles[parseInt(index)] = fileData;
+          }
+        }
+      }
+      if (fieldName.startsWith("accommodation_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            accommodationPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            accommodationPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            accommodationPictureFiles[parseInt(index)] = fileData;
           }
         }
       }
@@ -1857,6 +1894,46 @@ export const createTicketBasicInfo = async (req, res) => {
         return guestData;
       });
     }
+    // Parse and map food and accommodation details
+    const parsedFoodAccoum = Boolean(food_accoum === "true" || food_accoum === true);
+    const parsedFoodAccoumType = food_accoum_type || "none";
+    const parsedQuestionData = Boolean(question_data === "true" || question_data === true);
+
+    const parsedQuestionDetails = typeof question_details === "string"
+      ? parseJSONSafely(question_details, { name: false, email: false, phone_number: false, position: false })
+      : question_details || { name: false, email: false, phone_number: false, position: false };
+
+    let parsedFoodDetails = parseJSONSafely(food_details, []);
+    let parsedAccommodationDetails = parseJSONSafely(accommodation_details, []);
+
+    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
+      const foodItem = {
+        food_quantity: Number(item.food_quantity) || 0,
+        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+        food_catering_name: item.food_catering_name || "",
+        food_price: Number(item.food_price) || 0,
+        food_picture: item.food_picture || ""
+      };
+      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+        foodItem.food_picture = foodPictureFiles[index].path;
+      }
+      return foodItem;
+    });
+
+    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
+      const accItem = {
+        accommodation_quantity: Number(item.accommodation_quantity) || 0,
+        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+        accommodation_catering_name: item.accommodation_catering_name || "",
+        accommodation_price: Number(item.accommodation_price) || 0,
+        accommodation_picture: item.accommodation_picture || ""
+      };
+      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+        accItem.accommodation_picture = accommodationPictureFiles[index].path;
+      }
+      return accItem;
+    });
+
     // Create ticket data object
     const ticketData = {
       event_name: event_name.trim(),
@@ -1874,11 +1951,17 @@ export const createTicketBasicInfo = async (req, res) => {
       event_instagram_link: event_instagram_link?.trim() || "",
       event_youtube_link: event_youtube_link?.trim() || "",
       hashtag: parseJSONSafely(hashtag, []),
-      event_description: event_description.trim(),
+      event_description: cleanedDescription, // Save cleaned html description instead of raw trimmed string
       guests: processedGuests,
       POCS: parseJSONSafely(POCS, []),
       groupId,
       userId,
+      food_accoum: parsedFoodAccoum,
+      food_accoum_type: parsedFoodAccoumType,
+      food_details: parsedFoodDetails,
+      accommodation_details: parsedAccommodationDetails,
+      question_data: parsedQuestionData,
+      question_details: parsedQuestionDetails,
       // event_status is now only set for new tickets, not updates
       created_by: userId,
       updated_by: userId,
@@ -1966,7 +2049,7 @@ export const createTicketBasicInfo = async (req, res) => {
     } else if (event_rules_text && event_rules_text.trim()) {
       ticketData.event_rules = {
         type: "text",
-        content: event_rules_text.trim(),
+        content: sanitizeDescriptionHtml(event_rules_text),
         uploadedAt: new Date(),
       };
     }
@@ -2041,6 +2124,29 @@ export const createTicketBasicInfo = async (req, res) => {
     res.status(201).json(responseData);
   } catch (error) {
     console.error("Error creating event:", error);
+    // Cleanup uploaded files on error
+    try {
+      const allUploadedUrls = [
+        ...Object.values(guestProfileFiles).map(f => f.path),
+        ...Object.values(foodPictureFiles).map(f => f.path),
+        ...Object.values(accommodationPictureFiles).map(f => f.path),
+        ...eventRulesFiles.map(f => f.path),
+        ...Object.values(videoFiles).map(f => f.path),
+        ...Object.values(previewImageFiles).map(f => f.path)
+      ].filter(Boolean);
+
+      for (const url of allUploadedUrls) {
+        const publicId = extractPublicId(url);
+        if (publicId) {
+          const isVideo = url.includes('/video/');
+          const isRaw = url.includes('/raw/');
+          const resourceType = isVideo ? 'video' : (isRaw ? 'raw' : 'image');
+          await deleteFromCloudinary(publicId, resourceType);
+        }
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files on basic info error:", cleanupError);
+    }
     // Handle multer errors
     if (error.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
@@ -2546,6 +2652,8 @@ export const updateTicketAddOns = async (req, res) => {
   const ticketPhotoFiles = {};
   const videoFiles = {};
   const previewImageFiles = {};
+  const foodPictureFiles = {};
+  const accommodationPictureFiles = {};
   let processedSeatingLayout = null;
 
   let _lockKey = null;
@@ -3097,6 +3205,34 @@ export const updateTicketAddOns = async (req, res) => {
             guestProfileFiles[parseInt(index)] = fileData[0];
           } else if (fileData && typeof fileData === "object" && fileData.path) {
             guestProfileFiles[parseInt(index)] = fileData;
+          }
+        }
+      }
+
+      if (fieldName.startsWith("food_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            foodPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            foodPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            foodPictureFiles[parseInt(index)] = fileData;
+          }
+        }
+      }
+
+      if (fieldName.startsWith("accommodation_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            accommodationPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            accommodationPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            accommodationPictureFiles[parseInt(index)] = fileData;
           }
         }
       }
@@ -3738,6 +3874,46 @@ export const updateTicketAddOns = async (req, res) => {
         }))
         : [];
 
+    // Parse food and accommodation details for sub-event
+    const parsedFoodAccoum = Boolean(subEventData.food_accoum === "true" || subEventData.food_accoum === true);
+    const parsedFoodAccoumType = subEventData.food_accoum_type || "none";
+    const parsedQuestionData = Boolean(subEventData.question_data === "true" || subEventData.question_data === true);
+
+    const parsedQuestionDetails = typeof subEventData.question_details === "string"
+      ? parseJSONSafely(subEventData.question_details, { name: false, email: false, phone_number: false, position: false })
+      : subEventData.question_details || { name: false, email: false, phone_number: false, position: false };
+
+    let parsedFoodDetails = parseJSONSafely(subEventData.food_details, []);
+    let parsedAccommodationDetails = parseJSONSafely(subEventData.accommodation_details, []);
+
+    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
+      const foodItem = {
+        food_quantity: Number(item.food_quantity) || 0,
+        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+        food_catering_name: item.food_catering_name || "",
+        food_price: Number(item.food_price) || 0,
+        food_picture: item.food_picture || ""
+      };
+      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+        foodItem.food_picture = foodPictureFiles[index].path;
+      }
+      return foodItem;
+    });
+
+    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
+      const accItem = {
+        accommodation_quantity: Number(item.accommodation_quantity) || 0,
+        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+        accommodation_catering_name: item.accommodation_catering_name || "",
+        accommodation_price: Number(item.accommodation_price) || 0,
+        accommodation_picture: item.accommodation_picture || ""
+      };
+      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+        accItem.accommodation_picture = accommodationPictureFiles[index].path;
+      }
+      return accItem;
+    });
+
     const cleanedDescription = sanitizeDescriptionHtml(subEventData.event_description);
     const descriptionPlainText = stripHtmlForValidation(cleanedDescription);
     // ── EDIT MODE
@@ -3772,7 +3948,7 @@ export const updateTicketAddOns = async (req, res) => {
         location_type: String(subEventData.location_type),
         min_age_allowed: Number(ageNum),
         max_age_allowed: Number(ageMax),
-        event_description: descriptionPlainText,
+        event_description: cleanedDescription, // Save sanitized html description
         payment_type: String(subEventData.payment_type),
         gst_applicable: gstApplicable,
         gst_percentage: appliedGSTPct,
@@ -3809,6 +3985,12 @@ export const updateTicketAddOns = async (req, res) => {
         restrict_booking: Boolean(
           subEventData.restrict_booking === "true" || subEventData.restrict_booking === true
         ),
+        food_accoum: parsedFoodAccoum,
+        food_accoum_type: parsedFoodAccoumType,
+        food_details: parsedFoodDetails,
+        accommodation_details: parsedAccommodationDetails,
+        question_data: parsedQuestionData,
+        question_details: parsedQuestionDetails,
         booking_start_date: subEventData.booking_start_date
           ? String(subEventData.booking_start_date).trim()
           : "",
@@ -3950,7 +4132,7 @@ export const updateTicketAddOns = async (req, res) => {
       ) {
         updatedSubEvent.event_rules = {
           type: "text",
-          content: stripHtmlForValidation(subEventData.event_rules_text),
+          content: sanitizeDescriptionHtml(subEventData.event_rules_text),
           uploadedAt: new Date(),
         };
       } else {
@@ -4412,7 +4594,7 @@ export const updateTicketAddOns = async (req, res) => {
       location_type: String(subEventData.location_type),
       min_age_allowed: Number(ageNum),
       max_age_allowed: Number(ageMax),
-      event_description: descriptionPlainText,
+      event_description: cleanedDescription, // Save sanitized html description
       payment_type: String(subEventData.payment_type),
       gst_applicable: gstApplicable,
       gst_percentage: appliedGSTPct,
@@ -4430,6 +4612,12 @@ export const updateTicketAddOns = async (req, res) => {
       restrict_booking: Boolean(
         subEventData.restrict_booking === "true" || subEventData.restrict_booking === true
       ),
+      food_accoum: parsedFoodAccoum,
+      food_accoum_type: parsedFoodAccoumType,
+      food_details: parsedFoodDetails,
+      accommodation_details: parsedAccommodationDetails,
+      question_data: parsedQuestionData,
+      question_details: parsedQuestionDetails,
       event_date_type: subEventData.event_date_type
         ? String(subEventData.event_date_type)
         : "",
@@ -4574,9 +4762,7 @@ export const updateTicketAddOns = async (req, res) => {
     ) {
       newSubEvent.event_rules = {
         type: "text",
-        content: stripHtmlForValidation(
-          sanitizeDescriptionHtml(subEventData.event_rules_text)
-        ),
+        content: sanitizeDescriptionHtml(subEventData.event_rules_text),
         uploadedAt: new Date(),
       };
     } else {
@@ -4791,6 +4977,16 @@ export const updateTicketAddOns = async (req, res) => {
           if (file && file.public_id) filesToDelete.push(file.public_id);
         });
       }
+      if (foodPictureFiles && typeof foodPictureFiles === "object") {
+        Object.values(foodPictureFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      if (accommodationPictureFiles && typeof accommodationPictureFiles === "object") {
+        Object.values(accommodationPictureFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
       if (ticketPhotoFiles && typeof ticketPhotoFiles === "object") {
         Object.values(ticketPhotoFiles).forEach((file) => {
           if (file && file.public_id) filesToDelete.push(file.public_id);
@@ -4851,6 +5047,8 @@ export const updateTicketDetails = async (req, res) => {
   try {
     const processedFiles = {};
     const ticketPhotoFiles = {};
+    const foodPictureFiles = {};
+    const accommodationPictureFiles = {};
 
     // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
@@ -4889,6 +5087,12 @@ export const updateTicketDetails = async (req, res) => {
       booking_end_date,
       restrict_booking,
       use_group_bank_account = "true",
+      food_accoum,
+      food_accoum_type,
+      food_details,
+      accommodation_details,
+      question_data,
+      question_details,
     } = req.body;
     // Resolve GST (now payment_type is defined)
     const { applicable: gstApplicable, mandatory: gstMandatory } =
@@ -5035,6 +5239,34 @@ export const updateTicketDetails = async (req, res) => {
             }
 
             ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
+          }
+        }
+      }
+      // Handle food pictures
+      if (fieldName.startsWith("food_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            foodPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            foodPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            foodPictureFiles[parseInt(index)] = fileData;
+          }
+        }
+      }
+      // Handle accommodation pictures
+      if (fieldName.startsWith("accommodation_picture_")) {
+        const index = fieldName.split("_")[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (typeof fileData === "string") {
+            accommodationPictureFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            accommodationPictureFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
+            accommodationPictureFiles[parseInt(index)] = fileData;
           }
         }
       }
@@ -5435,12 +5667,58 @@ export const updateTicketDetails = async (req, res) => {
     } else {
       finalBankingDetails = [];
     }
+    // Parse food & accommodation options
+    const parsedFoodAccoum = Boolean(food_accoum === "true" || food_accoum === true);
+    const parsedFoodAccoumType = food_accoum_type || "none";
+    const parsedQuestionData = Boolean(question_data === "true" || question_data === true);
+
+    const parsedQuestionDetails = typeof question_details === "string"
+      ? parseJSONSafely(question_details, { name: false, email: false, phone_number: false, position: false })
+      : question_details || { name: false, email: false, phone_number: false, position: false };
+
+    let parsedFoodDetails = parseJSONSafely(food_details, []);
+    let parsedAccommodationDetails = parseJSONSafely(accommodation_details, []);
+
+    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
+      const foodItem = {
+        food_quantity: Number(item.food_quantity) || 0,
+        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+        food_catering_name: item.food_catering_name || "",
+        food_price: Number(item.food_price) || 0,
+        food_picture: item.food_picture || ""
+      };
+      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+        foodItem.food_picture = foodPictureFiles[index].path;
+      }
+      return foodItem;
+    });
+
+    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
+      const accItem = {
+        accommodation_quantity: Number(item.accommodation_quantity) || 0,
+        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+        accommodation_catering_name: item.accommodation_catering_name || "",
+        accommodation_price: Number(item.accommodation_price) || 0,
+        accommodation_picture: item.accommodation_picture || ""
+      };
+      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+        accItem.accommodation_picture = accommodationPictureFiles[index].path;
+      }
+      return accItem;
+    });
+
     const updateData = {
       payment_type: String(payment_type),
       banking_details: finalBankingDetails,
       gst_applicable: gstApplicable,
       gst_percentage: appliedGSTPct,
       gst_registered_group: !!(GroupBank?.gst_no),
+      food_accoum: parsedFoodAccoum,
+      food_accoum_type: parsedFoodAccoumType,
+      food_details: parsedFoodDetails,
+      accommodation_details: parsedAccommodationDetails,
+      question_data: parsedQuestionData,
+      question_details: parsedQuestionDetails,
       "form_progress.banking_tickets": true,
       updated_by: userId,
       updated_at: new Date(),
@@ -5903,7 +6181,11 @@ export const updateTicketDetails = async (req, res) => {
 
           // Check for ticket photos in uploadedFiles
           Object.keys(uploadedFiles).forEach((fieldName) => {
-            if (fieldName.startsWith("ticket_photo_")) {
+            if (
+              fieldName.startsWith("ticket_photo_") ||
+              fieldName.startsWith("food_picture_") ||
+              fieldName.startsWith("accommodation_picture_")
+            ) {
               const fileData = uploadedFiles[fieldName];
               if (Array.isArray(fileData) && fileData.length > 0) {
                 const photoFile = fileData[0];

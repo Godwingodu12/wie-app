@@ -25,6 +25,8 @@ import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
+import FoodModal from "../../components/Event/FoodModal.jsx";
+import PeopleDetails from "../../components/Event/PeopleDetails.jsx";
 
 // --- Main Page Component ---
 const UpdateTicketDetails = () => {
@@ -112,6 +114,19 @@ const UpdateTicketDetails = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
 
+  // Food & Accommodation and User Details States
+  const [foodAccoum, setFoodAccoum] = useState(false);
+  const [foodAccoumType, setFoodAccoumType] = useState("none");
+  const [foodDetails, setFoodDetails] = useState([]);
+  const [accommodationDetails, setAccommodationDetails] = useState([]);
+  const [questionData, setQuestionData] = useState(false);
+  const [questionDetails, setQuestionDetails] = useState({
+    name: false,
+    email: false,
+    phone_number: false,
+    position: false,
+  });
+
   // Effect to load data from API and localStorage on initial mount
   useEffect(() => {
     const fetchData = async () => {
@@ -168,6 +183,17 @@ const UpdateTicketDetails = () => {
           );
           setAttendanceCount(savedDraft?.attendanceCount ?? ticketData?.attendance_count ?? false);
           setRestrictBooking(savedDraft?.restrictBooking ?? ticketData?.restrict_booking ?? false);
+          setFoodAccoum(savedDraft?.foodAccoum ?? ticketData?.food_accoum ?? false);
+          setFoodAccoumType(savedDraft?.foodAccoumType ?? ticketData?.food_accoum_type ?? "none");
+          setFoodDetails(savedDraft?.foodDetails ?? ticketData?.food_details ?? []);
+          setAccommodationDetails(savedDraft?.accommodationDetails ?? ticketData?.accommodation_details ?? []);
+          setQuestionData(savedDraft?.questionData ?? ticketData?.question_data ?? false);
+          setQuestionDetails(savedDraft?.questionDetails ?? ticketData?.question_details ?? {
+            name: false,
+            email: false,
+            phone_number: false,
+            position: false,
+          });
           setTotalCapacity(
             savedDraft?.totalCapacity ?? ticketData.total_capacity ?? ""
           );
@@ -483,6 +509,12 @@ const UpdateTicketDetails = () => {
       gstEnabled,
       attendanceCount,
       restrictBooking,
+      foodAccoum,
+      foodAccoumType,
+      foodDetails,
+      accommodationDetails,
+      questionData,
+      questionDetails,
     };
 
     localStorage.setItem(storageKey, JSON.stringify(draftData));
@@ -498,11 +530,16 @@ const UpdateTicketDetails = () => {
     initialLoading,
     simpleTicketPrice,
     simpleTicketCapacity,
-    initialLoading,
     storageKey,
     gstEnabled,
     attendanceCount,
     restrictBooking,
+    foodAccoum,
+    foodAccoumType,
+    foodDetails,
+    accommodationDetails,
+    questionData,
+    questionDetails,
   ]);
   const handleBookingEndDateChange = (e) => {
     const newEndDate = e.target.value;
@@ -1095,6 +1132,27 @@ const UpdateTicketDetails = () => {
     apiFormData.append('restrict_booking', restrictBooking);
     apiFormData.append("booking_start_date", bookingStartDate);
     apiFormData.append("booking_end_date", bookingEndDate);
+
+    apiFormData.append("food_accoum", String(foodAccoum));
+    apiFormData.append("food_accoum_type", foodAccoumType);
+    apiFormData.append("food_details", JSON.stringify(foodDetails));
+    apiFormData.append("accommodation_details", JSON.stringify(accommodationDetails));
+    apiFormData.append("question_data", String(questionData));
+    apiFormData.append("question_details", JSON.stringify(questionDetails));
+
+    if (foodAccoum) {
+      foodDetails.forEach((item, index) => {
+        if (item.file instanceof File) {
+          apiFormData.append(`food_picture_${index}`, item.file);
+        }
+      });
+      accommodationDetails.forEach((item, index) => {
+        if (item.file instanceof File) {
+          apiFormData.append(`accommodation_picture_${index}`, item.file);
+        }
+      });
+    }
+
     if (!useGroupBankAccount && bankingDetails.length > 0) {
       apiFormData.append("banking_details", JSON.stringify(bankingDetails));
     }
@@ -1814,11 +1872,11 @@ const UpdateTicketDetails = () => {
                         {/* Display Added Tickets */}
                         {tickets.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                          {tickets.map((ticket) => {
-                            const basePrice = Number(ticket.price || ticket.ticket_price || 0);
-                            const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
-                            const totalPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
-                            const inclPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
+                            {tickets.map((ticket) => {
+                              const basePrice = Number(ticket.price || ticket.ticket_price || 0);
+                              const gstAmt = gstApplicable ? Math.round(basePrice * (GST_PERCENTAGE / 100) * 100) / 100 : 0;
+                              const totalPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
+                              const inclPrice = gstApplicable ? Math.round((basePrice + gstAmt) * 100) / 100 : basePrice;
                               return (
                                 <div key={ticket.id} className="bg-gray-100 dark:bg-[#2B2B2B] rounded-lg overflow-hidden shadow-sm dark:shadow-none">
                                   {/* Header row */}
@@ -1900,6 +1958,25 @@ const UpdateTicketDetails = () => {
                     darkMode={darkMode}
                   />
                 </div>
+
+                <FoodModal
+                  foodAccoum={foodAccoum}
+                  setFoodAccoum={setFoodAccoum}
+                  foodAccoumType={foodAccoumType}
+                  setFoodAccoumType={setFoodAccoumType}
+                  foodDetails={foodDetails}
+                  setFoodDetails={setFoodDetails}
+                  accommodationDetails={accommodationDetails}
+                  setAccommodationDetails={setAccommodationDetails}
+                  darkMode={darkMode}
+                />
+                <PeopleDetails
+                  questionData={questionData}
+                  setQuestionData={setQuestionData}
+                  questionDetails={questionDetails}
+                  setQuestionDetails={setQuestionDetails}
+                  darkMode={darkMode}
+                />
                 {/* ─── LOCATION TYPE ─── */}
                 {locationType === "offline" && (
                   <div className="flex items-center justify-between">

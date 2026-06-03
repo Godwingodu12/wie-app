@@ -260,7 +260,29 @@ export const TicketCard: React.FC<TicketCardProps> = ({
               {subVenue && <span className="text-[9px] font-bold text-[#6A729A] uppercase mt-0.5 line-clamp-1 opacity-80">{subVenue}</span>}
             </div>
           )}
-
+          {/* Row 3b: Addons (shown if present) */}
+          {(() => {
+            const foodAmt = parseFloat((bookingData as any)?.food_addon_amount?.toString() || '0');
+            const accAmt = parseFloat((bookingData as any)?.accommodation_addon_amount?.toString() || '0');
+            if (foodAmt <= 0 && accAmt <= 0) return null;
+            return (
+              <div className="flex flex-col w-full pb-1">
+                <span className="text-[9px] font-bold text-[#6A729A] uppercase tracking-widest mb-1">Add-ons</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {foodAmt > 0 && (
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                      🍽 Food ₹{foodAmt}
+                    </span>
+                  )}
+                  {accAmt > 0 && (
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(149,117,205,0.1)', color: '#9575CD' }}>
+                      🏨 Acc ₹{accAmt}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {/* Row 4: QR Section when showQR is true */}
           {showQR && qrCodeUrl && (
             <>

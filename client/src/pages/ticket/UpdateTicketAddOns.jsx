@@ -36,6 +36,8 @@ import languageOptions from "../../components/CreateGroup/languageOption.jsx";
 import seatingOptions from "../../components/CreateGroup/seatingOption.jsx";
 import eventCategories from "../../components/CreateGroup/eventCategories.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
+import FoodModal from "../../components/Event/FoodModal.jsx";
+import PeopleDetails from "../../components/Event/PeopleDetails.jsx";
 
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
@@ -213,6 +215,17 @@ const UpdateTicketAddOns = () => {
       latitude: INITIAL_MAP_LOCATION.lat.toString(),
       longitude: INITIAL_MAP_LOCATION.lng.toString(),
       address: INITIAL_MAP_LOCATION.address,
+    },
+    food_accoum: false,
+    food_accoum_type: "none",
+    food_details: [],
+    accommodation_details: [],
+    question_data: false,
+    question_details: {
+      name: false,
+      email: false,
+      phone_number: false,
+      position: false,
     },
   };
   const [formData, setFormData] = useState(initialFormState);
@@ -1452,6 +1465,12 @@ const UpdateTicketAddOns = () => {
       })),
       booking_start_date: formData.booking_start_date,
       booking_end_date: formData.booking_end_date,
+      food_accoum: formData.food_accoum,
+      food_accoum_type: formData.food_accoum_type,
+      food_details: formData.food_details,
+      accommodation_details: formData.accommodation_details,
+      question_data: formData.question_data,
+      question_details: formData.question_details,
     };
     if (formData.payment_type === "paid") {
       payload.banking_details = formData.banking_details;
@@ -1738,6 +1757,24 @@ const UpdateTicketAddOns = () => {
       formData.ticket_types.forEach((ticket, index) => {
         if (ticket.photoFile instanceof File) {
           submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+        }
+      });
+    }
+
+    // Append food pictures
+    if (formData.food_details && formData.food_details.length > 0) {
+      formData.food_details.forEach((item, index) => {
+        if (item.file instanceof File) {
+          submissionForm.append(`food_picture_${index}`, item.file);
+        }
+      });
+    }
+
+    // Append accommodation pictures
+    if (formData.accommodation_details && formData.accommodation_details.length > 0) {
+      formData.accommodation_details.forEach((item, index) => {
+        if (item.file instanceof File) {
+          submissionForm.append(`accommodation_picture_${index}`, item.file);
         }
       });
     }
@@ -2674,7 +2711,7 @@ const UpdateTicketAddOns = () => {
               link: g.guest_link,
               image:
                 g.guest_image || g.guest_profile
-                  ? g.guest_image || g.guest_profile
+                  ? getTicketImageUrl(g.guest_image || g.guest_profile)
                   : null,
               rawFile: null,
             })) || [],
@@ -2702,6 +2739,37 @@ const UpdateTicketAddOns = () => {
           existing_event_videos: subEvent.event_videos || [],
           event_images: [], // Reset local file uploads
           event_videos: [], // Reset local file uploads
+          food_accoum: subEvent.food_accoum || false,
+          food_accoum_type: subEvent.food_accoum_type || "none",
+          food_details: (subEvent.food_details || []).map((item) => ({
+            ...item,
+            name: item.food_catering_name || item.name || "",
+            price: item.food_price !== undefined ? item.food_price : (item.price || 0),
+            quantity: item.food_quantity !== undefined ? item.food_quantity : (item.quantity || 0),
+            food_catering_name: item.food_catering_name || item.name || "",
+            food_price: item.food_price !== undefined ? item.food_price : (item.price || 0),
+            food_quantity: item.food_quantity !== undefined ? item.food_quantity : (item.quantity || 0),
+            food_menu: item.food_menu || [],
+            food_picture: item.food_picture ? getTicketImageUrl(item.food_picture) : "",
+          })),
+          accommodation_details: (subEvent.accommodation_details || []).map((item) => ({
+            ...item,
+            name: item.accommodation_catering_name || item.name || "",
+            price: item.accommodation_price !== undefined ? item.accommodation_price : (item.price || 0),
+            quantity: item.accommodation_quantity !== undefined ? item.accommodation_quantity : (item.quantity || 0),
+            accommodation_catering_name: item.accommodation_catering_name || item.name || "",
+            accommodation_price: item.accommodation_price !== undefined ? item.accommodation_price : (item.price || 0),
+            accommodation_quantity: item.accommodation_quantity !== undefined ? item.accommodation_quantity : (item.quantity || 0),
+            accommodation_type: item.accommodation_type || [],
+            accommodation_picture: item.accommodation_picture ? getTicketImageUrl(item.accommodation_picture) : "",
+          })),
+          question_data: subEvent.question_data || false,
+          question_details: subEvent.question_details || {
+            name: false,
+            email: false,
+            phone_number: false,
+            position: false,
+          },
         }));
         // Set previews - ensuring proper format
         setPreviews((prev) => ({
@@ -3735,29 +3803,7 @@ const UpdateTicketAddOns = () => {
                     </div>
                   )}
 
-                  <div className="space-y-4 pt-4">
-                    <ToggleSwitch
-                      label="Is this event pet friendly?"
-                      checked={formData.pet_friendly}
-                      onChange={() => handleToggleChange("pet_friendly")}
-                      darkMode={darkMode}
-                    />
-                    <ToggleSwitch
-                      label="Enable attendance marking for this event?"
-                      checked={formData.attendance_count}
-                      onChange={() => handleToggleChange('attendance_count')}
-                      darkMode={darkMode}
-                    />
-                    <ToggleSwitch
-                      label="Restrict to single ticket per user?"
-                      checked={formData.restrict_booking}
-                      onChange={() => handleToggleChange("restrict_booking")}
-                      darkMode={darkMode}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-                      When on, each person can only book 1 ticket at a time. By default, attendees can book multiple tickets.
-                    </p>
-                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <FormInput
                       label="Instagram link (Optional)"
@@ -3994,51 +4040,63 @@ const UpdateTicketAddOns = () => {
                       Add guest/guides
                       <img src={Guest_Form_Icon} alt="" />
                     </button>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                      {formData.guests.map((guest) => (
-                        <div
-                          key={guest.id}
-                          className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
-                            }`}
-                        >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <img
-                              src={guest.image}
-                              alt={guest.name}
-                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                            />
-                            <div className="truncate">
-                              <p className="font-semibold truncate">
-                                {guest.name}
-                              </p>
-                              {guest.link && (
-                                <a
-                                  href={guest.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-indigo-400 truncate block"
-                                >
-                                  {guest.link}
-                                </a>
-                              )}
+                      {formData.guests.map((guest) => {
+                        const guestImageUrl =
+                          getTicketImageUrl(guest.image || guest.guest_profile) ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            guest.name || "Guest"
+                          )}&background=random`;
+                        return (
+                          <div
+                            key={guest.id}
+                            className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
+                              }`}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <img
+                                src={guestImageUrl}
+                                alt={guest.name}
+                                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    guest.name || "Guest"
+                                  )}&background=random`;
+                                }}
+                              />
+                              <div className="truncate">
+                                <p className="font-semibold truncate">
+                                  {guest.name}
+                                </p>
+                                {guest.link && (
+                                  <a
+                                    href={guest.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-indigo-400 truncate block"
+                                  >
+                                    {guest.link}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleEditGuest(guest)}
+                                className={`p-2 ${darkMode
+                                  ? "text-gray-400 hover:text-white"
+                                  : "text-black hover:text-black"
+                                  }`}
+                                title="Edit"
+                              >
+                                ✏️
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleEditGuest(guest)}
-                              className={`p-2 ${darkMode
-                                ? "text-gray-400 hover:text-white"
-                                : "text-black hover:text-black"
-                                }`}
-                              title="Edit"
-                            >
-                              ✏️
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -4427,7 +4485,7 @@ const UpdateTicketAddOns = () => {
                             strategy={rectSortingStrategy}
                           >
                             {previews.event_images?.map((img) => (
-                               <SortablePhoto
+                              <SortablePhoto
                                 key={img.id}
                                 img={img}
                                 isReordering={isReorderingImages}
@@ -4491,7 +4549,7 @@ const UpdateTicketAddOns = () => {
                             strategy={rectSortingStrategy}
                           >
                             {previews.event_videos?.map((vid) => (
-                               <SortablePhoto
+                              <SortablePhoto
                                 key={vid.id}
                                 img={vid}
                                 isReordering={isReorderingVideos}
@@ -5205,6 +5263,40 @@ const UpdateTicketAddOns = () => {
                           />
                         </div>
                       )}
+
+                      <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800/40 mt-6">
+                        <ToggleSwitch
+                          label="Is this event pet friendly?"
+                          checked={formData.pet_friendly}
+                          onChange={() => handleToggleChange("pet_friendly")}
+                          darkMode={darkMode}
+                        />
+                        <ToggleSwitch
+                          label="Enable attendance marking for this event?"
+                          checked={formData.attendance_count}
+                          onChange={() => handleToggleChange('attendance_count')}
+                          darkMode={darkMode}
+                        />
+                        <FoodModal
+                          formData={formData}
+                          setFormData={setFormData}
+                          darkMode={darkMode}
+                        />
+                        <PeopleDetails
+                          formData={formData}
+                          setFormData={setFormData}
+                          darkMode={darkMode}
+                        />
+                        <ToggleSwitch
+                          label="Restrict to single ticket per user?"
+                          checked={formData.restrict_booking}
+                          onChange={() => handleToggleChange("restrict_booking")}
+                          darkMode={darkMode}
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                          When on, each person can only book 1 ticket at a time. By default, attendees can book multiple tickets.
+                        </p>
+                      </div>
                       {hasSeatingLayout && (
                         <div className="animate-fade-in space-y-6 mt-6">
                           <div className="space-y-4">

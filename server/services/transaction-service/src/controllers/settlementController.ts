@@ -141,19 +141,20 @@ export const triggerEventCancellationRefunds = async (
 
     // Mark all bookings as REFUND_PENDING
     await Promise.all(
-      bookings.map((b: any) =>
-        BookingModel.update(b.id, {
-          bookingStatus: "CANCELLED",
+      bookings.map((b: any) => {
+        // ✅ Ticket portion follows refundPercentage; addons are always 100% back
+        const ticketRefund = parseFloat(((parseFloat(b.subtotal.toString()) * refundPercentage) / 100).toFixed(2));
+        const foodAddon = parseFloat(b.food_addon_amount?.toString() || '0');
+        const accAddon = parseFloat(b.accommodation_addon_amount?.toString() || '0');
+        const totalRefund = parseFloat((ticketRefund + foodAddon + accAddon).toFixed(2));
+
+        return BookingModel.update(b.id, {
+          bookingStatus: 'CANCELLED',
           cancellationReason: `Event cancelled by host: ${eventName}`,
-          refundStatus: "PENDING",
-          refundAmount: parseFloat(
-            (
-              (parseFloat(b.subtotal.toString()) * refundPercentage) /
-              100
-            ).toFixed(2),
-          ),
-        }),
-      ),
+          refundStatus: 'PENDING',
+          refundAmount: totalRefund,
+        });
+      }),
     );
 
     // Push each booking to the REFUND queue (async, rate-limited)
@@ -196,9 +197,11 @@ export const processRefundJob = async (
   }
 
   const subtotal = parseFloat(booking.subtotal.toString());
-  const refundAmount = parseFloat(
-    ((subtotal * refundPercentage) / 100).toFixed(2),
-  );
+  const foodAddon = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+  const accAddon = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+  // ✅ Ticket portion per policy + full addon refund
+  const ticketRefund = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
+  const refundAmount = parseFloat((ticketRefund + foodAddon + accAddon).toFixed(2));
   const isPaid =
     refundAmount > 0 &&
     booking.paymentStatus === "COMPLETED" &&
@@ -585,11 +588,11 @@ const _publishRefundSuccessEvent = async (data: {
     if (ch)
       try {
         await ch.close();
-      } catch (_) {}
+      } catch (_) { }
     if (conn)
       try {
         await conn.close();
-      } catch (_) {}
+      } catch (_) { }
   }
 };
 

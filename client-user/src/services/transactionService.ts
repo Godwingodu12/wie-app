@@ -32,12 +32,56 @@ transactionApi.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+export interface RegisterFreeEventResponse {
+  success: boolean;
+  requiresPayment: boolean; // true when addons need Razorpay
+  message: string;
+  data: {
+    booking: any;
+    qrCode?: string;
+    // Only present when requiresPayment === true
+    razorpayOrder?: { id: string; amount: number; currency: string };
+    razorpayKeyId?: string;
+  };
+}
+export interface CustomQuestionAnswer {
+  question_id: string;
+  question_text: string;
+  answer_type: string;
+  answer_value: string | number | boolean;
+}
 
-// Types
+export interface QuestionAnswers {
+  name?: string;
+  email?: string;
+  phone_number?: string;
+  position?: string;
+  custom_answers?: Record<string, string | number | boolean>;
+}
+
 export interface CreateBookingRequest {
   ticketId: string;
   ticketTypeId: string;
   quantity: number;
+  questionAnswers?: QuestionAnswers;
+  foodAddon?: { selected: boolean; index: number } | null;
+  accommodationAddon?: { selected: boolean; index: number } | null;
+}
+
+export interface FeeBreakdownLine {
+  label: string;
+  amount: number;
+  note?: string;
+}
+
+export interface FeeBreakdown {
+  lines: FeeBreakdownLine[];
+  subtotal: number;
+  platformFee: number;
+  foodAddonAmount: number;
+  accommodationAddonAmount: number;
+  addonTotal: number;
+  total: number;
 }
 
 export interface CreateBookingResponse {
@@ -47,8 +91,11 @@ export interface CreateBookingResponse {
     booking: {
       id: string;
       bookingId: string;
+      subtotal: number;
+      platformFee: number;
       totalAmount: number;
       currency: string;
+      feeBreakdown: FeeBreakdown;
       userDetails?: {
         name?: string;
         email?: string;
@@ -131,6 +178,22 @@ export interface Booking {
 export interface CreateSeatedBookingRequest {
   ticketId: string;
   selectedSeats: string[];
+  questionAnswers?: any;
+  foodAddon?: { selected: boolean; index: number } | null;
+  accommodationAddon?: { selected: boolean; index: number } | null;
+}
+export interface CheckBookingResponse {
+  success: boolean;
+  hasBooked: boolean;
+  hasPending: boolean;
+  booking: Booking | null;
+  eventMeta: {
+    isFreeEvent: boolean;
+    isRestrictedEvent: boolean;
+    showViewTicket: boolean;
+    paymentType: string | null;
+    restrictBooking: boolean;
+  };
 }
 
 export interface BookedSeatsResponse {
@@ -181,20 +244,32 @@ export interface CancelledBooking {
   updatedAt: string;
 }
 
-export const registerFreeEvent = async (ticketId: string, quantity: number) => {
-  const response = await transactionApi.post("/bookings/register-free", {
+export const registerFreeEvent = async (
+  ticketId: string,
+  quantity: number,
+  questionAnswers?: any,
+  foodAddon?: { selected: boolean; index: number } | null,
+  accommodationAddon?: { selected: boolean; index: number } | null,
+  selectedSeats?: string[],
+): Promise<RegisterFreeEventResponse> => {
+  const response = await transactionApi.post('/bookings/register-free', {
     ticketId,
     quantity,
+    ...(questionAnswers ? { questionAnswers } : {}),
+    ...(foodAddon ? { foodAddon } : {}),
+    ...(accommodationAddon ? { accommodationAddon } : {}),
+    ...(selectedSeats && selectedSeats.length > 0 ? { selectedSeats } : {}),
   });
   return response.data;
 };
-// Booking APIs
+
 export const createBooking = async (
   data: CreateBookingRequest,
 ): Promise<CreateBookingResponse> => {
   const response = await transactionApi.post("/bookings/create", data);
   return response.data;
 };
+
 export const createSeatedBooking = async (data: CreateSeatedBookingRequest) => {
   try {
     const res = await transactionApi.post("/bookings/create-seated", data);
@@ -204,6 +279,7 @@ export const createSeatedBooking = async (data: CreateSeatedBookingRequest) => {
     throw err;
   }
 };
+
 export const getBookedSeats = async (
   ticketId: string,
 ): Promise<BookedSeatsResponse> => {
@@ -392,12 +468,14 @@ export const getUserSavedEvents = async (params?: {
   });
   return response.data;
 };
-export const checkUserBooking = async (ticketId: string) => {
-  const response = await transactionApi.get(
-    `/bookings/check-booking/${ticketId}`,
-  );
+
+export const checkUserBooking = async (
+  ticketId: string,
+): Promise<CheckBookingResponse> => {
+  const response = await transactionApi.get(`/bookings/check-booking/${ticketId}`);
   return response.data;
 };
+
 export const trackRefund = async (bookingId: string) => {
   const response = await transactionApi.get(
     `/bookings/${bookingId}/refund/track`,
@@ -442,4 +520,19 @@ export const markAsRead = async (
   const response = await transactionApi.post("/bookings/mark-read", payload);
   return response.data;
 };
+
+export const getEventUserResponse = async (bookingId: string) => {
+  const response = await transactionApi.get(`/bookings/${bookingId}/event-response`);
+  return response.data;
+};
+// Cancel a PENDING booking when user dismisses Razorpay without paying
+export const cancelPendingBooking = async (bookingId: string): Promise<void> => {
+  try {
+    await transactionApi.delete(`/bookings/pending/${bookingId}`);
+  } catch (err) {
+    // Non-fatal — log and swallow so it never breaks the UI
+    console.warn("⚠️ cancelPendingBooking failed (non-fatal):", err);
+  }
+};
+
 export default transactionApi;

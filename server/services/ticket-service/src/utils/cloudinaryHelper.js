@@ -22,7 +22,7 @@ export const processGroupFileUploads = async (files) => {
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
         const folder = getCloudinaryFolder(fieldName);
-        
+
         // Determine resource type based on field name and mimetype
         let resourceType;
         if (fieldName === 'company_logo') {
@@ -31,16 +31,12 @@ export const processGroupFileUploads = async (files) => {
           // For id_proof, bank_check, company_certificate
           resourceType = getResourceType(fieldName, file.mimetype);
         }
-
-        console.log(`Uploading ${fieldName} to Cloudinary (type: ${resourceType})...`);
-        
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
         });
 
         uploadedFiles[fieldName] = result.url;
-        console.log(` ${fieldName} uploaded:`, result.url);
       }
     }
 
@@ -117,7 +113,7 @@ export const processFileUploads = async (files) => {
       const folder = getCloudinaryFolder('ticket_layout');
       const resourceType = getResourceType('ticket_layout', file.mimetype);
       const result = await uploadToCloudinary(file.buffer, { folder, resourceType });
-      
+
       uploadedFiles.ticket_layout = {
         cloudinaryUrl: result.url,
         localPath: tempFilePath,
@@ -143,6 +139,8 @@ export const processFileUploads = async (files) => {
     for (let i = 0; i < 30; i++) {
       if (i < 10 && files[`guest_profile_${i}`]?.[0]) addUploadTask(files[`guest_profile_${i}`][0], `guest_profile_${i}`, true);
       if (i < 20 && files[`ticket_photo_${i}`]?.[0]) addUploadTask(files[`ticket_photo_${i}`][0], `ticket_photo_${i}`, true);
+      if (i < 20 && files[`food_picture_${i}`]?.[0]) addUploadTask(files[`food_picture_${i}`][0], `food_picture_${i}`, true);
+      if (i < 20 && files[`accommodation_picture_${i}`]?.[0]) addUploadTask(files[`accommodation_picture_${i}`][0], `accommodation_picture_${i}`, true);
       if (files[`video_file_${i}`]?.[0]) addUploadTask(files[`video_file_${i}`][0], `video_file_${i}`, true);
       if (files[`preview_image_${i}`]?.[0]) addUploadTask(files[`preview_image_${i}`][0], `preview_image_${i}`, true);
     }
@@ -181,16 +179,15 @@ export const downloadFileFromCloudinary = async (cloudinaryUrl, fileName = null)
 
         file.on('finish', () => {
           file.close();
-          console.log(`Downloaded file to: ${localPath}`);
           resolve(localPath);
         });
       }).on('error', (error) => {
-        fs.unlink(localPath, () => {}); 
+        fs.unlink(localPath, () => { });
         reject(error);
       });
 
       file.on('error', (error) => {
-        fs.unlink(localPath, () => {}); // Delete incomplete file
+        fs.unlink(localPath, () => { }); // Delete incomplete file
         reject(error);
       });
     } catch (error) {
@@ -202,7 +199,6 @@ export const cleanupTempFile = async (filePath) => {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log(`🗑️ Cleaned up temp file: ${filePath}`);
     }
   } catch (error) {
     console.error('Error cleaning up temp file:', error);
@@ -253,7 +249,6 @@ export const uploadGeneratedLayoutToCloudinary = async (layoutObject, ticketId) 
       public_id: `generated_layout_${ticketId}_${Date.now()}`,
       format: 'json'
     });
-    console.log(`✅ Generated layout uploaded to Cloudinary: ${result.url}`);
     return {
       url: result.url,
       public_id: result.public_id,
@@ -267,10 +262,10 @@ export const uploadGeneratedLayoutToCloudinary = async (layoutObject, ticketId) 
 export const deleteFromCloudinary = async (publicIds, resourceType = 'image') => {
   try {
     const idsArray = Array.isArray(publicIds) ? publicIds : [publicIds];
-    
+
     const deletePromises = idsArray.map(async (publicId) => {
       if (!publicId) return null;
-      
+
       // Extract public_id from URL if full URL is provided
       let extractedId = publicId;
       if (publicId.includes('cloudinary.com')) {
@@ -284,11 +279,9 @@ export const deleteFromCloudinary = async (publicIds, resourceType = 'image') =>
         }
       }
 
-      console.log(`Deleting from Cloudinary: ${extractedId}`);
       const result = await cloudinary.uploader.destroy(extractedId, {
         resource_type: resourceType
       });
-      console.log(`✅ Deleted: ${extractedId}`, result);
       return result;
     });
 
@@ -302,7 +295,7 @@ export const deleteFromCloudinary = async (publicIds, resourceType = 'image') =>
 
 export const extractPublicId = (url) => {
   if (!url || !url.includes('cloudinary.com')) return null;
-  
+
   try {
     const urlParts = url.split('/');
     const uploadIndex = urlParts.indexOf('upload');
@@ -316,8 +309,8 @@ export const extractPublicId = (url) => {
   return null;
 };
 setInterval(() => {
-  cleanupOldTempFiles(24); 
-}, 6 * 60 * 60 * 1000); 
+  cleanupOldTempFiles(24);
+}, 6 * 60 * 60 * 1000);
 cleanupOldTempFiles(24);
 export default {
   processFileUploads,
@@ -327,5 +320,5 @@ export default {
   downloadFileFromCloudinary,
   cleanupTempFile,
   cleanupOldTempFiles,
-  uploadGeneratedLayoutToCloudinary  
+  uploadGeneratedLayoutToCloudinary
 };

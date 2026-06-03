@@ -303,6 +303,12 @@ message SubEvent {
   string updatedAt = 50;
   string event_portrait = 51;
   bool restrict_booking = 52;
+  bool food_accoum = 53;
+  string food_accoum_type = 54;
+  repeated FoodDetails food_details = 55;
+  repeated AccommodationDetails accommodation_details = 56;
+  bool question_data = 57;
+  QuestionDetails question_details = 58;
 }
 
 message TicketData {
@@ -373,6 +379,27 @@ message TicketData {
   string razorpayKeySecret = 65;
   string event_portrait = 66;
   bool restrict_booking = 67;
+  bool food_accoum = 68;
+  string food_accoum_type = 69;
+  repeated FoodDetails food_details = 70;
+  repeated AccommodationDetails accommodation_details = 71;
+  bool question_data = 72;
+  QuestionDetails question_details = 73;
+}
+message CustomQuestion {
+  string question_id = 1;
+  string question_text = 2;
+  string answer_type = 3;
+  bool is_required = 4;
+  repeated string options = 5;
+}
+
+message QuestionDetails {
+  bool name = 1;
+  bool email = 2;
+  bool phone_number = 3;
+  bool position = 4;
+  repeated CustomQuestion custom_questions = 5;
 }
 
 message GroupData {
@@ -403,6 +430,23 @@ message GroupData {
   string razorpayKeySecret = 25;
   string razorpayAccountId = 26;
 }
+
+message FoodDetails {
+  int32 food_quantity = 1;
+  repeated string food_menu = 2;
+  string food_catering_name = 3;
+  double food_price = 4;
+  string food_picture = 5;
+}
+
+message AccommodationDetails {
+  int32 accommodation_quantity = 1;
+  repeated string accommodation_type = 2;
+  double accommodation_price = 3;
+  string accommodation_catering_name = 4;
+  string accommodation_picture = 5;
+}
+
 message CancelEventRequest {
   string ticketId = 1;
   string subEventId = 2;

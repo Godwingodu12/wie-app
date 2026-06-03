@@ -27,6 +27,10 @@ interface BookingModalProps {
   total?: number;
   isFree?: boolean;
   platformFee?: number;
+  collectedAddons?: {
+    foodAddon: { selected: boolean; index: number } | null;
+    accommodationAddon: { selected: boolean; index: number } | null;
+  } | null;
 }
 
 export const BookingModal: React.FC<BookingModalProps> = ({
@@ -46,6 +50,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   total: propTotal,
   isFree: propIsFree,
   platformFee: propPlatformFee,
+  collectedAddons = null,
 }) => {
   const router = useRouter();
   const { themeStyles, isDark } = useTheme();
@@ -194,7 +199,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             Choose ticket count
           </h2>
         </div>
-
         {/* Content Section */}
         <div className="px-4 sm:px-8 pb-5 sm:pb-8 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar max-h-[80vh]">
           {/* Main Info Area: Side-by-Side Image & Text */}
@@ -266,8 +270,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                                 setIsDropdownOpen(false);
                               }}
                               className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${selectedTicketType === type._id
-                                  ? (isDark ? 'text-white bg-white/10' : 'text-gray-900 bg-black/5')
-                                  : (isDark ? 'text-[#94A3B8] hover:bg-white/5' : 'text-gray-600 hover:bg-black/5')
+                                ? (isDark ? 'text-white bg-white/10' : 'text-gray-900 bg-black/5')
+                                : (isDark ? 'text-[#94A3B8] hover:bg-white/5' : 'text-gray-600 hover:bg-black/5')
                                 }`}
                             >
                               <span className="font-bold text-[13px] text-left truncate pr-2">{type.ticket_type}</span>
@@ -331,29 +335,73 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               )}
             </div>
           </div>
-
-          {/* Sexy Total Amount Section */}
+          {/* Total Amount Section */}
           <div
-            className={`w-full rounded-2xl p-4 sm:p-5 border mt-2 flex flex-col sm:flex-row items-center sm:items-start justify-between shadow-sm gap-3 sm:gap-0 ${isDark ? 'border-white/5' : 'border-black/5'}`}
+            className={`w-full rounded-2xl p-4 sm:p-5 border mt-2 flex flex-col gap-3 shadow-sm ${isDark ? 'border-white/5' : 'border-black/5'}`}
             style={{ background: isDark ? '#0000001A' : '#f8fafc' }}
           >
-            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
-              <span className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>Total Amount</span>
-              <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-                <span className={`font-semibold text-[14px] ${isDark ? 'text-[#E2E8F0]' : 'text-gray-900'}`}>
-                  {currentQuantity} × {isFree ? 'FREE' : `₹${unitPrice}`}
-                </span>
-                {!isFree && (
-                  <span className={`text-[12px] italic ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>
-                    + ₹{platformFee} platform fee
+            {/* Addon preview (if addons already selected from AddonModal) */}
+            {collectedAddons && (event?.food_details || event?.accommodation_details) && (() => {
+              const foodAmt = collectedAddons.foodAddon?.selected && typeof collectedAddons.foodAddon.index === 'number'
+                ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0)
+                : 0;
+              const accAmt = collectedAddons.accommodationAddon?.selected && typeof collectedAddons.accommodationAddon.index === 'number'
+                ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0)
+                : 0;
+              if (foodAmt <= 0 && accAmt <= 0) return null;
+              return (
+                <div
+                  className="pt-0 pb-1 space-y-1"
+                  style={{ borderBottom: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.05)' }}
+                >
+                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${isDark ? 'text-[#64748B]' : 'text-gray-400'}`}>
+                    Selected Add-ons
+                  </p>
+                  {foodAmt > 0 && (
+                    <div className="flex justify-between text-[12px]">
+                      <span className={isDark ? 'text-indigo-300' : 'text-indigo-600'}>🍽 Food catering</span>
+                      <span className={`font-bold ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>+₹{foodAmt}</span>
+                    </div>
+                  )}
+                  {accAmt > 0 && (
+                    <div className="flex justify-between text-[12px]">
+                      <span className={isDark ? 'text-purple-300' : 'text-purple-600'}>🏨 Accommodation</span>
+                      <span className={`font-bold ${isDark ? 'text-purple-300' : 'text-purple-600'}`}>+₹{accAmt}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 sm:gap-0">
+              <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                <span className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>Total Amount</span>
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                  <span className={`font-semibold text-[14px] ${isDark ? 'text-[#E2E8F0]' : 'text-gray-900'}`}>
+                    {currentQuantity} × {isFree ? 'FREE' : `₹${unitPrice}`}
                   </span>
-                )}
+                  {!isFree && (
+                    <span className={`text-[12px] italic ${isDark ? 'text-[#64748B]' : 'text-gray-500'}`}>
+                      + ₹{platformFee} platform fee
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="text-center sm:text-right sm:pl-4">
-              <span className={`font-semibold text-[24px] sm:text-[32px] leading-none tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {isFree ? 'FREE' : `₹${total}`}
-              </span>
+              <div className="text-center sm:text-right sm:pl-4">
+                {/* Compute grand total including addons */}
+                {(() => {
+                  const foodAmt = collectedAddons?.foodAddon?.selected && typeof collectedAddons.foodAddon.index === 'number'
+                    ? Number(event?.food_details?.[collectedAddons.foodAddon.index]?.food_price || 0) : 0;
+                  const accAmt = collectedAddons?.accommodationAddon?.selected && typeof collectedAddons.accommodationAddon.index === 'number'
+                    ? Number(event?.accommodation_details?.[collectedAddons.accommodationAddon.index]?.accommodation_price || 0) : 0;
+                  const grandTotal = isFree ? foodAmt + accAmt : total + foodAmt + accAmt;
+                  return (
+                    <span className={`font-semibold text-[24px] sm:text-[32px] leading-none tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {isFree && grandTotal === 0 ? 'FREE' : `₹${grandTotal}`}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         </div>
