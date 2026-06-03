@@ -32,6 +32,20 @@ const getClient = () => {
   return client;
 };
 
+interface QuestionDetailField {
+  name?: boolean;
+  email?: boolean;
+  phone_number?: boolean;
+  position?: boolean;
+  custom_questions?: Array<{
+    question_id: string;
+    question_text: string;
+    answer_type: 'string' | 'number' | 'boolean' | 'text' | 'select';
+    is_required: boolean;
+    options: string[];
+  }>;
+}
+
 interface TicketData {
   id: string;
   event_name: string;
@@ -59,11 +73,34 @@ interface TicketData {
     bank_acc_type: string;
   }>;
   groupId: string;
-  payment_type: "free" | "paid";
+  payment_type: 'free' | 'paid';
   seating_layout?: any;
   restrict_booking?: boolean;
+  // Question fields
+  question_data?: boolean;
+  question_details?: QuestionDetailField;
+  // Food & accommodation
+  food_accoum?: boolean;
+  food_accoum_type?: 'food_accommodation' | 'food_only' | 'accommodation_only' | 'none';
+  food_details?: Array<{
+    food_quantity: number;
+    food_menu: string[];
+    food_catering_name: string;
+    food_price: number;
+    food_picture: string;
+  }>;
+  accommodation_details?: Array<{
+    accommodation_quantity: number;
+    accommodation_type: string[];
+    accommodation_price: number;
+    accommodation_catering_name: string;
+    accommodation_picture: string;
+  }>;
+  event_portrait?: string;
+  event_banner?: string;
   [key: string]: any;
 }
+
 interface GroupData {
   id: string;
   name: string;
@@ -161,7 +198,7 @@ export const updateTicketStats = async (
             const delay = RETRY_DELAY_MS * Math.pow(2, _attempt); // 80, 160, 320, 640 ms
             console.warn(
               `⚠️ [gRPC] Version conflict on UpdateTicketStats (${statType}), ` +
-                `retry ${_attempt + 1}/${MAX_RETRIES} in ${delay}ms…`,
+              `retry ${_attempt + 1}/${MAX_RETRIES} in ${delay}ms…`,
             );
             await sleep(delay);
             try {
@@ -181,7 +218,7 @@ export const updateTicketStats = async (
           reject(
             new Error(
               `UpdateTicketStats (${statType}) failed after ${MAX_RETRIES} retries ` +
-                `due to version conflict: ${errMsg}`,
+              `due to version conflict: ${errMsg}`,
             ),
           );
           return;
