@@ -5,7 +5,7 @@ import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket, snapshotAndLockSubEvent, rehostMainEventV2 } from '../services/ticket.service.js';
+import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket, snapshotAndLockSubEvent, rehostMainEventV2, sanitizeDescriptionHtml, stripHtmlForValidation } from '../services/ticket.service.js';
 import TicketAudit from '../models/ticketAudit.model.js';
 import { resolveGSTApplicability, extractGSTFromInclusive } from '../services/ticket.service.js';
 import { validateIFSCCode, validateAadhaarDocument } from "../utils/datavalidationHelper.js";
@@ -108,6 +108,8 @@ export const updateSubEvent = async (req, res) => {
   let processedFiles = {};
   let guestProfileFiles = {};
   let ticketPhotoFiles = {};
+  const foodPictureFiles = {};
+  const accommodationPictureFiles = {};
   try {
     const { ticketId, subEventId } = req.params;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -206,6 +208,32 @@ export const updateSubEvent = async (req, res) => {
             const profileFile = fileData[0];
             if (profileFile.path && profileFile.originalName) {
               guestProfileFiles[parseInt(index)] = profileFile;
+            }
+          }
+        }
+      }
+
+      if (fieldName.startsWith('food_picture_')) {
+        const index = fieldName.split('_')[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const foodPicFile = fileData[0];
+            if (foodPicFile.path) {
+              foodPictureFiles[parseInt(index)] = foodPicFile;
+            }
+          }
+        }
+      }
+
+      if (fieldName.startsWith('accommodation_picture_')) {
+        const index = fieldName.split('_')[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const accPicFile = fileData[0];
+            if (accPicFile.path) {
+              accommodationPictureFiles[parseInt(index)] = accPicFile;
             }
           }
         }
@@ -647,6 +675,54 @@ export const updateSubEvent = async (req, res) => {
       });
     }
 
+    // Parse food and accommodation details
+    const parsedFoodAccoum = updateData.food_accoum !== undefined
+      ? Boolean(updateData.food_accoum === 'true' || updateData.food_accoum === true)
+      : existingSubEvent.food_accoum;
+
+    const parsedFoodAccoumType = updateData.food_accoum_type || existingSubEvent.food_accoum_type || 'none';
+
+    const parsedQuestionData = updateData.question_data !== undefined
+      ? Boolean(updateData.question_data === 'true' || updateData.question_data === true)
+      : existingSubEvent.question_data;
+
+    const parsedQuestionDetails = updateData.question_details
+      ? (typeof updateData.question_details === 'string'
+        ? parseJSONSafely(updateData.question_details, { name: false, email: false, phone_number: false, position: false })
+        : updateData.question_details)
+      : existingSubEvent.question_details || { name: false, email: false, phone_number: false, position: false };
+
+    let parsedFoodDetails = updateData.food_details ? parseJSONSafely(updateData.food_details, []) : existingSubEvent.food_details || [];
+    let parsedAccommodationDetails = updateData.accommodation_details ? parseJSONSafely(updateData.accommodation_details, []) : existingSubEvent.accommodation_details || [];
+
+    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
+      const foodItem = {
+        food_quantity: Number(item.food_quantity) || 0,
+        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+        food_catering_name: item.food_catering_name || "",
+        food_price: Number(item.food_price) || 0,
+        food_picture: item.food_picture || ""
+      };
+      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+        foodItem.food_picture = foodPictureFiles[index].path;
+      }
+      return foodItem;
+    });
+
+    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
+      const accItem = {
+        accommodation_quantity: Number(item.accommodation_quantity) || 0,
+        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+        accommodation_catering_name: item.accommodation_catering_name || "",
+        accommodation_price: Number(item.accommodation_price) || 0,
+        accommodation_picture: item.accommodation_picture || ""
+      };
+      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+        accItem.accommodation_picture = accommodationPictureFiles[index].path;
+      }
+      return accItem;
+    });
+
     // Build updated sub-event object
     const updatedSubEvent = {
       ...existingSubEvent.toObject(),
@@ -661,7 +737,7 @@ export const updateSubEvent = async (req, res) => {
       location_type: updateData.location_type || existingSubEvent.location_type,
       min_age_allowed: updateData.min_age_allowed !== undefined ? Number(updateData.min_age_allowed) : existingSubEvent.min_age_allowed,
       max_age_allowed: updateData.max_age_allowed !== undefined ? Number(updateData.max_age_allowed) : existingSubEvent.max_age_allowed,
-      event_description: updateData.event_description || existingSubEvent.event_description,
+      event_description: updateData.event_description !== undefined ? sanitizeDescriptionHtml(updateData.event_description) : existingSubEvent.event_description,
       payment_type: updateData.payment_type || existingSubEvent.payment_type,
       gst_applicable: gstApplicable,
       gst_percentage: appliedGSTPct,
@@ -672,6 +748,12 @@ export const updateSubEvent = async (req, res) => {
       attendance_count: updateData.attendance_count !== undefined ? Boolean(updateData.attendance_count === 'true' || updateData.attendance_count === true) : existingSubEvent.attendance_count,
       // restrict_booking: true = allow multiple tickets per person, false (default) = 1 ticket only
       restrict_booking: updateData.restrict_booking !== undefined ? Boolean(updateData.restrict_booking === 'true' || updateData.restrict_booking === true) : existingSubEvent.restrict_booking,
+      food_accoum: parsedFoodAccoum,
+      food_accoum_type: parsedFoodAccoumType,
+      food_details: parsedFoodDetails,
+      accommodation_details: parsedAccommodationDetails,
+      question_data: parsedQuestionData,
+      question_details: parsedQuestionDetails,
       // Optional fields
       event_date_type: updateData.event_date_type || existingSubEvent.event_date_type,
       event_instagram_link: updateData.event_instagram_link || existingSubEvent.event_instagram_link,
@@ -761,7 +843,7 @@ export const updateSubEvent = async (req, res) => {
     } else if (updateData.event_rules_text) {
       updatedSubEvent.event_rules = {
         type: 'text',
-        content: String(updateData.event_rules_text).trim(),
+        content: sanitizeDescriptionHtml(updateData.event_rules_text),
         uploadedAt: new Date()
       };
     } else {
@@ -962,6 +1044,14 @@ export const updateSubEvent = async (req, res) => {
         filesToDelete.push(processedFiles.event_rules.public_id);
       }
       Object.values(guestProfileFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      Object.values(foodPictureFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      Object.values(accommodationPictureFiles).forEach(file => {
         if (file.public_id) filesToDelete.push(file.public_id);
       });
 
@@ -3194,12 +3284,12 @@ export const getCancellationReport = async (req, res) => {
       return sum + parseFloat(b.subtotal || '0');
     }, 0);
 
-    //  Build Excel 
+    //  Build Excel
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'WIE Platform';
     workbook.created = new Date();
 
-    //  Sheet 1: Summary 
+    //  Sheet 1: Summary
     const summarySheet = workbook.addWorksheet('Cancellation Summary');
     summarySheet.columns = [{ width: 35 }, { width: 30 }];
 
@@ -3222,7 +3312,7 @@ export const getCancellationReport = async (req, res) => {
 
     summarySheet.addRow([]);
 
-    //  Event info rows 
+    //  Event info rows
     addSummaryRow('Event Name', targetEvent.event_name || ticket.event_name || 'N/A');
     addSummaryRow('Event ID', reportId);
 
@@ -3479,7 +3569,7 @@ export const cancelEvent = async (req, res) => {
       targetEvent = ticket;
     }
 
-    // Guard: already cancelled / completed / deleted 
+    // Guard: already cancelled / completed / deleted
     const nonCancellableStatuses = ["cancelled", "completed", "deleted"];
     if (nonCancellableStatuses.includes(targetEvent.event_status)) {
       return res.status(400).json({
@@ -3487,7 +3577,7 @@ export const cancelEvent = async (req, res) => {
       });
     }
 
-    // ── Refund tier calculation 
+    // ── Refund tier calculation
     const eventStartDate = targetEvent.event_dates?.[0]?.start_date;
     let refundPercentage = 100;
     let cancellationTier = "full_refund";
@@ -3753,10 +3843,10 @@ export const rehostEvent = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only cancelled events can be re-hosted' });
     }
 
-    // ── Create a brand-new V2 ticket with fresh zero metrics 
+    // ── Create a brand-new V2 ticket with fresh zero metrics
     const newTicket = await rehostMainEventV2(cancelledTicket, userId);
 
-    //    demote it back as a sub-event under the new V2 ticket 
+    //    demote it back as a sub-event under the new V2 ticket
     const currentPromotedMain = await Ticket.findOne({
       original_main_event_id: cancelledTicket._id,
       userId,
@@ -3980,13 +4070,13 @@ export const rehostSubEvent = async (req, res) => {
       rehosted_at: new Date(),
     };
 
-    // ── Step 3: Remove old cancelled sub-event, push new one 
+    // ── Step 3: Remove old cancelled sub-event, push new one
     parentTicket.sub_events.splice(subIdx, 1);
     parentTicket.sub_events.push(newSubEvent);
     parentTicket.markModified('sub_events');
     await parentTicket.save();
 
-    //  Step 4: Publish rehost event for notifications 
+    //  Step 4: Publish rehost event for notifications
     try {
       await publishToExchange('wie.events', 'event.rehosted', {
         eventId: newSubEvent._id.toString(),
