@@ -27,9 +27,9 @@ export const getNotifications = async (req, res) => {
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 
-    const unreadCount = await Notification.countDocuments({ 
-      userId, 
-      isRead: false 
+    const unreadCount = await Notification.countDocuments({
+      userId,
+      isRead: false
     });
 
     const eventNotificationsCount = await Notification.countDocuments({
