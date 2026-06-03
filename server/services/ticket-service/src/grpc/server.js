@@ -148,7 +148,45 @@ const mapSubEvents = (subEvents) => {
     createdAt: sub.createdAt?.toISOString() || '',
     updatedAt: sub.updatedAt?.toISOString() || '',
     event_portrait: sub.event_portrait || '',
-    restrict_booking: sub.restrict_booking || false
+    food_accoum: sub.food_accoum || false,
+    food_accoum_type: sub.food_accoum_type || 'none',
+    food_details: (sub.food_details || []).map(item => ({
+      food_quantity: item.food_quantity || 0,
+      food_menu: item.food_menu || [],
+      food_catering_name: item.food_catering_name || '',
+      food_price: item.food_price || 0,
+      food_picture: item.food_picture || ''
+    })),
+    accommodation_details: (sub.accommodation_details || []).map(item => ({
+      accommodation_quantity: item.accommodation_quantity || 0,
+      accommodation_type: item.accommodation_type || [],
+      accommodation_price: item.accommodation_price || 0,
+      accommodation_catering_name: item.accommodation_catering_name || '',
+      accommodation_picture: item.accommodation_picture || ''
+    })),
+    question_data: sub.question_data === true || sub.question_data === 1,
+    question_details: (() => {
+      const qd = sub.question_details || {};
+      // Support both old boolean-only format and new custom questions array
+      if (Array.isArray(qd)) return { custom_questions: qd };
+      return {
+        name: qd.name || false,
+        email: qd.email || false,
+        phone_number: qd.phone_number || false,
+        position: qd.position || false,
+        custom_questions: (qd.custom_questions || []).map(q => ({
+          question_id: q.question_id || q._id?.toString() || '',
+          question_text: q.question_text || q.question || '',
+          answer_type: q.answer_type || 'string',
+          is_required: q.is_required !== false,
+          options: q.options || [],
+        })),
+      };
+    })(),
+    gst_applicable: sub.gst_applicable || false,
+    gst_percentage: sub.gst_percentage || 0,
+    attend_count: sub.attendance_count || false,
+    restrict_booking: sub.restrict_booking || false,
   }));
 };
 
@@ -282,7 +320,41 @@ const mapTicketToProto = (ticket) => {
     razorpayKeyId: '',
     razorpayKeySecret: '',
     event_portrait: ticket.event_portrait || '',
-    restrict_booking: ticket.restrict_booking || false
+    restrict_booking: ticket.restrict_booking || false,
+    food_accoum: ticket.food_accoum || false,
+    food_accoum_type: ticket.food_accoum_type || 'none',
+    food_details: (ticket.food_details || []).map(item => ({
+      food_quantity: item.food_quantity || 0,
+      food_menu: item.food_menu || [],
+      food_catering_name: item.food_catering_name || '',
+      food_price: item.food_price || 0,
+      food_picture: item.food_picture || ''
+    })),
+    accommodation_details: (ticket.accommodation_details || []).map(item => ({
+      accommodation_quantity: item.accommodation_quantity || 0,
+      accommodation_type: item.accommodation_type || [],
+      accommodation_price: item.accommodation_price || 0,
+      accommodation_catering_name: item.accommodation_catering_name || '',
+      accommodation_picture: item.accommodation_picture || ''
+    })),
+    question_data: ticket.question_data === true || ticket.question_data === 1,
+    question_details: (() => {
+      const qd = ticket.question_details || {};
+      if (Array.isArray(qd)) return { custom_questions: qd };
+      return {
+        name: qd.name || false,
+        email: qd.email || false,
+        phone_number: qd.phone_number || false,
+        position: qd.position || false,
+        custom_questions: (qd.custom_questions || []).map(q => ({
+          question_id: q.question_id || q._id?.toString() || '',
+          question_text: q.question_text || q.question || '',
+          answer_type: q.answer_type || 'string',
+          is_required: q.is_required !== false,
+          options: q.options || [],
+        })),
+      };
+    })(),
   };
 };
 
