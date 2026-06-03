@@ -387,10 +387,37 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                     <span className={`${themeStyles.textSecondary} opacity-70`}>GST (18%)</span>
                     <span className="font-bold font-mono">₹{booking.tax.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs sm:text-sm pb-4">
+                  <div className="flex justify-between items-center text-xs sm:text-sm">
                     <span className={`${themeStyles.textSecondary} opacity-70`}>Platform Fee</span>
                     <span className="font-bold font-mono">₹{booking.platformFee.toLocaleString()}</span>
                   </div>
+
+                  {/* Addon rows — only shown when present */}
+                  {(() => {
+                    const foodAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+                    const accAmt = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+                    return (
+                      <>
+                        {foodAmt > 0 && (
+                          <div className="flex justify-between items-center text-xs sm:text-sm">
+                            <span className={`${themeStyles.textSecondary} opacity-70 flex items-center gap-1.5`}>
+                              <span>🍽</span> Food catering
+                            </span>
+                            <span className="font-bold font-mono text-indigo-400">+₹{foodAmt.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {accAmt > 0 && (
+                          <div className="flex justify-between items-center text-xs sm:text-sm">
+                            <span className={`${themeStyles.textSecondary} opacity-70 flex items-center gap-1.5`}>
+                              <span>🏨</span> Accommodation
+                            </span>
+                            <span className="font-bold font-mono text-purple-400">+₹{accAmt.toLocaleString()}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
                   <div className={`pt-6 border-t ${themeStyles.border} flex items-center justify-between`}>
                     <span className="text-sm sm:text-lg font-bold">Total Amount Paid</span>
                     <span className="text-2xl sm:text-3xl font-bold text-[#8860D9] font-mono text-right">
@@ -642,6 +669,35 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                             ₹{(booking.qrPayload?.platformFee ?? booking.platformFee ?? 0).toLocaleString('en-IN')}
                           </span>
                         </div>
+                        {/* Add after the platform fee row inside the price breakdown block: */}
+                        {(() => {
+                          const fAmt = parseFloat((booking as any).food_addon_amount?.toString() || '0');
+                          const aAmt = parseFloat((booking as any).accommodation_addon_amount?.toString() || '0');
+                          return (
+                            <>
+                              {fAmt > 0 && (
+                                <div className="flex justify-between">
+                                  <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+                                    Food catering
+                                  </span>
+                                  <span className={`font-mono font-bold ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                                    ₹{fAmt.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                              )}
+                              {aAmt > 0 && (
+                                <div className="flex justify-between">
+                                  <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+                                    Accommodation
+                                  </span>
+                                  <span className={`font-mono font-bold ${isDark ? 'text-purple-300' : 'text-purple-600'}`}>
+                                    ₹{aAmt.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                         <div className={`flex justify-between pt-1 border-t ${isDark ? 'border-white/10' : 'border-black/10'}`}>
                           <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Total paid</span>
                           <span className="font-mono font-bold text-emerald-400">
@@ -650,7 +706,6 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                         </div>
                       </div>
                     )}
-
                     {/* Transaction ID */}
                     <TicketRow
                       isDark={isDark}
