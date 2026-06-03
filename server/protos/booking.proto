@@ -12,6 +12,8 @@ service BookingService {
   rpc GetEventFinancialSummary(EventFinancialSummaryRequest) returns (EventFinancialSummaryResponse);
   rpc GetEventTransactionList(EventTransactionListRequest) returns (EventTransactionListResponse);
   rpc VerifyBookingQR(VerifyBookingQRRequest) returns (VerifyBookingQRResponse);
+  rpc GetEventUserResponses(GetEventUserResponsesRequest) returns (GetEventUserResponsesResponse);
+  rpc GetBookingAddons(GetBookingAddonsRequest) returns (GetBookingAddonsResponse);
 }
 
 message VerifyBookingQRRequest {
@@ -198,4 +200,69 @@ message CancelEventBookingsResponse {
   bool   success      = 1;
   string error        = 2;
   int32  updatedCount = 3;
+}
+
+message UserQuestionAnswer {
+  string answer_name     = 1;
+  string answer_email    = 2;
+  string answer_phone    = 3;
+  string answer_position = 4;
+}
+
+message BookingFoodAddon {
+  bool   food_selected      = 1;
+  int32  food_quantity      = 2;
+  repeated string food_menu = 3;
+  string food_catering_name = 4;
+  double food_price         = 5;
+  string food_picture       = 6;
+}
+
+message BookingAccommodationAddon {
+  bool   accommodation_selected      = 1;
+  int32  accommodation_quantity      = 2;
+  repeated string accommodation_type = 3;
+  string accommodation_catering_name = 4;
+  double accommodation_price         = 5;
+  string accommodation_picture       = 6;
+}
+
+message EventUserResponseRecord {
+  string id               = 1;
+  string booking_id       = 2;
+  string ticket_id        = 3;
+  string group_id         = 4;
+  string user_id          = 5;
+  UserQuestionAnswer      question_answers    = 6;
+  BookingFoodAddon        food_addon          = 7;
+  BookingAccommodationAddon accommodation_addon = 8;
+  string created_at       = 9;
+}
+
+message GetEventUserResponsesRequest {
+  string ticket_id = 1;
+  string group_id  = 2;   // optional — for auth check
+}
+
+message GetEventUserResponsesResponse {
+  bool   success  = 1;
+  string error    = 2;
+  repeated EventUserResponseRecord responses = 3;
+  int32  count    = 4;
+}
+
+message GetBookingAddonsRequest {
+  string booking_id = 1;
+}
+
+message GetBookingAddonsResponse {
+  bool   success              = 1;
+  string error                = 2;
+  string booking_id           = 3;
+  UserQuestionAnswer          question_answers    = 4;
+  BookingFoodAddon            food_addon          = 5;
+  BookingAccommodationAddon   accommodation_addon = 6;
+  double food_addon_amount          = 7;
+  double accommodation_addon_amount = 8;
+  double total_addon_amount         = 9;
 }
