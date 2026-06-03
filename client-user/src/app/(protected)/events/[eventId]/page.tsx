@@ -1,4 +1,5 @@
 "use client";
+import Script from "next/script";
 import {
   createBooking,
   toggleLike,
@@ -10,7 +11,7 @@ import {
   recordView,
   registerFreeEvent,
   verifyPayment,
-  checkUserBooking,
+  checkUserBooking, cancelPendingBooking
 } from "@/services/transactionService";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -33,6 +34,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize,
+  Utensils,
+  Hotel,
 } from "lucide-react";
 declare global {
   interface Window {
@@ -58,6 +61,8 @@ import { useSidebar } from "@/context/SidebarContext";
 import { SimilarEvents } from "@/components/events/SimilarEvents";
 import { BookingModal } from "@/components/events/BookingModal";
 import { SubEventGrid } from "@/components/events/SubEventGrid";
+import { QuestionModal, QuestionAnswers } from '@/components/events/QuestionModal';
+import { AddonModal, AddonSelection } from '@/components/events/AddonModal';
 
 export default function EventDetailPage() {
   useAuth(true);
@@ -65,8 +70,34 @@ export default function EventDetailPage() {
   const router = useRouter();
   const { isCollapsed, isMobile } = useSidebar();
   const { themeStyles, isDark } = useTheme();
+
   const ticketApiBaseUrl =
     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5005/api";
+
+  const getTicketImageUrl = (imagePath: string | null | undefined, fallbackUrl = ""): string => {
+    if (!imagePath) return fallbackUrl;
+    if (
+      typeof imagePath === 'string' &&
+      (imagePath.startsWith('http://') ||
+        imagePath.startsWith('https://') ||
+        imagePath.startsWith('blob:') ||
+        imagePath.startsWith('data:'))
+    ) {
+      return imagePath;
+    }
+    if (typeof imagePath === 'string' && imagePath.includes('cloudinary.com')) {
+      return `https://${imagePath}`;
+    }
+    const baseUrl = ticketApiBaseUrl.replace(/\/api\/?$/, '');
+    let cleanPath = imagePath.replace(/\\/g, '/');
+    cleanPath = cleanPath.replace(/^src\//, '');
+    cleanPath = cleanPath.replace(/^\/+/, '');
+    if (!cleanPath.startsWith('uploads/')) {
+      cleanPath = `uploads/${cleanPath}`;
+    }
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   const eventId =
     typeof params?.eventId === "string" ? params.eventId : undefined;
   const [event, setEvent] = useState<Event | SubEvent | null>(null);
@@ -91,11 +122,17 @@ export default function EventDetailPage() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showTicketModal, setShowTicketModal] = useState(false);
   const [isViewTicketMode, setIsViewTicketMode] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [hasBooked, setHasBooked] = useState(false);
   const [userBooking, setUserBooking] = useState<any>(null);
+  const [showViewTicketBtn, setShowViewTicketBtn] = useState(false);
+  const [bookingCheckLoading, setBookingCheckLoading] = useState(true);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [showAddonModal, setShowAddonModal] = useState(false);
+  const [collectedAnswers, setCollectedAnswers] = useState<QuestionAnswers | null>(null);
+  const [collectedAddons, setCollectedAddons] = useState<AddonSelection | null>(null);
+  const [pendingBookingFlow, setPendingBookingFlow] = useState(false);
   const [group, setGroup] = useState<Group | null>(null);
   const isMainEvent = (event: Event | SubEvent): event is Event =>
     "sub_events" in event;
@@ -132,7 +169,10 @@ export default function EventDetailPage() {
     event?.kids_friendly ||
     event?.pet_friendly ||
     event?.event_instagram_link ||
-    event?.event_youtube_link,
+    event?.event_youtube_link ||
+    event?.food_accoum ||
+    event?.food_details?.length ||
+    event?.accommodation_details?.length
   );
 
   const SECTIONS: {
@@ -184,26 +224,6 @@ export default function EventDetailPage() {
     }
     return err?.response?.data?.message || err?.message || fallback;
   };
-
-  useEffect(() => {
-    if (!event) return;
-    if (isMainEvent(event)) {
-      console.log("Event loaded with sub-events:", event.sub_events?.length || 0);
-      return;
-    }
-    console.log("Sub-event loaded");
-  }, [event]);
-  // Load Razorpay script
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
   // Record view after details are loaded
   useEffect(() => {
     if (eventId && !loading) {
@@ -220,19 +240,23 @@ export default function EventDetailPage() {
   useEffect(() => {
     const checkBookingStatus = async () => {
       if (!eventId) return;
+      setBookingCheckLoading(true); // show skeleton until resolved
       try {
         const result = await checkUserBooking(eventId);
-        setHasBooked(result.hasBooked);
-        setUserBooking(result.booking);
+        setHasBooked(result.hasBooked ?? false);
+        if (result.booking) {
+          setUserBooking(result.booking);
+        }
+        setShowViewTicketBtn(result.eventMeta?.showViewTicket ?? result.hasBooked ?? false);
       } catch (error) {
         console.error("Error checking booking status:", error);
+      } finally {
+        setBookingCheckLoading(false); // always resolve the loading state
       }
     };
 
-    if (event) {
-      checkBookingStatus();
-    }
-  }, [eventId, event]);
+    checkBookingStatus();
+  }, [eventId]);
 
   const loadEventStats = async () => {
     try {
@@ -365,30 +389,52 @@ export default function EventDetailPage() {
     }
   };
 
-  const initiateBooking = async () => {
+
+  const initiateBooking = async (addons?: AddonSelection | null) => {
+    const activeAddons = addons ?? collectedAddons;
     if (!selectedTicketType) {
-      alert("Please select a ticket type");
+      alert('Please select a ticket type');
       return;
     }
-
     setIsBooking(true);
-
     try {
-      // Create booking
       const bookingResponse = await createBooking({
         ticketId: eventId as string,
         ticketTypeId: selectedTicketType,
         quantity,
+        ...(collectedAnswers ? { questionAnswers: collectedAnswers } : {}),
+        ...(activeAddons?.foodAddon ? { foodAddon: activeAddons.foodAddon } : {}),
+        ...(activeAddons?.accommodationAddon ? { accommodationAddon: activeAddons.accommodationAddon } : {}),
       });
 
+      // ── The booking object from createBooking has a different shape than verifyPayment ──
+      // booking here is just the id/bookingId/amounts, NOT the confirmed booking.
+      // razorpayOrder carries the Razorpay order details.
       const { booking, razorpayOrder, razorpayKeyId } = bookingResponse.data;
+
+      // ── Build price breakdown from what the server returned ────────────────
+      // createBooking returns feeBreakdown at the top level of booking
+      const feeBreakdown = (booking as any).feeBreakdown || {};
+      const foodAmt = Number(feeBreakdown.foodAddonAmount) || 0;
+      const accAmt = Number(feeBreakdown.accommodationAddonAmount) || 0;
+      const ticketSubtotal = Number(feeBreakdown.subtotal) || Number(booking.subtotal) || 0;
+      const convenienceFee = Number(feeBreakdown.platformFee) || Number(booking.platformFee) || 0;
+      const grandTotal = Number(feeBreakdown.total) || Number(booking.totalAmount) || 0;
+
+      // Build human-readable description for Razorpay modal
+      const descParts: string[] = [`Ticket: ₹${ticketSubtotal.toFixed(2)}`];
+      if (foodAmt > 0) descParts.push(`Food: ₹${foodAmt.toFixed(2)}`);
+      if (accAmt > 0) descParts.push(`Stay: ₹${accAmt.toFixed(2)}`);
+      descParts.push(`Fee: ₹${convenienceFee.toFixed(2)}`);
+      const breakdownDescription = descParts.join(' | ');
+
       const options = {
         key: razorpayKeyId,
-        amount: razorpayOrder.amount,
+        amount: razorpayOrder.amount,   // in paise — set by server
         currency: razorpayOrder.currency,
-        name: "WIE Events",
-        description: event?.event_name || "Event Booking",
-        image: event?.event_logo || event?.event_banner || "",
+        name: 'WIE Events',
+        description: `${event?.event_name || 'Event Booking'} — ${breakdownDescription}`,
+        image: event?.event_logo || event?.event_banner || '',
         order_id: razorpayOrder.id,
 
         handler: async function (response: any) {
@@ -402,34 +448,28 @@ export default function EventDetailPage() {
             if (verifyData.success) {
               setShowSuccessModal(true);
               setShowBookingModal(false);
-
-              if (event?.payment_type === "free") {
-                setHasBooked(true);
-                setUserBooking(verifyData.data.booking);
-              }
+              setHasBooked(true);
+              setShowViewTicketBtn(true); // ← add this line
+              setUserBooking(verifyData.data.booking);
               loadEventStats();
-
               setTimeout(() => {
                 router.push(`/bookings/${verifyData.data.booking.id}`);
               }, 2000);
             } else {
-              setAlertMessage("Payment verification failed. Please contact support.");
+              setAlertMessage('Payment verification failed. Please contact support.');
             }
           } catch (error: any) {
-            console.error("Payment verification error:", error);
-            const errorMsg =
-              error.response?.data?.message || "Payment verification failed";
-            setAlertMessage(errorMsg);
+            console.error('Payment verification error:', error);
+            setAlertMessage(error.response?.data?.message || 'Payment verification failed');
           }
         },
 
-        // ── Prefill: Razorpay needs a non-empty contact to mount the UPI VPA input ──
         prefill: {
-          name: booking?.userDetails?.name || "",
-          email: booking?.userDetails?.email || "",
-          contact: booking?.userDetails?.phone || "9999999999", // fallback keeps UPI field alive
+          name: '',
+          email: '',
+          contact: '9999999999', // fallback keeps UPI field alive
         },
-        // ── Explicitly enable all payment methods including UPI
+
         method: {
           upi: true,
           card: true,
@@ -439,34 +479,36 @@ export default function EventDetailPage() {
           paylater: false,
         },
 
-        // ── Config block: required for UPI VPA input to render in test mode ───────
         config: {
           display: {
             blocks: {
               banks: {
-                name: "All Payment Methods",
+                name: 'All Payment Methods',
                 instruments: [
-                  { method: "upi" },
-                  { method: "card" },
-                  { method: "netbanking" },
-                  { method: "wallet" },
+                  { method: 'upi' },
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
                 ],
               },
             },
-            sequence: ["block.banks"],
-            preferences: {
-              show_default_blocks: true,
-            },
+            sequence: ['block.banks'],
+            preferences: { show_default_blocks: true },
           },
         },
 
         notes: {
           bookingId: booking.bookingId,
-          eventName: event?.event_name || "",
+          eventName: event?.event_name || '',
+          ticketSubtotal: String(ticketSubtotal),
+          platformFee: String(convenienceFee),
+          foodAddonAmount: String(foodAmt),
+          accommodationAddonAmount: String(accAmt),
+          grandTotal: String(grandTotal),
         },
 
         theme: {
-          color: "#8860D9",
+          color: '#8860D9',
           hide_topbar: false,
         },
 
@@ -476,20 +518,26 @@ export default function EventDetailPage() {
           handleback: true,
           confirm_close: true,
           animation: true,
-          ondismiss: function () {
+          ondismiss: async function () {
+            // ✅ Cancel the PENDING booking so user can try again freely
+            if (booking?.id) {
+              await cancelPendingBooking(booking.id);
+            }
             setIsBooking(false);
             setShowBookingModal(false);
           },
         },
       };
+
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error: any) {
-      console.error("Booking error:", error);
-      alert(error.response?.data?.message || "Failed to create booking");
+      console.error('Booking error:', error);
+      alert(error.response?.data?.message || 'Failed to create booking');
       setIsBooking(false);
     }
   };
+
   useEffect(() => {
     const activeState = { value: true };
     const run = async () => {
@@ -509,66 +557,79 @@ export default function EventDetailPage() {
       }
       return;
     }
-    try {
-      if (activeState.value) {
-        setLoading(true);
-        setError(null);
-      }
-      let response: any;
-      try {
-        const timeoutError = new Error("timeout");
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(timeoutError), 8000); // 8 seconds timeout
-        });
-        response = await Promise.race([
-          getEventById(eventId),
-          timeoutPromise,
-        ]);
-      } catch (err: any) {
-        // Fallback: fetch all events and find the specific one
-        const fallbackResponse: any = await getAllEventsWithDistance();
-        const eventsList = fallbackResponse?.data?.events || fallbackResponse?.data?.data || [];
-        const foundEvent = eventsList.find((e: any) => String(e._id) === String(eventId) || String(e.id) === String(eventId));
 
-        if (foundEvent) {
-          response = { data: { event: foundEvent, isSubEvent: false, parentEvent: null } };
-        } else {
-          throw new Error(`Event API timed out or event not found. Please ensure the ticket service is reachable at ${ticketApiBaseUrl}.`);
-        }
+    if (activeState.value) {
+      setLoading(true);
+      setError(null);
+    }
+
+    try {
+      // ── Fire ALL three requests in parallel immediately ──────────────────
+      const [eventResult, bookingResult] = await Promise.allSettled([
+        // 1. Event fetch with a tighter 4s timeout
+        Promise.race([
+          getEventById(eventId),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 8000)
+          ),
+        ]),
+        // 2. Booking check — runs fully in parallel, never blocks event render
+        checkUserBooking(eventId).catch(() => null),
+      ]);
+
+      if (!activeState.value) return;
+
+      // ── Resolve event data 
+      let response: any = null;
+      if (eventResult.status === "fulfilled") {
+        response = eventResult.value;
+      } else {
+        throw new Error("Failed to load event. Please try again.");
       }
 
       if (!activeState.value) return;
-      setEvent(response?.data?.event ?? null);
+
+      const eventData = response?.data?.event ?? null;
+      setEvent(eventData);
       setIsSubEvent(Boolean(response?.data?.isSubEvent));
       setParentEvent(response?.data?.parentEvent ?? null);
 
-      // Fetch group details if groupId is present
-      const eventData = response?.data?.event;
+      // ── Resolve booking check (already done, zero extra wait)
+      const booking =
+        bookingResult.status === "fulfilled" ? bookingResult.value : null;
+
+      if (activeState.value && booking) {
+        setHasBooked(booking.hasBooked ?? false);
+        if (booking.booking) setUserBooking(booking.booking);
+        setShowViewTicketBtn(
+          booking.eventMeta?.showViewTicket ?? booking.hasBooked ?? false
+        );
+      }
+
+      if (activeState.value) setBookingCheckLoading(false);
+
+      // ── Group fetch — fire after event renders, non-blocking ────────────
       if (eventData?.groupId) {
-        try {
-          const groupResponse = await getGroupById(eventData.groupId);
-          if (groupResponse.success && groupResponse.data) {
-            const gData = groupResponse.data as any;
-            setGroup({
-              ...gData,
-              group_name: gData.group_name || gData.name
-            });
-          }
-        } catch (groupErr) {
-          console.error("Failed to fetch group details:", groupErr);
-        }
+        getGroupById(eventData.groupId)
+          .then((groupResponse) => {
+            if (!activeState.value) return;
+            if (groupResponse.success && groupResponse.data) {
+              const gData = groupResponse.data as any;
+              setGroup({ ...gData, group_name: gData.group_name || gData.name });
+            }
+          })
+          .catch(() => {/* non-fatal */ });
       }
     } catch (err: any) {
       if (!activeState.value) return;
       setError(getApiErrorMessage(err, "Failed to load event details"));
-      console.error(err);
     } finally {
       if (activeState.value) {
         setLoading(false);
+        setBookingCheckLoading(false);
       }
     }
   };
-
   useEffect(() => {
     const fetchAllEvents = async () => {
       try {
@@ -583,31 +644,36 @@ export default function EventDetailPage() {
     fetchAllEvents();
   }, []);
 
-  useEffect(() => {
-    const checkBooking = async () => {
-      if (!eventId) return;
-      try {
-        const response = await checkUserBooking(eventId as string);
-        if (response.success && response.data?.booking) {
-          setHasBooked(true);
-          setUserBooking(response.data.booking);
-        }
-      } catch (err: any) {
-        console.error("Failed to check booking status", err);
-      }
-    };
-
-    checkBooking();
-  }, [eventId]);
-
   const handleBookEvent = () => {
-    if (hasBooked) {
-      router.push(`/bookings/${userBooking?.id}`);
+    // If already booked → always go to view booking page
+    if (hasBooked && userBooking?.id) {
+      router.push(`/bookings/${userBooking.id}`);
+      return;
+    }
+
+    // Extra safety for restrict_booking events — recheck state
+    const isRestricted = (event as any).restrict_booking === true;
+    if (isRestricted && hasBooked) {
+      if (userBooking?.id) router.push(`/bookings/${userBooking.id}`);
       return;
     }
 
     if (!event?.ticket_types?.length && !event?.seating_layout) {
-      alert("No tickets available for this event");
+      alert('No tickets available for this event');
+      return;
+    }
+
+    if (!selectedTicketType && event.ticket_types?.length) {
+      setSelectedTicketType(event.ticket_types[0]._id);
+    }
+
+    setPendingBookingFlow(true);
+
+    const rawQD = (event as any).question_data;
+    const hasQuestions = rawQD === true || rawQD === 1 || rawQD === 'true';
+
+    if (hasQuestions) {
+      setShowQuestionModal(true);
       return;
     }
 
@@ -616,34 +682,220 @@ export default function EventDetailPage() {
       return;
     }
 
-    if (!selectedTicketType && event.ticket_types && event.ticket_types.length > 0) {
-      setSelectedTicketType(event.ticket_types[0]._id);
-    }
-
     setIsViewTicketMode(false);
     setShowBookingModal(true);
   };
 
-  const handleFreeRegistration = async () => {
+  // Called when user completes QuestionModal → always go to BookingModal next
+  const handleQuestionSubmit = (answers: QuestionAnswers) => {
+    setCollectedAnswers(answers);
+    setShowQuestionModal(false);
+
+    // For seating events, navigate to seat picker (addons handled there)
+    if (event?.seating_layout) {
+      router.push(`/events/${eventId}/seating`);
+      return;
+    }
+
+    // Always show BookingModal after questions
+    setIsViewTicketMode(false);
+    setShowBookingModal(true);
+  };
+
+  const handleBookingModalConfirm = () => {
+    setShowBookingModal(false);
+
+    const rawFA = (event as any).food_accoum;
+    const hasAddons = rawFA === true || rawFA === 1 || rawFA === 'true';
+
+    if (hasAddons) {
+      setShowAddonModal(true);
+      return;
+    }
+
+    if (event?.payment_type === 'free') {
+      handleFreeRegistration();
+    } else {
+      initiateBooking();
+    }
+  };
+
+  const handleAddonSubmit = (selection: AddonSelection) => {
+    setCollectedAddons(selection);
+    setShowAddonModal(false);
+
+    if (event?.payment_type === 'free') {
+      handleFreeRegistration(selection);
+    } else {
+      initiateBooking(selection);
+    }
+  };
+
+  const handleAddonSkip = () => {
+    setCollectedAddons(null);
+    setShowAddonModal(false);
+
+    if (event?.payment_type === 'free') {
+      handleFreeRegistration(null);
+    } else {
+      initiateBooking(null);
+    }
+  };
+
+  const handleFreeRegistration = async (addons?: AddonSelection | null) => {
+    const activeAddons = addons ?? collectedAddons;
     setIsBooking(true);
     try {
-      const data = await registerFreeEvent(eventId as string, quantity);
+      const data = await registerFreeEvent(
+        eventId as string,
+        quantity,
+        collectedAnswers || undefined,
+        activeAddons?.foodAddon || undefined,
+        activeAddons?.accommodationAddon || undefined,
+      );
 
-      if (data.success) {
+      if (!data.success) {
+        setAlertMessage(data.message || "Registration failed");
+        setIsBooking(false);
+        return;
+      }
+
+      // ── FREE with NO paid addons → confirmed immediately
+      if (!data.requiresPayment) {
         setShowSuccessModal(true);
         setShowBookingModal(false);
-        setHasBooked(true); // ✅ Update status
-        setUserBooking(data.data.booking); // ✅ Store booking
+        setHasBooked(true);
+        setShowViewTicketBtn(true);
+        setUserBooking(data.data.booking);
         loadEventStats();
-      } else {
-        setAlertMessage(data.message || "Registration failed");
+        setIsBooking(false);
+        // ← Add route push to booking page
+        setTimeout(() => {
+          router.push(`/bookings/${data.data.booking.id}`);
+        }, 2000);
+        return;
       }
+
+      // ── FREE with PAID addons → open Razorpay for addon amount only ─────
+      const { booking, razorpayOrder, razorpayKeyId } = data.data;
+
+      if (!razorpayOrder || !razorpayKeyId) {
+        setAlertMessage('Payment order could not be created. Please try again.');
+        setIsBooking(false);
+        return;
+      }
+
+      const foodAmt = Number(booking.food_addon_amount) || 0;
+      const accAmt = Number(booking.accommodation_addon_amount) || 0;
+
+      const descParts: string[] = [];
+      if (foodAmt > 0) descParts.push(`Food: ₹${foodAmt.toFixed(2)}`);
+      if (accAmt > 0) descParts.push(`Stay: ₹${accAmt.toFixed(2)}`);
+
+      const options = {
+        key: razorpayKeyId,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: 'WIE Events',
+        description: `${event?.event_name || 'Event'} — Add-ons: ${descParts.join(' | ')}`,
+        image: event?.event_logo || event?.event_banner || '',
+        order_id: razorpayOrder.id,
+
+        handler: async function (response: any) {
+          try {
+            const verifyData = await verifyPayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyData.success) {
+              setShowSuccessModal(true);
+              setShowBookingModal(false);
+              setHasBooked(true);
+              setShowViewTicketBtn(true);
+              setUserBooking(verifyData.data.booking);
+              loadEventStats();
+              setTimeout(() => {
+                router.push(`/bookings/${verifyData.data.booking.id}`);
+              }, 2000);
+            } else {
+              setAlertMessage('Payment verification failed. Please contact support.');
+            }
+          } catch (error: any) {
+            console.error('Addon payment verification error:', error);
+            setAlertMessage(error.response?.data?.message || 'Payment verification failed');
+          }
+        },
+
+        prefill: {
+          name: '',
+          email: '',
+          contact: '9999999999',
+        },
+
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: false,
+          paylater: false,
+        },
+
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: 'All Payment Methods',
+                instruments: [
+                  { method: 'upi' },
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
+                ],
+              },
+            },
+            sequence: ['block.banks'],
+            preferences: { show_default_blocks: true },
+          },
+        },
+
+        notes: {
+          bookingId: booking.bookingId || booking.id,
+          eventName: event?.event_name || '',
+          foodAddonAmount: String(foodAmt),
+          accommodationAddonAmount: String(accAmt),
+          grandTotal: String(razorpayOrder.amount / 100),
+          addonPayment: 'true',
+        },
+
+        theme: {
+          color: '#8860D9',
+          hide_topbar: false,
+        },
+
+        modal: {
+          backdropclose: false,
+          escape: false,
+          handleback: true,
+          confirm_close: true,
+          animation: true,
+          ondismiss: async function () {
+            if (booking?.id) {
+              await cancelPendingBooking(booking.id);
+            }
+            setIsBooking(false);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+
     } catch (error: any) {
       console.error("Free registration error:", error);
-      const errorMsg =
-        error.response?.data?.message || "Failed to register for event";
-      setAlertMessage(errorMsg);
-    } finally {
+      setAlertMessage(error.response?.data?.message || "Failed to register for event");
       setIsBooking(false);
     }
   };
@@ -660,16 +912,47 @@ export default function EventDetailPage() {
   const likeCount = eventStats?.like ?? eventStats?.likes ?? 0;
   const shareCount = eventStats?.share ?? eventStats?.shares ?? 0;
   const bookingCount = eventStats?.totalBookings ?? 0;
+  // REPLACE with:
   if (loading) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
+        className="min-h-screen flex"
         style={{ backgroundColor: themeStyles.background }}
       >
-        <Loader2
-          className="w-12 h-12 animate-spin"
-          style={{ color: themeStyles.text }}
-        />
+        <SideBar />
+        <div
+          className={`flex-1 transition-all duration-300 w-full max-w-[100vw] overflow-x-hidden
+            ${isMobile ? "pl-0" : isCollapsed ? "pl-20" : "pl-20 lg:pl-64"}`}
+        >
+          {/* Banner skeleton */}
+          <div className="max-w-[98%] sm:max-w-[95%] md:max-w-[92%] lg:max-w-[90%] mx-auto px-2 md:px-0 mt-3 mb-2.5">
+            <div
+              className="w-full rounded-2xl md:rounded-3xl animate-pulse aspect-[3/4] xs:aspect-[4/5] sm:aspect-[3/2] md:aspect-video lg:aspect-[21/9] min-h-[250px]"
+              style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)" }}
+            />
+          </div>
+          {/* Tab bar skeleton */}
+          <div className="w-full px-4 md:px-8 mt-6 md:mt-10 mb-8 md:mb-12 flex justify-center">
+            <div
+              className="h-[52px] w-full sm:w-[480px] rounded-[24px] animate-pulse"
+              style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)" }}
+            />
+          </div>
+          {/* Content skeleton lines */}
+          <div className="max-w-[95%] md:max-w-[90%] mx-auto px-4 md:px-8 space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-4 rounded-full animate-pulse"
+                style={{
+                  width: `${[85, 70, 55][i - 1]}%`,
+                  background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)",
+                  animationDelay: `${i * 80}ms`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -869,6 +1152,18 @@ export default function EventDetailPage() {
                 onMouseLeave={() => setIsHovered(false)}
                 className="relative rounded-2xl md:rounded-3xl overflow-hidden text-white aspect-[3/4] xs:aspect-[4/5] sm:aspect-[3/2] md:aspect-video lg:aspect-[21/9] min-h-[250px] xs:min-h-[300px] sm:min-h-[350px] md:min-h-0 lg:min-h-0 group transition-all duration-500 hover:shadow-2xl shadow-xl border border-white/10"
               >
+                {/* Hidden priority img for LCP hint — tells Next.js to preload the banner */}
+                {mediaItems[0] && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaItems[0]}
+                    alt=""
+                    aria-hidden="true"
+                    fetchPriority="high"
+                    className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                    style={{ width: 'auto', height: 'auto' }}
+                  />
+                )}
                 {/* Background Images / Slideshow */}
                 <div className="absolute inset-0 pointer-events-none">
                   <AnimatePresence mode="wait">
@@ -1063,9 +1358,23 @@ export default function EventDetailPage() {
                             </span>
                           </button>
 
-                          {hasBooked ? (
+                          {/* ── Action button: skeleton → View Ticket → Book Tickets ── */}
+                          {bookingCheckLoading ? (
+                            // Neutral skeleton pill — same size as real buttons, no flash
+                            <div
+                              className="flex-none rounded-[25px] animate-pulse"
+                              style={{
+                                width: "166.5px",
+                                height: "48px",
+                                maxWidth: "calc(50% - 4px)",
+                                background: isDark
+                                  ? "rgba(255,255,255,0.08)"
+                                  : "rgba(0,0,0,0.06)",
+                              }}
+                            />
+                          ) : (showViewTicketBtn || hasBooked) && userBooking?.id ? (
                             <button
-                              onClick={() => setShowTicketModal(true)}
+                              onClick={() => router.push(`/bookings/${userBooking.id}`)}
                               className="flex-none flex items-center justify-center transition-all active:scale-95 shadow-[0_8px_20px_rgba(136,96,217,0.3)]"
                               style={{
                                 width: "166.5px",
@@ -1102,14 +1411,14 @@ export default function EventDetailPage() {
                                 maxWidth: "calc(50% - 4px)",
                               }}
                             >
-                              {actionLabel !== "Watch Now" && (
-                                <img
-                                  src={BookTicketIcon.src}
-                                  className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover/book:rotate-12 transition-transform"
-                                  alt="Book Ticket"
-                                />
-                              )}
-                              <span className="font-bold text-[11px] md:text-[14px] whitespace-nowrap uppercase tracking-wider">{actionLabel}</span>
+                              <img
+                                src={BookTicketIcon.src}
+                                className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover/book:rotate-12 transition-transform"
+                                alt="Book Ticket"
+                              />
+                              <span className="font-bold text-[11px] md:text-[14px] whitespace-nowrap uppercase tracking-wider">
+                                Book Tickets
+                              </span>
                             </button>
                           )}
                         </>
@@ -1117,9 +1426,7 @@ export default function EventDetailPage() {
 
                       {event?.event_status === "cancelled" && hasBooked && (
                         <button
-                          onClick={() =>
-                            router.push(`/bookings/${userBooking?.id}/refund`)
-                          }
+                          onClick={() => router.push(`/bookings/${userBooking?.id}/refund`)}
                           className="flex items-center justify-center h-[40px] sm:h-[52px] px-6 gap-2 rounded-full text-white font-bold text-xs sm:text-base border border-red-500/50 bg-red-500/20 hover:bg-red-500/30 transition-all active:scale-95"
                         >
                           Track Refund →
@@ -1128,7 +1435,6 @@ export default function EventDetailPage() {
                     </div>
                   </div>
                 </div>
-
               </div>
             )}
           </div>
@@ -1169,8 +1475,8 @@ export default function EventDetailPage() {
                     )}
                     <span
                       className={`relative z-10 text-[11px] sm:text-xs md:text-sm font-bold transition-transform duration-200 group-active:scale-95 ${isActive
-                          ? isDark ? "text-white" : "text-gray-900"
-                          : isDark ? "text-gray-400" : "text-gray-500"
+                        ? isDark ? "text-white" : "text-gray-900"
+                        : isDark ? "text-gray-400" : "text-gray-500"
                         }`}
                     >
                       {item.label}
@@ -1644,6 +1950,148 @@ export default function EventDetailPage() {
                     </div>
                   )}
 
+                  {/* ---------- FOOD CATERING PACKAGES ---------- */}
+                  {event.food_details && event.food_details.length > 0 && (
+                    <div className="px-4 md:px-8 py-4">
+                      <div className="flex items-center gap-2 mb-6 border-b border-white/10 pb-2">
+                        <Utensils className="w-5 h-5 text-indigo-500" />
+                        <h2 className="text-lg font-bold" style={{ color: themeStyles.text }}>
+                          Food Catering Packages
+                        </h2>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {event.food_details.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-row rounded-xl overflow-hidden border group transition-all duration-300 hover:shadow-md min-h-[7rem] sm:min-h-[8rem]"
+                            style={{
+                              background: themeStyles.cardBg,
+                              borderColor: themeStyles.border,
+                            }}
+                          >
+                            <div className="relative w-28 h-28 sm:w-32 sm:h-32 bg-black/10 flex-shrink-0 flex items-center justify-center overflow-hidden rounded-l-xl">
+                              {item.food_picture ? (
+                                <img
+                                  src={getTicketImageUrl(item.food_picture)}
+                                  alt={item.food_catering_name || item.name || ""}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-1.5 text-gray-400">
+                                  <Utensils className="w-6 h-6 sm:w-8 sm:h-8 stroke-1" />
+                                  <span className="text-[10px]">No image</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3 className="font-extrabold text-sm sm:text-base truncate" style={{ color: themeStyles.text }}>
+                                    {item.food_catering_name || item.name || ""}
+                                  </h3>
+                                  <span className="text-sm sm:text-base font-black text-indigo-500 whitespace-nowrap">
+                                    ₹{item.food_price !== undefined ? item.food_price : (item.price ?? "")}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] sm:text-xs mt-0.5" style={{ color: isDark ? "#9CA3AF" : "#6B7280" }}>
+                                  Available Qty: <span className="font-semibold text-indigo-500">{item.food_quantity !== undefined ? item.food_quantity : (item.quantity ?? "")}</span>
+                                </p>
+                                {item.food_menu && item.food_menu.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2.5">
+                                    {item.food_menu.map((menu, mIdx) => (
+                                      <span
+                                        key={mIdx}
+                                        className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                        style={{
+                                          backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+                                          color: themeStyles.text,
+                                          border: isDark ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 0, 0, 0.05)"
+                                        }}
+                                      >
+                                        {menu}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ---------- ACCOMMODATION PACKAGES ---------- */}
+                  {event.accommodation_details && event.accommodation_details.length > 0 && (
+                    <div className="px-4 md:px-8 py-4">
+                      <div className="flex items-center gap-2 mb-6 border-b border-white/10 pb-2">
+                        <Hotel className="w-5 h-5 text-indigo-500" />
+                        <h2 className="text-lg font-bold" style={{ color: themeStyles.text }}>
+                          Lodging & Accommodation
+                        </h2>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {event.accommodation_details.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-row rounded-xl overflow-hidden border group transition-all duration-300 hover:shadow-md min-h-[7rem] sm:min-h-[8rem]"
+                            style={{
+                              background: themeStyles.cardBg,
+                              borderColor: themeStyles.border,
+                            }}
+                          >
+                            <div className="relative w-28 h-28 sm:w-32 sm:h-32 bg-black/10 flex-shrink-0 flex items-center justify-center overflow-hidden rounded-l-xl">
+                              {item.accommodation_picture ? (
+                                <img
+                                  src={getTicketImageUrl(item.accommodation_picture)}
+                                  alt={item.accommodation_catering_name || item.name || ""}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-1.5 text-gray-400">
+                                  <Hotel className="w-6 h-6 sm:w-8 sm:h-8 stroke-1" />
+                                  <span className="text-[10px]">No image</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3 className="font-extrabold text-sm sm:text-base truncate" style={{ color: themeStyles.text }}>
+                                    {item.accommodation_catering_name || item.name || ""}
+                                  </h3>
+                                  <span className="text-sm sm:text-base font-black text-indigo-500 whitespace-nowrap">
+                                    ₹{item.accommodation_price !== undefined ? item.accommodation_price : (item.price ?? "")}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] sm:text-xs mt-0.5" style={{ color: isDark ? "#9CA3AF" : "#6B7280" }}>
+                                  Available Rooms: <span className="font-semibold text-indigo-500">{item.accommodation_quantity !== undefined ? item.accommodation_quantity : (item.quantity ?? "")}</span>
+                                </p>
+                                {item.accommodation_type && item.accommodation_type.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2.5">
+                                    {item.accommodation_type.map((type, tIdx) => (
+                                      <span
+                                        key={tIdx}
+                                        className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                        style={{
+                                          backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+                                          color: themeStyles.text,
+                                          border: isDark ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 0, 0, 0.05)"
+                                        }}
+                                      >
+                                        {type}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ---------- PROHIBITED ITEMS ---------- */}
                   {event.prohibited_items?.length > 0 && (
                     <div className="px-4 md:px-8 py-2">
@@ -1829,6 +2277,7 @@ export default function EventDetailPage() {
             setIsViewTicketMode(false);
             setSelectedTicketType(null);
             setQuantity(1);
+            setPendingBookingFlow(false);
           }}
           event={event}
           selectedTicketType={selectedTicketType}
@@ -1836,7 +2285,8 @@ export default function EventDetailPage() {
           quantity={quantity}
           setQuantity={setQuantity}
           isBooking={isBooking}
-          onInitiateBooking={event?.payment_type === "free" ? handleFreeRegistration : initiateBooking}
+          onInitiateBooking={handleBookingModalConfirm}
+          collectedAddons={collectedAddons}
           variant="BOOK"
           onViewMore={() => {
             setShowBookingModal(false);
@@ -1844,6 +2294,7 @@ export default function EventDetailPage() {
             router.push('/events');
           }}
         />
+
         <BookingModal
           show={showSuccessModal}
           variant="SUCCESS"
@@ -1851,13 +2302,6 @@ export default function EventDetailPage() {
           event={event}
           quantity={quantity}
           selectedTicketType={selectedTicketType}
-        />
-        <BookingModal
-          show={showTicketModal}
-          variant="VIEW"
-          onClose={() => setShowTicketModal(false)}
-          booking={userBooking}
-          event={event}
         />
         {activePhoto && (
           <div
@@ -1901,7 +2345,56 @@ export default function EventDetailPage() {
             </div>
           </div>
         )}
+
       </div>
+      {/* Question Modal — only mount when this event has questions */}
+      {(() => {
+        const rawQD = (event as any).question_data;
+        const hasQuestions = rawQD === true || rawQD === 1 || rawQD === 'true';
+        return hasQuestions ? (
+          <QuestionModal
+            show={showQuestionModal}
+            onClose={() => {
+              setShowQuestionModal(false);
+              setPendingBookingFlow(false);
+              setCollectedAnswers(null);
+            }}
+            onSubmit={handleQuestionSubmit}
+            questionDetails={(event as any).question_details || {}}
+            eventName={event.event_name}
+          />
+        ) : null;
+      })()}
+
+      {/* Addon Modal — only mount when this event has food/accommodation */}
+      {(() => {
+        const rawFA = (event as any).food_accoum;
+        const hasAddons = rawFA === true || rawFA === 1 || rawFA === 'true';
+        return hasAddons ? (
+          <AddonModal
+            show={showAddonModal}
+            onClose={() => {
+              setShowAddonModal(false);
+              setPendingBookingFlow(false);
+            }}
+            onSubmit={handleAddonSubmit}
+            onSkip={handleAddonSkip}
+            event={event}
+            ticketSubtotal={(() => {
+              const tt = event?.ticket_types?.find((t: any) => t._id === selectedTicketType);
+              return (tt?.ticket_price || 0) * quantity;
+            })()}
+            ticketType={
+              event?.ticket_types?.find((t: any) => t._id === selectedTicketType)?.ticket_type || 'Ticket'
+            }
+            quantity={quantity}
+          />
+        ) : null;
+      })()}
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="lazyOnload"
+      />
       {/* Local Style to hide scrollbar while keeping scroll functionality */}
       <style dangerouslySetInnerHTML={{
         __html: `
