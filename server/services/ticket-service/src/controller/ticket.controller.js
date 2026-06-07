@@ -195,7 +195,6 @@ export const updateSubEvent = async (req, res) => {
     const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
     // Process file uploads
     const uploadedFiles = await processFileUploads(req.files || {});
-    const guestProfileFiles = {};
     processedFiles = uploadedFiles;
 
     // Process guest profiles and ticket photos
@@ -756,6 +755,7 @@ export const updateSubEvent = async (req, res) => {
       question_details: parsedQuestionDetails,
       // Optional fields
       event_date_type: updateData.event_date_type || existingSubEvent.event_date_type,
+      recurring_type: updateData.recurring_type || existingSubEvent.recurring_type,
       event_instagram_link: updateData.event_instagram_link || existingSubEvent.event_instagram_link,
       event_youtube_link: updateData.event_youtube_link || existingSubEvent.event_youtube_link,
 
