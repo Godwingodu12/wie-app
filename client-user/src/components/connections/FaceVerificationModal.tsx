@@ -1,27 +1,15 @@
 'use client';
-/**
- * REPLACE ENTIRE FILE:
- * D:\DEVELOP\wie\client-user\src\components\connections\FaceVerificationModal.tsx
- *
- * KEY CHANGES vs previous version:
- *  1. Accepts `uploadedPhotos` prop (already-uploaded Cloudinary URLs)
- *  2. Calls /face/register using those photo URLs directly
- *     (backend downloads them from Cloudinary for embedding)
- *  3. Shows clear error when face service is unreachable
- */
-
 import React, { useEffect, useRef, useState } from 'react';
 import { X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useTheme } from '../home/ThemeContext';
 import {
-  registerFaceEmbeddings,
+  registerFaceFromProfile,
   startFaceSession,
   submitFaceFrame,
   completeFaceVerification,
 } from '../../services/connectionService';
 import type { PoseLabel, SubmitFrameResponse } from '../../types/connection';
 
-// ── Types ──────────────────────────────────────────────────────────
 type VerifyStage =
   | 'registering'
   | 'instructions'
@@ -34,19 +22,19 @@ interface UploadedPhoto { url: string; publicId: string; }
 
 interface Props {
   uploadedPhotos: UploadedPhoto[];   // ← photos already on Cloudinary
-  onClose:    () => void;
+  onClose: () => void;
   onVerified: () => void;
 }
 
 const POSE_META: Record<PoseLabel, { label: string; arrow: string }> = {
   center: { label: 'Look straight ahead', arrow: '👀' },
-  left:   { label: 'Turn head LEFT',       arrow: '⬅️' },
-  right:  { label: 'Turn head RIGHT',      arrow: '➡️' },
-  up:     { label: 'Look UP',              arrow: '⬆️' },
-  down:   { label: 'Look DOWN',            arrow: '⬇️' },
+  left: { label: 'Turn head LEFT', arrow: '⬅️' },
+  right: { label: 'Turn head RIGHT', arrow: '➡️' },
+  up: { label: 'Look UP', arrow: '⬆️' },
+  down: { label: 'Look DOWN', arrow: '⬇️' },
 };
 
-const POSE_DURATION_MS  = 1600;
+const POSE_DURATION_MS = 1600;
 const FRAME_INTERVAL_MS = 400;
 
 export const FaceVerificationModal: React.FC<Props> = ({
@@ -56,73 +44,78 @@ export const FaceVerificationModal: React.FC<Props> = ({
 }) => {
   const { isDark, themeStyles } = useTheme();
 
-  const [stage,          setStage]          = useState<VerifyStage>('registering');
-  const [errorMsg,       setErrorMsg]       = useState('');
-  const [sessionId,      setSessionId]      = useState('');
-  const [sequence,       setSequence]       = useState<PoseLabel[]>([]);
-  const [currentStep,    setCurrentStep]    = useState(0);
+  const [stage, setStage] = useState<VerifyStage>('registering');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [sequence, setSequence] = useState<PoseLabel[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [similarity,     setSimilarity]     = useState(0);
-  const [guidePoseIdx,   setGuidePoseIdx]   = useState(0);
+  const [similarity, setSimilarity] = useState(0);
+  const [guidePoseIdx, setGuidePoseIdx] = useState(0);
 
-  const videoRef       = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const guideCanvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef      = useRef<MediaStream | null>(null);
-  const frameTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const guideTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const livenessOKRef  = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const guideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const livenessOKRef = useRef(false);
   const isRegisteredRef = useRef(false);
   // Step 1: register embeddings from uploaded photos 
   useEffect(() => {
-      (async () => {
-        // ── Skip re-registration on retry — embeddings already stored ──
-        if (isRegisteredRef.current) {
+    (async () => {
+      if (isRegisteredRef.current) {
+        setStage('instructions');
+        return;
+      }
+
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        setErrorMsg('Session expired. Please refresh the page and try again.');
+        setStage('failed');
+        return;
+      }
+
+      if (uploadedPhotos.length < 2) {
+        setErrorMsg('Please upload at least 2 photos before face verification.');
+        setStage('failed');
+        return;
+      }
+
+      try {
+        const res = await registerFaceFromProfile();
+
+        if (res.success) {
+          isRegisteredRef.current = true;
+
+          // If already verified, skip liveness and call onVerified directly
+          if ((res as any).alreadyVerified) {
+            onVerified();
+            return;
+          }
+
           setStage('instructions');
-          return;
+        } else {
+          setErrorMsg(res.message || 'Face registration failed. Please try again.');
+          setStage('failed');
         }
-  
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        if (!token) {
+      } catch (err: any) {
+        const serverMsg = err?.response?.data?.message || '';
+        const networkMsg = err?.message || '';
+        const status = err?.response?.status;
+
+        if (status === 503 || serverMsg.includes('unavailable')) {
+          setErrorMsg(serverMsg || 'Verification service is temporarily unavailable.');
+        } else if (networkMsg.includes('ECONNREFUSED') || networkMsg.includes('Network Error')) {
+          setErrorMsg('Could not reach the server. Please check your connection.');
+        } else if (status === 401) {
           setErrorMsg('Session expired. Please refresh the page and try again.');
-          setStage('failed');
-          return;
+        } else {
+          setErrorMsg(serverMsg || networkMsg || 'Something went wrong. Please try again.');
         }
-  
-        if (uploadedPhotos.length < 2) {
-          setErrorMsg('Please upload at least 2 photos before face verification.');
-          setStage('failed');
-          return;
-        }
-  
-        try {
-          const res = await registerFaceEmbeddings();
-  
-          if (res.success) {
-            isRegisteredRef.current = true;   // ← mark done so retry skips this
-            setStage('instructions');
-          } else {
-            setErrorMsg(res.message || 'Face registration failed. Please try again.');
-            setStage('failed');
-          }
-        } catch (err: any) {
-          const serverMsg  = err?.response?.data?.message || '';
-          const networkMsg = err?.message || '';
-          const status     = err?.response?.status;
-  
-          if (status === 503 || serverMsg.includes('unavailable')) {
-            // Backend already gives a clear 503 with its own message
-            setErrorMsg(serverMsg || 'Verification service is temporarily unavailable. Please try again in a moment.');
-          } else if (networkMsg.includes('ECONNREFUSED') || networkMsg.includes('Network Error')) {
-            setErrorMsg('Could not reach the server. Please check your connection and try again.');
-          } else if (status === 401 || serverMsg.includes('No token') || serverMsg.includes('Unauthorized')) {
-            setErrorMsg('Session expired. Please refresh the page and try again.');
-          } else {
-            setErrorMsg(serverMsg || networkMsg || 'Something went wrong. Please try again.');
-          }
-          setStage('failed');
-        }
-      })();
-    }, [uploadedPhotos]);
+        setStage('failed');
+      }
+    })();
+  }, [uploadedPhotos, onVerified]);
 
   // Cleanup on unmount 
   useEffect(() => {
@@ -193,9 +186,9 @@ export const FaceVerificationModal: React.FC<Props> = ({
     frameTimerRef.current = setInterval(async () => {
       if (livenessOKRef.current || !videoRef.current) return;
 
-      const canvas   = document.createElement('canvas');
-      canvas.width   = videoRef.current.videoWidth  || 320;
-      canvas.height  = videoRef.current.videoHeight || 240;
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 320;
+      canvas.height = videoRef.current.videoHeight || 240;
       canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
 
       canvas.toBlob(async (blob) => {
@@ -211,7 +204,9 @@ export const FaceVerificationModal: React.FC<Props> = ({
             if (guideTimerRef.current) clearInterval(guideTimerRef.current);
             runFaceMatch(sid);
           }
-        } catch { /* silent — keep retrying */ }
+        } catch (error) {
+          console.error('Error submitting face frame:', error);
+        }
       }, 'image/jpeg', 0.85);
     }, FRAME_INTERVAL_MS);
   };
@@ -238,7 +233,7 @@ export const FaceVerificationModal: React.FC<Props> = ({
   useEffect(() => {
     if (stage !== 'liveness' || !guideCanvasRef.current || sequence.length === 0) return;
     const canvas = guideCanvasRef.current;
-    const ctx    = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const pose = sequence[guidePoseIdx] || 'center';
@@ -248,49 +243,49 @@ export const FaceVerificationModal: React.FC<Props> = ({
     ctx.clearRect(0, 0, W, H);
 
     ctx.strokeStyle = 'rgba(61,107,255,.08)';
-    ctx.lineWidth   = 1;
-    for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-    const ox = pose==='left' ? -20 : pose==='right' ? 20 : 0;
-    const oy = pose==='up'   ? -16 : pose==='down'  ? 16 : 0;
+    const ox = pose === 'left' ? -20 : pose === 'right' ? 20 : 0;
+    const oy = pose === 'up' ? -16 : pose === 'down' ? 16 : 0;
     const faceX = cx + ox, faceY = cy + oy;
     const rX = 44 - Math.abs(ox) * 0.25, rY = 58;
 
     ctx.shadowColor = 'rgba(61,107,255,.4)'; ctx.shadowBlur = 22;
-    ctx.beginPath(); ctx.ellipse(faceX, faceY, rX, rY, 0, 0, Math.PI*2);
-    ctx.fillStyle   = isDark ? '#181d2e' : '#e8ecff'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(faceX, faceY, rX, rY, 0, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#181d2e' : '#e8ecff'; ctx.fill();
     ctx.strokeStyle = '#3d6bff'; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.shadowBlur  = 0;
+    ctx.shadowBlur = 0;
 
     const eyeSpread = rX * 0.40;
     [[faceX - eyeSpread, faceY - 12], [faceX + eyeSpread, faceY - 12]].forEach(([ex, ey]) => {
-      ctx.beginPath(); ctx.ellipse(ex, ey, 8 - Math.abs(ox)*0.07, 6, 0, 0, Math.PI*2);
+      ctx.beginPath(); ctx.ellipse(ex, ey, 8 - Math.abs(ox) * 0.07, 6, 0, 0, Math.PI * 2);
       ctx.fillStyle = '#3d6bff'; ctx.fill();
-      ctx.beginPath(); ctx.arc(ex-2, ey-2, 2, 0, Math.PI*2);
+      ctx.beginPath(); ctx.arc(ex - 2, ey - 2, 2, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill();
     });
 
-    ctx.beginPath(); ctx.ellipse(faceX, faceY+6, 4, 3, 0, 0, Math.PI*2);
+    ctx.beginPath(); ctx.ellipse(faceX, faceY + 6, 4, 3, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(61,107,255,.5)'; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(faceX-12, faceY+24);
-    ctx.quadraticCurveTo(faceX, faceY+31, faceX+12, faceY+24);
+    ctx.beginPath(); ctx.moveTo(faceX - 12, faceY + 24);
+    ctx.quadraticCurveTo(faceX, faceY + 31, faceX + 12, faceY + 24);
     ctx.strokeStyle = 'rgba(100,120,200,.5)'; ctx.lineWidth = 2; ctx.stroke();
 
     if (pose !== 'center') {
-      const arrows: Record<string,[number,number,string]> = {
-        left:  [faceX-rX-24, faceY, '◀'], right: [faceX+rX+24, faceY, '▶'],
-        up:    [faceX, faceY-rY-20, '▲'], down:  [faceX, faceY+rY+20, '▼'],
+      const arrows: Record<string, [number, number, string]> = {
+        left: [faceX - rX - 24, faceY, '◀'], right: [faceX + rX + 24, faceY, '▶'],
+        up: [faceX, faceY - rY - 20, '▲'], down: [faceX, faceY + rY + 20, '▼'],
       };
       const [ax, ay, arrow] = arrows[pose];
-      ctx.font='bold 22px sans-serif'; ctx.fillStyle='#f5a623';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font = 'bold 22px sans-serif'; ctx.fillStyle = '#f5a623';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(arrow, ax, ay);
     }
   }, [guidePoseIdx, stage, isDark, sequence]);
 
-  const surface  = isDark ? themeStyles.pillBg : '#ffffff';
-  const textCol  = isDark ? '#e8ecff' : '#111827';
+  const surface = isDark ? themeStyles.pillBg : '#ffffff';
+  const textCol = isDark ? '#e8ecff' : '#111827';
   const mutedCol = isDark ? '#6b7399' : '#6b7280';
 
   return (
@@ -326,8 +321,8 @@ export const FaceVerificationModal: React.FC<Props> = ({
         {stage === 'instructions' && (
           <div className="px-6 pb-6 space-y-5">
             <div className="rounded-xl p-4 space-y-2 border"
-              style={{ borderColor: isDark?'#252b42':'#e5e7eb', background: isDark?'#0a0c14':'#f9fafb' }}>
-              {(['center','left','right','up','down'] as PoseLabel[]).map((p) => (
+              style={{ borderColor: isDark ? '#252b42' : '#e5e7eb', background: isDark ? '#0a0c14' : '#f9fafb' }}>
+              {(['center', 'left', 'right', 'up', 'down'] as PoseLabel[]).map((p) => (
                 <div key={p} className="flex items-center gap-3 text-sm">
                   <span className="text-lg">{POSE_META[p].arrow}</span>
                   <span style={{ color: mutedCol }}>{POSE_META[p].label}</span>
@@ -348,44 +343,44 @@ export const FaceVerificationModal: React.FC<Props> = ({
         {stage === 'liveness' && (
           <div className="px-4 pb-5 space-y-3">
             <div className="rounded-xl overflow-hidden border relative"
-              style={{ borderColor: isDark?'#252b42':'#e5e7eb', height: 130 }}>
+              style={{ borderColor: isDark ? '#252b42' : '#e5e7eb', height: 130 }}>
               <canvas ref={guideCanvasRef} width={480} height={130} className="w-full h-full" />
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-mono"
-                style={{ background:'rgba(10,12,20,.8)', color:'#3d6bff', border:'1px solid #252b42' }}>
+                style={{ background: 'rgba(10,12,20,.8)', color: '#3d6bff', border: '1px solid #252b42' }}>
                 {sequence[guidePoseIdx] ? POSE_META[sequence[guidePoseIdx]].label : ''}
               </div>
             </div>
 
             <div className="relative rounded-xl overflow-hidden border-2 transition-colors"
               style={{
-                borderColor: completedSteps.length===sequence.length&&sequence.length>0 ? '#1ddb8b' : '#3d6bff',
+                borderColor: completedSteps.length === sequence.length && sequence.length > 0 ? '#1ddb8b' : '#3d6bff',
                 height: 220, background: '#000',
               }}>
               <video ref={videoRef} autoPlay muted playsInline
-                className="w-full h-full object-cover" style={{ transform:'scaleX(-1)' }} />
+                className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
               <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 480 220">
                 <defs>
                   <mask id="vm">
-                    <rect width="480" height="220" fill="white"/>
-                    <ellipse cx="240" cy="110" rx="80" ry="98" fill="black"/>
+                    <rect width="480" height="220" fill="white" />
+                    <ellipse cx="240" cy="110" rx="80" ry="98" fill="black" />
                   </mask>
                 </defs>
-                <rect width="480" height="220" fill="rgba(10,12,20,.4)" mask="url(#vm)"/>
+                <rect width="480" height="220" fill="rgba(10,12,20,.4)" mask="url(#vm)" />
                 <ellipse cx="240" cy="110" rx="80" ry="98"
-                  fill="none" stroke="#3d6bff" strokeWidth="2.5" strokeDasharray="6 4"/>
+                  fill="none" stroke="#3d6bff" strokeWidth="2.5" strokeDasharray="6 4" />
               </svg>
             </div>
 
             <div className="flex justify-center gap-2 flex-wrap">
               {sequence.map((pose, i) => {
-                const done    = i < currentStep;
+                const done = i < currentStep;
                 const current = i === currentStep;
                 return (
                   <div key={i} className="flex flex-col items-center gap-1 transition-all"
-                    style={{ opacity: done||current?1:0.3, transform: current?'scale(1.15)':'scale(1)' }}>
+                    style={{ opacity: done || current ? 1 : 0.3, transform: current ? 'scale(1.15)' : 'scale(1)' }}>
                     <span className="text-lg">{POSE_META[pose].arrow}</span>
                     <span className="text-[9px] font-mono uppercase"
-                      style={{ color: done?'#1ddb8b':current?'#3d6bff':mutedCol }}>
+                      style={{ color: done ? '#1ddb8b' : current ? '#3d6bff' : mutedCol }}>
                       {pose}
                     </span>
                   </div>
@@ -432,7 +427,7 @@ export const FaceVerificationModal: React.FC<Props> = ({
               </button>
               <button
                 onClick={() => {
-                  setStage('registering');   
+                  setStage('registering');
                   setErrorMsg('');
                   setCurrentStep(0);
                   setCompletedSteps([]);
