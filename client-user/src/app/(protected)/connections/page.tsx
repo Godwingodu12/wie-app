@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import SideBar from '@/components/home/SideBar';
 import { useTheme } from '@/components/home/ThemeContext';
 import { useSidebar } from '@/context/SidebarContext';
@@ -13,6 +13,8 @@ import { BusinessDetails } from '@/components/connections/BusinessDetails';
 import { EventsEnjoy } from '@/components/connections/EventsEnjoy';
 import { SkillsDetails } from '@/components/connections/SkillsDetails';
 import { OutingDetails } from '@/components/connections/OutingDetails';
+import { getProfileStatus } from '@/services/connectionService';
+import { Loader2 } from 'lucide-react';
 
 type Section =
   | 'user-details'
@@ -26,48 +28,65 @@ type Section =
   | 'completed';
 
 export default function ConnectionPage() {
-  const { isMobile }          = useSidebar();
+  const { isMobile } = useSidebar();
   const { isDark, themeStyles } = useTheme();
-  const searchParams          = useSearchParams();
-  const marginLeft            = isMobile ? '0' : '281px';
+  const router = useRouter();
+  const marginLeft = isMobile ? '0' : '281px';
 
   const [currentSection, setCurrentSection] = useState<Section>('user-details');
-  const [initialStep,    setInitialStep]     = useState<number>(1);
-  const [progress,       setProgress]        = useState({ current: 1, total: 7 });
-  const [ready,          setReady]           = useState(false);
+  const [initialStep, setInitialStep] = useState<number>(1);
+  const [progress, setProgress] = useState({ current: 1, total: 7 });
   const [isFaceVerified, setIsFaceVerified] = useState(false);
-  // ── On mount: read URL params and set correct starting position ─
+  const [ready, setReady] = useState(false);
+
+  // ── On mount: call getProfileStatus to resume from correct step ──
   useEffect(() => {
-      const stepParam    = searchParams.get('step');
-      const sectionParam = searchParams.get('section');
-      // faceVerified comes from the URL so the component knows on mount
-      const faceParam    = searchParams.get('faceVerified');
-  
-      if (sectionParam === 'purpose-selection') {
-        setCurrentSection('travel-details');
-        setProgress({ current: 1, total: 3 });
-      } else if (stepParam) {
-        const step = parseInt(stepParam, 10);
-  
-        // If backend said resume at step >= 3, face must be verified.
-        // If face is NOT verified, clamp back to step 2.
-        const faceVerified = faceParam === 'true';
+    (async () => {
+      try {
+        const status = await getProfileStatus();
+
+        if (!status.success) {
+          setReady(true);
+          return;
+        }
+
+        const faceVerified = status.faceVerified === true;
         setIsFaceVerified(faceVerified);
-  
-        const safeStep = (!faceVerified && step >= 3) ? 2 : (isNaN(step) ? 1 : Math.max(1, Math.min(step, 7)));
-        setInitialStep(safeStep);
+
+        if (!status.hasProfile) {
+          // No profile yet — start from step 1
+          setCurrentSection('user-details');
+          setInitialStep(1);
+          setProgress({ current: 1, total: 7 });
+        } else if (status.resumeSection === 'purpose-selection' || status.isComplete) {
+          // All user-detail steps done — go to purpose sections
+          setCurrentSection('travel-details');
+          setProgress({ current: 1, total: 3 });
+        } else {
+          // Resume at exact step within user-details
+          const safeStep = (!faceVerified && (status.resumeStep ?? 1) >= 3)
+            ? 2
+            : Math.max(1, Math.min(status.resumeStep ?? 1, 7));
+
+          setCurrentSection('user-details');
+          setInitialStep(safeStep);
+          setProgress({ current: safeStep, total: 7 });
+        }
+      } catch (err) {
+        console.error('[ConnectionPage] Failed to load profile status:', err);
+        // Default to step 1 on error
         setCurrentSection('user-details');
-        setProgress({ current: safeStep, total: 7 });
+        setInitialStep(1);
+      } finally {
+        setReady(true);
       }
-  
-      setReady(true);
-    }, [searchParams]);
+    })();
+  }, []);
 
   const handleProgress = React.useCallback((current: number, total: number) => {
     setProgress({ current, total });
   }, []);
 
-  // ── UserDetail completes all 7 steps → move to purpose sections ─
   const handleUserDetailComplete = React.useCallback(() => {
     setCurrentSection('travel-details');
     setProgress({ current: 1, total: 3 });
@@ -78,7 +97,6 @@ export default function ConnectionPage() {
     setProgress({ current: 1, total: 3 });
   }, []);
   const handleTravelBack = React.useCallback(() => {
-    // Back from travel → return to last step of UserDetail (step 7)
     setCurrentSection('user-details');
     setInitialStep(7);
     setProgress({ current: 7, total: 7 });
@@ -137,8 +155,23 @@ export default function ConnectionPage() {
     setProgress({ current: 2, total: 2 });
   }, []);
 
-  // Don't render until URL params are processed
-  if (!ready) return null;
+  // Show spinner while loading profile status
+  if (!ready) {
+    return (
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{ backgroundColor: themeStyles.background }}
+      >
+        <SideBar />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin text-[#8860D9]" />
+          <p style={{ color: themeStyles.textSecondary ?? '#888' }} className="text-sm">
+            Loading your profile...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -165,13 +198,13 @@ export default function ConnectionPage() {
 
           {currentSection === 'user-details' && (
             <UserDetail
-              initialStep={initialStep}    
-              isFaceVerified={isFaceVerified}    
+              key={initialStep}           // re-mount when step changes via resume
+              initialStep={initialStep}
+              isFaceVerified={isFaceVerified}
               onProgress={handleProgress}
               onComplete={handleUserDetailComplete}
             />
           )}
-
           {currentSection === 'travel-details' && (
             <TravelDetails
               onProgress={handleProgress}
@@ -179,7 +212,6 @@ export default function ConnectionPage() {
               onBack={handleTravelBack}
             />
           )}
-
           {currentSection === 'relation-details' && (
             <RelationDetails
               onProgress={handleProgress}
@@ -187,7 +219,6 @@ export default function ConnectionPage() {
               onBack={handleRelationBack}
             />
           )}
-
           {currentSection === 'location-details' && (
             <LocationDetails
               onProgress={handleProgress}
@@ -195,7 +226,6 @@ export default function ConnectionPage() {
               onBack={handleLocationBack}
             />
           )}
-
           {currentSection === 'business-details' && (
             <BusinessDetails
               onProgress={handleProgress}
@@ -203,7 +233,6 @@ export default function ConnectionPage() {
               onBack={handleBusinessBack}
             />
           )}
-
           {currentSection === 'events-enjoy' && (
             <EventsEnjoy
               onProgress={handleProgress}
@@ -211,7 +240,6 @@ export default function ConnectionPage() {
               onBack={handleEventsEnjoyBack}
             />
           )}
-
           {currentSection === 'skills-details' && (
             <SkillsDetails
               onProgress={handleProgress}
@@ -219,7 +247,6 @@ export default function ConnectionPage() {
               onBack={handleSkillsBack}
             />
           )}
-
           {currentSection === 'outing-details' && (
             <OutingDetails
               onProgress={handleProgress}
@@ -251,7 +278,7 @@ export default function ConnectionPage() {
                   Edit Details
                 </button>
                 <button
-                  onClick={() => window.location.href = '/home'}
+                  onClick={() => router.push('/home')}
                   className="w-full md:w-[242px] h-[48px] rounded-[25px] bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white font-medium hover:opacity-90 transition-opacity flex items-center justify-center p-[8px_12px]"
                 >
                   Go to Home
