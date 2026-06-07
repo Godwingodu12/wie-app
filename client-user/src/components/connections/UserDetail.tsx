@@ -7,15 +7,15 @@ import { FaceVerificationModal } from './FaceVerificationModal';
 import { TopAlert } from '../ui/TopAlert';
 import {
   createProfile,
+  getProfile,
   updateProfile,
   uploadPhotos,
   deletePhoto,
-  getPhotos,        
-  replacePhoto, 
+  getPhotos,
+  replacePhoto,
   updatePrivacy,
   acceptTerms,
 } from '../../services/connectionService';
-
 interface UploadedPhoto { url: string; publicId: string; }
 
 export function UserDetail({
@@ -26,15 +26,15 @@ export function UserDetail({
 }: {
   onProgress: (current: number, total: number) => void;
   onComplete: () => void;
-  initialStep?: number; 
+  initialStep?: number;
   isFaceVerified?: boolean;
 }) {
   const { isDark, themeStyles } = useTheme();
   const [step, setStep] = useState(initialStep);
   const totalSteps = 7;
-  const [faceVerified, setFaceVerified] =useState(isFaceVerified);
-  const [photosLoading,    setPhotosLoading]    = useState(false);
-  const [replacingId,      setReplacingId]      = useState<string | null>(null);
+  const [faceVerified, setFaceVerified] = useState(isFaceVerified);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   interface PhotoValidationState {
     filename: string;
@@ -48,27 +48,27 @@ export function UserDetail({
   const showAlert = (message: string, type: 'error' | 'success' = 'error') =>
     setAlert({ visible: true, message, type });
 
-  const [isSaving,    setIsSaving]    = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   // ── Profile form data 
   const [formData, setFormData] = useState({
-    name:           '',
-    dob:            '',
-    city:           '',
-    state:          '',
-    country:        '',
+    name: '',
+    dob: '',
+    city: '',
+    state: '',
+    country: '',
     qualifications: [] as string[],
-    qualInput:      '',
-    description:    '',
-    orientation:    'Straight',
-    interests:      [] as string[],
-    hideAccount:    false,
-    restrictVideo:  false,
+    qualInput: '',
+    description: '',
+    orientation: 'Straight',
+    interests: [] as string[],
+    hideAccount: false,
+    restrictVideo: false,
   });
 
   // Photos 
   const [uploadedPhotos, setUploadedPhotos] = useState<UploadedPhoto[]>([]);
-  const [showFaceModal,  setShowFaceModal]  = useState(false);
+  const [showFaceModal, setShowFaceModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   //  Terms 
@@ -78,42 +78,91 @@ export function UserDetail({
   const [lookingFor, setLookingFor] = useState<string[]>([]);
 
   //  Stored profileId after creation 
-  const [profileCreated, setProfileCreated] = useState(false);
+  const [profileCreated, setProfileCreated] = useState(initialStep > 1);
 
   React.useEffect(() => { onProgress(step, totalSteps); }, [step, onProgress]);
   React.useEffect(() => {
-      if (step !== 2 || uploadedPhotos.length > 0) return;  // skip if already loaded
-  
-      (async () => {
-        setPhotosLoading(true);
-        try {
-          const res = await getPhotos();
-          if (res.success && res.data.photos.length > 0) {
-            setUploadedPhotos(
-              res.data.photos.map((p: any) => ({ url: p.url, publicId: p.publicId }))
-            );
-          }
-        } catch {
-          // silent — user just sees empty grid and can upload
-        } finally {
-          setPhotosLoading(false);
+    if (step !== 2 || uploadedPhotos.length > 0) return;  // skip if already loaded
+
+    (async () => {
+      setPhotosLoading(true);
+      try {
+        const res = await getPhotos();
+        if (res.success && res.data.photos.length > 0) {
+          setUploadedPhotos(
+            res.data.photos.map((p: any) => ({ url: p.url, publicId: p.publicId }))
+          );
         }
-      })();
-    }, [step]);
+      } catch (error) {
+        console.error('Error fetching user photos:', error);
+      } finally {
+        setPhotosLoading(false);
+      }
+    })();
+  }, [step]);
+  // Add after the existing step-2 photo-loading useEffect
+  // Pre-load existing profile data when resuming at step > 1
+  React.useEffect(() => {
+    if (initialStep <= 1) return;
+
+    (async () => {
+      try {
+        const res = await getProfile();
+        if (!res.success || !res.data) return;
+
+        const p = res.data;
+        const dob = p.dateOfBirth
+          ? (() => {
+            const d = new Date(p.dateOfBirth);
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yy = String(d.getFullYear()).slice(-2);
+            return `${dd}/${mm}/${yy}`;
+          })()
+          : '';
+
+        setFormData((f) => ({
+          ...f,
+          name: p.displayName || f.name,
+          dob: dob || f.dob,
+          city: p.location?.city || f.city,
+          state: p.location?.state || f.state,
+          country: p.location?.country || f.country,
+          qualifications: p.qualifications || f.qualifications,
+          description: p.personalDescription || f.description,
+          orientation: p.sexualOrientation?.type
+            ? p.sexualOrientation.type.charAt(0).toUpperCase() +
+            p.sexualOrientation.type.slice(1)
+            : f.orientation,
+          interests: p.interests?.find((i: any) => i.category === 'general')?.tags || f.interests,
+          hideAccount: p.privacy?.hideAccountFromOthers ?? f.hideAccount,
+          restrictVideo: p.privacy?.restrictVideoCall ?? f.restrictVideo,
+        }));
+
+        setTermsAccepted(p.termsAccepted || false);
+
+        const lookingForTags = p.interests?.find((i: any) => i.category === 'looking-for')?.tags;
+        if (lookingForTags?.length) setLookingFor(lookingForTags);
+
+      } catch (err) {
+        console.error('[UserDetail] Failed to pre-load profile data:', err);
+      }
+    })();
+  }, []); // run once on mount only
   //  Validation helpers 
   const validateStep = (): string | null => {
     switch (step) {
       case 1:
-        if (!formData.name.trim())    return 'Please enter your display name.';
-        if (!formData.dob.trim())     return 'Please enter your date of birth.';
-        if (!formData.city.trim())    return 'Please enter your city.';
+        if (!formData.name.trim()) return 'Please enter your display name.';
+        if (!formData.dob.trim()) return 'Please enter your date of birth.';
+        if (!formData.city.trim()) return 'Please enter your city.';
         if (!formData.country.trim()) return 'Please enter your country.';
         // Basic age check
         const parts = formData.dob.split('/');
         if (parts.length === 3) {
           const [d, m, y] = parts.map(Number);
           const birth = new Date(y < 100 ? 2000 + y : y, m - 1, d);
-          const age   = Math.floor((Date.now() - birth.getTime()) / 31557600000);
+          const age = Math.floor((Date.now() - birth.getTime()) / 31557600000);
           if (isNaN(age) || age < 18) return 'You must be at least 18 years old.';
         }
         return null;
@@ -140,21 +189,21 @@ export function UserDetail({
   // ── API: create/update profile after step 1 
   const saveProfileStep1 = async () => {
     const [d, m, y] = formData.dob.split('/').map(Number);
-    const dob       = new Date(y < 100 ? 2000 + y : y, m - 1, d);
+    const dob = new Date(y < 100 ? 2000 + y : y, m - 1, d);
 
     const payload = {
-      displayName:         formData.name.trim(),
-      dateOfBirth:         dob.toISOString(),
+      displayName: formData.name.trim(),
+      dateOfBirth: dob.toISOString(),
       location: {
-        city:    formData.city.trim(),
-        state:   formData.state.trim() || formData.city.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim() || formData.city.trim(),
         country: formData.country.trim(),
-        latitude:  0,
+        latitude: 0,
         longitude: 0,
       },
-      qualifications:      formData.qualifications,
+      qualifications: formData.qualifications,
       personalDescription: formData.description.trim(),
-      gender:              'prefer-not-to-say',   // updated in step 3
+      gender: 'prefer-not-to-say',   // updated in step 3
     };
 
     if (!profileCreated) {
@@ -183,7 +232,7 @@ export function UserDetail({
   const savePrivacy = async () => {
     await updatePrivacy({
       hideAccountFromOthers: formData.hideAccount,
-      restrictVideoCall:     formData.restrictVideo,
+      restrictVideoCall: formData.restrictVideo,
     });
   };
 
@@ -221,7 +270,7 @@ export function UserDetail({
       setStep((s) => s + 1);
       return;
     }
-  
+
     setIsSaving(true);
     try {
       if (step === 1) await saveProfileStep1();
@@ -232,7 +281,7 @@ export function UserDetail({
       if (step === 7) {
         await updateProfile({
           interests: [
-            { category: 'general',     tags: formData.interests },
+            { category: 'general', tags: formData.interests },
             { category: 'looking-for', tags: lookingFor },
           ],
         } as any);
@@ -256,63 +305,63 @@ export function UserDetail({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-  
+
     const remaining = 6 - uploadedPhotos.length;
-    const toUpload  = files.slice(0, remaining);
-  
+    const toUpload = files.slice(0, remaining);
+
     // Show "Validating…" row for every selected file immediately
     const initStates: PhotoValidationState[] = toUpload.map((f) => ({
       filename: f.name,
-      status:   'uploading' as const,
-      message:  'Uploading…',
+      status: 'uploading' as const,
+      message: 'Uploading…',
     }));
     setPhotoValidations(initStates);
     setIsUploading(true);
-  
+
     const finalStates: PhotoValidationState[] = [...initStates];
-  
+
     for (let i = 0; i < toUpload.length; i++) {
       const file = toUpload[i];
       try {
         const res = await uploadPhotos([file]);
-  
+
         // uploadPhotos() resolved → server returned 2xx
         finalStates[i] = {
           filename: file.name,
-          status:   'success',
-          message:  'Uploaded successfully',
+          status: 'success',
+          message: 'Uploaded successfully',
         };
         setUploadedPhotos((prev) => [...prev, ...res.data.photos]);
-  
+
       } catch (err: any) {
         // uploadPhotos() threw → server returned 4xx / 5xx
         // Dig through the axios error for the most helpful message:
-        const data      = err?.response?.data;
+        const data = err?.response?.data;
         const serverMsg =
           data?.message ||          // our standard { success, message } shape
-          data?.error   ||          // fallback key
+          data?.error ||          // fallback key
           (typeof data === 'string' ? data : null) ||
-          err?.message  ||          // axios / network error
+          err?.message ||          // axios / network error
           'Upload failed. Please try again.';
-  
+
         finalStates[i] = {
           filename: file.name,
-          status:   'error',
-          message:  serverMsg,
+          status: 'error',
+          message: serverMsg,
         };
-  
+
         // Also fire TopAlert for immediate visibility
         showAlert(`${file.name}: ${serverMsg}`, 'error');
       }
-  
+
       // Re-render after every file so the user sees live progress
       setPhotoValidations([...finalStates]);
     }
-  
+
     // Summary alert when uploading multiple files
     const successCount = finalStates.filter((s) => s.status === 'success').length;
-    const failCount    = finalStates.filter((s) => s.status === 'error').length;
-  
+    const failCount = finalStates.filter((s) => s.status === 'error').length;
+
     if (toUpload.length > 1) {
       if (failCount === 0) {
         showAlert(`${successCount} photo(s) uploaded successfully.`, 'success');
@@ -322,7 +371,7 @@ export function UserDetail({
     } else if (successCount === 1) {
       showAlert('Photo uploaded successfully.', 'success');
     }
-  
+
     setIsUploading(false);
     e.target.value = '';    // reset input so same file can be re-selected after fix
   };
@@ -331,44 +380,45 @@ export function UserDetail({
     try {
       await deletePhoto(publicId);
       setUploadedPhotos((prev) => prev.filter((p) => p.publicId !== publicId));
-    } catch {
+    } catch (error) {
+      console.error('Error deleting photo:', error);
       showAlert('Failed to delete photo. Please try again.');
     }
   };
   const handleReplacePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file || !replacingId) return;
-  
-      setIsUploading(true);
-      setPhotoValidations([{ filename: file.name, status: 'uploading', message: 'Replacing photo…' }]);
-  
-      try {
-        const res = await replacePhoto(replacingId, file);
-        if (res.success) {
-          // Update the photo in local state at the same position
-          setUploadedPhotos((prev) =>
-            prev.map((p) =>
-              p.publicId === replacingId
-                ? { url: res.data.photo.url, publicId: res.data.photo.publicId }
-                : p
-            )
-          );
-          setPhotoValidations([{ filename: file.name, status: 'success', message: 'Photo replaced successfully' }]);
-          showAlert('Photo replaced successfully.', 'success');
-        } else {
-          setPhotoValidations([{ filename: file.name, status: 'error', message: res.message }]);
-          showAlert(res.message || 'Replace failed.', 'error');
-        }
-      } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Replace failed.';
-        setPhotoValidations([{ filename: file.name, status: 'error', message: msg }]);
-        showAlert(msg, 'error');
-      } finally {
-        setIsUploading(false);
-        setReplacingId(null);
-        e.target.value = '';
+    const file = e.target.files?.[0];
+    if (!file || !replacingId) return;
+
+    setIsUploading(true);
+    setPhotoValidations([{ filename: file.name, status: 'uploading', message: 'Replacing photo…' }]);
+
+    try {
+      const res = await replacePhoto(replacingId, file);
+      if (res.success) {
+        // Update the photo in local state at the same position
+        setUploadedPhotos((prev) =>
+          prev.map((p) =>
+            p.publicId === replacingId
+              ? { url: res.data.photo.url, publicId: res.data.photo.publicId }
+              : p
+          )
+        );
+        setPhotoValidations([{ filename: file.name, status: 'success', message: 'Photo replaced successfully' }]);
+        showAlert('Photo replaced successfully.', 'success');
+      } else {
+        setPhotoValidations([{ filename: file.name, status: 'error', message: res.message }]);
+        showAlert(res.message || 'Replace failed.', 'error');
       }
-    };
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Replace failed.';
+      setPhotoValidations([{ filename: file.name, status: 'error', message: msg }]);
+      showAlert(msg, 'error');
+    } finally {
+      setIsUploading(false);
+      setReplacingId(null);
+      e.target.value = '';
+    }
+  };
   const addQualification = () => {
     const q = formData.qualInput.trim();
     if (!q) return;
@@ -550,7 +600,7 @@ export function UserDetail({
                 Minimum 2 · Maximum 6 · JPG, PNG, WebP, AVIF · Max 25 MB each
               </p>
             </div>
- 
+
             {/* ── Photo requirements ── */}
             <div className={`rounded-xl p-4 text-xs space-y-1 border ${isDark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
               <p className={`font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Photo requirements:</p>
@@ -564,7 +614,7 @@ export function UserDetail({
                 <p key={rule} className={isDark ? 'text-gray-400' : 'text-gray-500'}>{rule}</p>
               ))}
             </div>
- 
+
             {/* ── Loading skeleton ── */}
             {photosLoading && (
               <div className="flex gap-4 flex-wrap py-4">
@@ -576,11 +626,11 @@ export function UserDetail({
                 ))}
               </div>
             )}
- 
+
             {/* ── Photo grid ── */}
             {!photosLoading && (
               <div className="flex flex-wrap gap-4 py-2">
- 
+
                 {uploadedPhotos.map((photo, index) => (
                   <div key={photo.publicId} className="relative group">
                     {/* Photo thumbnail */}
@@ -591,10 +641,10 @@ export function UserDetail({
                         className="w-full h-full object-cover"
                       />
                     </div>
- 
+
                     {/* Action buttons — shown on hover */}
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 bg-black/40">
- 
+
                       {/* Replace button */}
                       <button
                         onClick={() => {
@@ -610,7 +660,7 @@ export function UserDetail({
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                       </button>
- 
+
                       {/* Delete button */}
                       <button
                         onClick={() => handleDeletePhoto(photo.publicId)}
@@ -621,7 +671,7 @@ export function UserDetail({
                         <X size={14} className="text-white" />
                       </button>
                     </div>
- 
+
                     {/* Primary badge */}
                     {index === 0 && (
                       <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] px-2 py-0.5 rounded-full bg-[#8860D9] text-white font-medium whitespace-nowrap pointer-events-none">
@@ -630,7 +680,7 @@ export function UserDetail({
                     )}
                   </div>
                 ))}
- 
+
                 {/* Add photo button — only when under limit */}
                 {uploadedPhotos.length < 6 && (
                   <button
@@ -654,23 +704,22 @@ export function UserDetail({
                     )}
                   </button>
                 )}
- 
+
               </div>
             )}
- 
+
             {/* ── Per-file validation feedback ── */}
             {photoValidations.length > 0 && (
               <div className="space-y-2">
                 {photoValidations.map((v, i) => (
                   <div
                     key={i}
-                    className={`flex items-start gap-3 px-4 py-3 rounded-xl text-sm border ${
-                      v.status === 'success'
-                        ? isDark ? 'border-[#1ddb8b]/30 bg-[#1ddb8b]/5 text-[#1ddb8b]' : 'border-green-300 bg-green-50 text-green-700'
-                        : v.status === 'error'
+                    className={`flex items-start gap-3 px-4 py-3 rounded-xl text-sm border ${v.status === 'success'
+                      ? isDark ? 'border-[#1ddb8b]/30 bg-[#1ddb8b]/5 text-[#1ddb8b]' : 'border-green-300 bg-green-50 text-green-700'
+                      : v.status === 'error'
                         ? isDark ? 'border-red-500/30 bg-red-500/5 text-red-400' : 'border-red-300 bg-red-50 text-red-600'
                         : isDark ? 'border-white/10 bg-white/3 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500'
-                    }`}
+                      }`}
                   >
                     <span className="mt-0.5 flex-shrink-0">
                       {v.status === 'success' ? '✅' : v.status === 'error' ? '❌' : '⏳'}
@@ -685,14 +734,14 @@ export function UserDetail({
                 ))}
               </div>
             )}
- 
+
             {/* ── Status indicators ── */}
             {!photosLoading && uploadedPhotos.length > 0 && uploadedPhotos.length < 2 && (
               <p className={`text-sm ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>
                 ⚠ Upload at least {2 - uploadedPhotos.length} more photo{uploadedPhotos.length === 1 ? '' : 's'} (minimum 2 required)
               </p>
             )}
- 
+
             {!photosLoading && uploadedPhotos.length >= 2 && (
               <div className={`rounded-xl p-4 border text-sm flex items-start gap-3 ${isDark ? 'border-[#1ddb8b]/30 bg-[#1ddb8b]/5' : 'border-green-300 bg-green-50'}`}>
                 <span className="text-[#1ddb8b] text-lg">✓</span>
@@ -713,7 +762,7 @@ export function UserDetail({
                 </div>
               </div>
             )}
- 
+
             {/* Hidden file inputs */}
             <input
               ref={fileInputRef}
@@ -733,7 +782,7 @@ export function UserDetail({
           </div>
         );
 
-      // ── STEP 3: Sexual orientation ────────────────────────────
+      // ── STEP 3: Sexual orientation 
       case 3:
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -780,6 +829,7 @@ export function UserDetail({
               <h1 className={`text-3xl md:text-4xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Add your interests</h1>
               <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>Select at least one interest.</p>
             </div>
+
             <div className="space-y-4 py-6">
               {interestRows.map((row, ri) => (
                 <div key={ri} className="flex flex-wrap gap-3">
@@ -808,7 +858,6 @@ export function UserDetail({
         );
       }
 
-      // ── STEP 5: Privacy ───────────────────────────────────────
       case 5:
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -927,8 +976,8 @@ export function UserDetail({
           isNextDisabled={isSaving || isUploading}
           nextLabel={
             isSaving ? 'Saving…' :
-            isUploading ? 'Uploading…' :
-            step === totalSteps ? 'Finish' : undefined
+              isUploading ? 'Uploading…' :
+                step === totalSteps ? 'Finish' : undefined
           }
         />
       </div>
