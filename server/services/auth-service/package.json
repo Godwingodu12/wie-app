@@ -12,7 +12,6 @@
   "description": "",
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
-    "@grpc/proto-loader": "^0.8.0",
     "amqplib": "^0.10.8",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.8.0",

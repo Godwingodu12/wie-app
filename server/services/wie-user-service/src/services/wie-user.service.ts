@@ -28,8 +28,11 @@ import {
   validateEmail,
   validateContactNo,
   validatePassword,
+  getPasswordError,
   validateName,
 } from "../utils/validation.js";
+import { createClient } from "redis";
+const redis = createClient();
 // Store temporary signup data in memory (in production, use Redis)
 const tempUserStore = new Map<string, any>();
 // Auto-delete unverified users after 15 minutes
@@ -84,10 +87,9 @@ export const signupSendOtp = async (
     const { email, contact_no, password, country_code } = req.body;
 
     // Validation
-    if (!password || !validatePassword(password)) {
-      res
-        .status(400)
-        .json({ message: "Password must be at least 6 characters" });
+    const pwError = getPasswordError(password);
+    if (pwError) {
+      res.status(400).json({ message: pwError });
       return;
     }
 
@@ -101,14 +103,21 @@ export const signupSendOtp = async (
       return;
     }
 
-    if (email && !validateEmail(email)) {
-      res.status(400).json({ message: "Invalid email format" });
-      return;
+    // validateEmail returns null if valid, error string if invalid
+    if (email) {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        res.status(400).json({ message: emailError });
+        return;
+      }
     }
 
-    if (contact_no && !validateContactNo(contact_no)) {
-      res.status(400).json({ message: "Invalid contact number format" });
-      return;
+    if (contact_no) {
+      const contactError = validateContactNo(contact_no);
+      if (contactError) {
+        res.status(400).json({ message: contactError });
+        return;
+      }
     }
 
     // Validate country exists
@@ -221,20 +230,11 @@ export const signupVerifyOtp = async (
       return;
     }
 
-    // Generate default username and name if not provided
-    const defaultName = name || (userData.email ? userData.email.split('@')[0] : 'User');
-    const generatedUsername = (userData.email 
-      ? userData.email.split('@')[0] 
-      : userData.contact_no 
-        ? `user_${userData.contact_no.slice(-4)}`
-        : `user_${Math.floor(Math.random() * 10000)}`) + Math.floor(Math.random() * 100);
-
-    // Create user
+    // Create user (name is optional)
     const newUser = await WIEUSER.create({
       email: userData.email || undefined,
       contact_no: userData.contact_no || undefined,
-      name: defaultName,
-      username: generatedUsername,
+      name: name || undefined, // Optional now
       password: userData.hashedPassword,
       country_id: userData.country_id,
     });
@@ -248,7 +248,6 @@ export const signupVerifyOtp = async (
     const token = generateToken(newUser);
 
     res.status(201).json({
-      success: true,
       message: "User registered successfully",
       token,
       user: {
@@ -256,7 +255,6 @@ export const signupVerifyOtp = async (
         email: newUser.email,
         contact_no: newUser.contact_no,
         name: newUser.name,
-        display_name: newUser.name,
         username: newUser.username,
         profile_picture: newUser.profile_picture,
         country_id: newUser.country_id,
@@ -273,6 +271,96 @@ export const signupVerifyOtp = async (
     res
       .status(500)
       .json({ message: "Registration failed", error: error.message });
+  }
+};
+
+export const setupProfile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { username, name, bio, accountPrivacy } = req.body;
+    let profilePicture: string | null = null;
+    if ((req as any).file) {
+      try {
+        profilePicture = await uploadProfileImage((req as any).file.buffer);
+      } catch (err) {
+        console.error("Cloudinary upload failed in setupProfile:", err);
+      }
+    }
+    if (!username || username.trim().length < 4) {
+      res
+        .status(400)
+        .json({ message: "Username must be at least 4 characters" });
+      return;
+    }
+
+    // Only allow small letters, numbers, underscores, dots
+    if (!/^[a-z0-9._]+$/.test(username.trim())) {
+      res.status(400).json({
+        message: "Username can only contain small letters, numbers, . and _",
+      });
+      return;
+    }
+
+    // Validate name only if provided
+    if (name && validateName(name)) {
+      res.status(400).json({ message: "Name must be at least 2 characters" });
+      return;
+    }
+
+    // Validate account privacy only if provided
+    if (accountPrivacy && accountPrivacy !== "public" && accountPrivacy !== "private") {
+      res.status(400).json({ message: "Invalid account privacy setting" });
+      return;
+    }
+
+    // Check uniqueness
+    const existing = await WIEUSER.findByUsername(
+      username.trim().toLowerCase(),
+    );
+    if (existing && existing.id !== userId) {
+      res.status(400).json({ message: "Username is already taken" });
+      return;
+    }
+
+    const updateData: any = { username: username.trim().toLowerCase() };
+    if (name) updateData.name = name.trim();
+    if (bio !== undefined) updateData.bio = bio.trim();
+    if (accountPrivacy) updateData.accountPrivacy = accountPrivacy;
+    if (profilePicture) updateData.profile_picture = profilePicture;
+
+    const updatedUser = await WIEUSER.updateProfile(userId, updateData);
+
+    res.status(200).json({
+      message: "Profile setup complete",
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        contact_no: updatedUser.contact_no,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        profile_picture: updatedUser.profile_picture,
+        country_id: updatedUser.country_id,
+        role: updatedUser.role,
+        status: updatedUser.status,
+        is_blocked: updatedUser.is_blocked,
+        is_verified: updatedUser.is_verified,
+        created_at: updatedUser.created_at,
+        updated_at: updatedUser.updated_at,
+      },
+    });
+  } catch (error: any) {
+    console.error("Setup profile error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to setup profile", error: error.message });
   }
 };
 export const googleAuth = async (
@@ -295,6 +383,7 @@ export const googleAuth = async (
     });
   }
 };
+
 export const googleCallback = async (
   req: Request,
   res: Response,
@@ -307,6 +396,7 @@ export const googleCallback = async (
       );
       return;
     }
+
     const googleUser = await getGoogleUserInfo(code);
     if (!googleUser.verified_email) {
       res.redirect(
@@ -314,62 +404,64 @@ export const googleCallback = async (
       );
       return;
     }
+
     let user = await WIEUSER.findByGoogleId(googleUser.id);
+
     if (!user) {
       const existingUser = await WIEUSER.findByEmail(googleUser.email);
+
       if (existingUser) {
         if (
           existingUser.auth_provider === "local" ||
           !existingUser.auth_provider
         ) {
+          // Local user signing in with Google for the first time — link accounts
+          // ✅ Keep existing profile_picture; only use Google's if none set
           user = await WIEUSER.linkGoogleAccount(existingUser.id, {
             google_id: googleUser.id,
             profile_picture:
-              googleUser.picture || existingUser.profile_picture || undefined,
+              existingUser.profile_picture ||   // ✅ prefer existing picture
+              googleUser.picture ||
+              undefined,
             auth_provider: "hybrid",
           });
-        } else if (existingUser.auth_provider === "google") {
+
+        } else if (
+          existingUser.auth_provider === "google" ||
+          existingUser.auth_provider === "hybrid"
+        ) {
+          // Already linked — just use existing user, never touch the picture
           user = existingUser;
-        } else if (existingUser.auth_provider === "hybrid") {
-          user = existingUser;
-          if (
-            googleUser.picture &&
-            user.profile_picture !== googleUser.picture
-          ) {
-            user = await WIEUSER.updateProfile(user.id, {
-              profile_picture: googleUser.picture,
-            });
-          }
+
         } else {
           res.redirect(
             `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("An account with this email already exists with a different login method.")}`,
           );
           return;
         }
+
       } else {
+        // Brand new user — create with Google picture
         user = await WIEUSER.create({
           email: googleUser.email,
           name: googleUser.name,
-          profile_picture: googleUser.picture,
+          profile_picture: googleUser.picture,  // ✅ fine for new users
           google_id: googleUser.id,
           auth_provider: "google",
           password: undefined,
         });
       }
-    } else {
-      // Update existing Google user's profile picture if changed
-      if (googleUser.picture && user.profile_picture !== googleUser.picture) {
-        user = await WIEUSER.updateProfile(user.id, {
-          profile_picture: googleUser.picture,
-        });
-      }
+
     }
+    // ✅ Existing Google user found by google_id — never update picture on login
+
     if (user.is_blocked) {
       res.redirect(
         `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Your account has been blocked. Please contact support.")}`,
       );
       return;
     }
+
     await WIEUSER.updateOnlineStatus(user.id, true);
     const token = generateToken(user);
     const userData = {
@@ -383,6 +475,7 @@ export const googleCallback = async (
       is_verified: user.is_verified,
       auth_provider: user.auth_provider,
     };
+
     const encodedUser = encodeURIComponent(JSON.stringify(userData));
     res.redirect(
       `${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`,
@@ -709,7 +802,8 @@ export const setPasswordForGoogleUser = async (
     // Validate password
     if (!password || !validatePassword(password)) {
       res.status(400).json({
-        message: "Password must be at least 6 characters",
+        message:
+          "Password must be at least 6 characters and include uppercase, lowercase, number, and symbol (e.g. @#$!)",
       });
       return;
     }
@@ -768,18 +862,22 @@ export const setPasswordForGoogleUser = async (
     });
   }
 };
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      res
-        .status(400)
-        .json({ message: "Email/Contact number and password are required" });
+      res.status(400).json({
+        message: "Email, username or phone number and password are required",
+      });
       return;
     }
 
-    const user = await WIEUSER.findByEmailOrContactNo(identifier);
+    let user = await WIEUSER.findByEmailOrContactNo(identifier);
+    if (!user) {
+      user = await WIEUSER.findByUsername(identifier.toLowerCase());
+    }
     if (!user) {
       res.status(401).json({ message: "Invalid credentials" });
       return;
@@ -832,7 +930,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         contact_no: user.contact_no,
         name: user.name,
-        display_name: user.name,
         username: user.username,
         profile_picture: user.profile_picture,
         country_id: user.country_id,
@@ -1045,14 +1142,12 @@ export const updateProfile = async (
     }
 
     res.status(200).json({
-      success: true,
       message: "Profile updated successfully",
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
         contact_no: updatedUser.contact_no,
         name: updatedUser.name,
-        display_name: updatedUser.name,
         username: updatedUser.username,
         profile_picture: updatedUser.profile_picture,
         country_id: updatedUser.country_id,
@@ -1094,13 +1189,19 @@ export const updatePersonalDetails = async (
     const { email, contact_no, dob } = req.body;
 
     // Validation
-    if (email && !validateEmail(email)) {
-      res.status(400).json({ message: "Invalid email format" });
-      return;
+    if (email) {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        res.status(400).json({ message: emailError });
+        return;
+      }
     }
-    if (contact_no && !validateContactNo(contact_no)) {
-      res.status(400).json({ message: "Invalid contact number format" });
-      return;
+    if (contact_no) {
+      const contactError = validateContactNo(contact_no);
+      if (contactError) {
+        res.status(400).json({ message: contactError });
+        return;
+      }
     }
 
     // Check if email or contact_no already taken by someone else
@@ -1139,14 +1240,12 @@ export const updatePersonalDetails = async (
     } as any);
 
     res.status(200).json({
-      success: true,
       message: "Personal details updated successfully",
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
         contact_no: updatedUser.contact_no,
         name: updatedUser.name,
-        display_name: updatedUser.name,
         username: updatedUser.username,
         profile_picture: updatedUser.profile_picture,
         country_id: updatedUser.country_id,
@@ -1195,7 +1294,6 @@ export const getProfile = async (
         email: user.email,
         contact_no: user.contact_no,
         name: user.name,
-        display_name: user.name,
         username: user.username,
         profile_picture: user.profile_picture,
         country_id: user.country_id,
@@ -1220,9 +1318,6 @@ export const getProfile = async (
         showSuggestion: user.showSuggestion,
         created_at: user.created_at,
         updated_at: user.updated_at,
-        posts_count: user.posts_count || 0,
-        followers_count: user.followers_count || 0,
-        following_count: user.following_count || 0,
       },
     });
   } catch (error: any) {
@@ -1285,13 +1380,13 @@ export const forgotPassword = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { email, contact_no } = req.body;
+    const { email, username, contact_no } = req.body;
 
     // Validate input
-    if (!email && !contact_no) {
+    if (!email && !contact_no && !username) {
       res.status(400).json({
         success: false,
-        message: "Please provide either email or contact number",
+        message: "Please provide email, username or phone number",
       });
       return;
     }
@@ -1302,6 +1397,8 @@ export const forgotPassword = async (
       user = await WIEUSER.findByEmail(email);
     } else if (contact_no) {
       user = await WIEUSER.findByContactNo(contact_no);
+    } else if (username) {
+      user = await WIEUSER.findByUsername(username.trim().toLowerCase());
     }
 
     if (!user) {
@@ -1351,17 +1448,48 @@ export const forgotPassword = async (
       throw otpError; // Re-throw other errors
     }
 
+    // Masking helpers
+    const maskEmail = (e: string): string => {
+      const [local, domain] = e.split("@");
+      if (!domain) return e;
+      if (local.length <= 2) return `${local[0]}***@${domain}`;
+      return `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}@${domain}`;
+    };
+
+    const maskPhone = (p: string): string => {
+      if (p.length <= 4) return "****";
+      return p.slice(0, 2) + "*".repeat(p.length - 6) + p.slice(-4);
+    };
+
     // Send OTP via email or SMS
+    let deliveryTarget = "";
     if (email) {
       await sendEmail(email, otp);
+      deliveryTarget = maskEmail(email);
     } else if (contact_no) {
       await sendSMSOTP(contact_no, otp);
+      deliveryTarget = maskPhone(contact_no);
+    } else if (username) {
+      if (user.email) {
+        await sendEmail(user.email, otp);
+        deliveryTarget = maskEmail(user.email);
+      } else if (user.contact_no) {
+        await sendSMSOTP(user.contact_no, otp);
+        deliveryTarget = maskPhone(user.contact_no);
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "No email or contact number associated with this username",
+        });
+        return;
+      }
     }
     res.status(200).json({
       success: true,
       message: "OTP sent successfully for password reset",
       data: {
         userId: user.id,
+        deliveryTarget,
       },
       remainingAttempts: limitCheck.remainingAttempts - 1, // Include remaining attempts
       expiresIn: "10 minutes",
@@ -1472,12 +1600,9 @@ export const resetPassword = async (
       return;
     }
 
-    // Validate password strength
-    if (newPassword.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters long",
-      });
+    const pwError = getPasswordError(newPassword);
+    if (pwError) {
+      res.status(400).json({ success: false, message: pwError });
       return;
     }
 
@@ -1535,7 +1660,8 @@ export const changePassword = async (
     }
     if (!newPassword || !validatePassword(newPassword)) {
       res.status(400).json({
-        message: "New password must be at least 6 characters",
+        message:
+          "New password must be at least 6 characters long and include uppercase, lowercase, number, and symbol (e.g. @#$!)",
       });
       return;
     }
@@ -1699,41 +1825,12 @@ export const searchUsers = async (
     const pageNum = Number(page);
     const limitNum = Number(limit);
 
-    // Get following/requested IDs for enrichment
-    let followingIds: string[] = [];
-    let requestedIds: string[] = [];
-    if (userId) {
-      try {
-        // Only call if followClient and the method exist
-        if (followClient && typeof followClient.getFollowingIdsDetailed === 'function') {
-          const followData = await followClient.getFollowingIdsDetailed(userId);
-          if (followData) {
-            followingIds = followData.followingIds || [];
-            requestedIds = followData.requestedIds || [];
-          }
-        }
-      } catch (err) {
-        console.warn("⚠️ Non-fatal: Failed to fetch follow data for search enrichment:", err);
-      }
-    }
-
-    const followingSet = new Set(followingIds);
-    const requestedSet = new Set(requestedIds);
-
-    let users: any[] = [];
-    let total = 0;
-    try {
-      users = await WIEUSER.findMany(pageNum, limitNum, query);
-      total = await WIEUSER.count(query);
-    } catch (dbErr: any) {
-      console.error("❌ Database search error:", dbErr);
-      res.status(500).json({ success: false, message: "Database search failed" });
-      return;
-    }
+    const users = await WIEUSER.findMany(pageNum, limitNum, query);
+    const total: number = await WIEUSER.count(query);
 
     // Filter out current user and blocked users
-    const filteredUsers = (users || []).filter(
-      (u: WieUser) => u && u.id !== userId && !u.is_blocked && u.status === "active",
+    const filteredUsers = users.filter(
+      (u: WieUser) => u.id !== userId && !u.is_blocked && u.status === "active",
     );
 
     res.status(200).json({
@@ -1741,22 +1838,17 @@ export const searchUsers = async (
       users: filteredUsers.map((u: WieUser) => ({
         id: u.id,
         name: u.name,
-        display_name: u.name,
         username: u.username,
         email: u.email,
         profile_picture: u.profile_picture,
         bio: u.bio,
         is_verified: u.is_verified,
-        followers_count: u.followers_count || 0,
-        following_count: u.following_count || 0,
-        posts_count: u.posts_count || 0,
-        isFollowing: followingSet.has(String(u.id)),
-        isRequested: requestedSet.has(String(u.id)),
-        accountPrivacy: u.accountPrivacy || "public",
+        followers_count: u.followers_count,
+        following_count: u.following_count,
       })),
       total,
       page: pageNum,
-      totalPages: Math.ceil(total / (limitNum || 1)),
+      totalPages: Math.ceil(total / limitNum),
     });
   } catch (error: any) {
     console.error("Search users error:", error);
@@ -1785,26 +1877,14 @@ export const getSuggestedUsers = async (
       return;
     }
 
-    // Get following IDs if user is logged in
-    let followingIds: string[] = [];
-    if (userId) {
-      try {
-        followingIds = await followClient.getFollowingIds(userId);
-      } catch (err) {
-        console.error("Failed to get following IDs for suggested users", err);
-      }
-    }
-
-    const followingSet = new Set(followingIds);
-
     // Get more users than needed so we can filter
-    const users = await WIEUSER.findMany(1, limitNum * 5); // Increased multiplier to account for following filter
+    const users = await WIEUSER.findMany(1, limitNum * 2);
 
-    // Filter out current user, blocked users, and users already being followed, then limit results
+    // Filter out current user and blocked users, then limit results
     const filteredUsers = users
       .filter(
         (u: WieUser) =>
-          u.id !== userId && !u.is_blocked && u.status === "active" && !followingSet.has(u.id),
+          u.id !== userId && !u.is_blocked && u.status === "active",
       )
       .slice(0, limitNum);
 
@@ -1813,14 +1893,11 @@ export const getSuggestedUsers = async (
       users: filteredUsers.map((u: WieUser) => ({
         id: u.id,
         name: u.name,
-        display_name: u.name,
         username: u.username,
         profile_picture: u.profile_picture,
         bio: u.bio,
         is_verified: u.is_verified,
         followers_count: u.followers_count,
-        following_count: u.following_count,
-        posts_count: u.posts_count,
       })),
     });
   } catch (error: any) {
@@ -2006,14 +2083,7 @@ export const muteUser = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({
       success: true,
       message: "User muted successfully",
-      data: {
-        muterId: muteRecord.muterId,
-        mutedUserId: muteRecord.mutedId,
-        mutePosts: muteRecord.mutePosts,
-        muteStories: muteRecord.muteStories,
-        muteReels: muteRecord.muteReels,
-        muteNotes: muteRecord.muteNotes,
-      },
+      data: muteRecord,
     });
   } catch (error: any) {
     console.error("Mute user error:", error);
@@ -2068,26 +2138,11 @@ export const getUserById = async (
       return;
     }
 
-    // Get relationship status if requester is authenticated
-    const requesterId = req.user?.id;
-    let isFollowing = false;
-    let isRequested = false;
-    if (requesterId && requesterId !== userId) {
-      try {
-        const rel = await followClient.getFollowStatus(requesterId, userId);
-        isFollowing = rel.isFollowing;
-        isRequested = rel.isPending;
-      } catch (err) {
-        console.warn("Failed to fetch follow status for getUserById enrichment", err);
-      }
-    }
-
     res.status(200).json({
       success: true,
       user: {
         id: user.id,
         name: user.name,
-        display_name: user.name,
         username: user.username,
         email: user.email,
         contact_no: user.contact_no,
@@ -2111,8 +2166,6 @@ export const getUserById = async (
         posts_count: user.posts_count,
         created_at: user.created_at,
         auth_provider: user.auth_provider,
-        isFollowing,
-        isRequested,
       },
     });
   } catch (error: any) {

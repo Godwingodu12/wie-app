@@ -1,8 +1,7 @@
-import "dotenv/config";
 import express, { Application } from "express";
+import dotenv from "dotenv";
+dotenv.config();
 import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
 import db from "./config/db";
 import redisClient from "./config/redis";
 import followRoutes from "./routes/follow.routes";
@@ -13,20 +12,14 @@ const app: Application = express();
 const PORT = Number(process.env.PORT) || 5009;
 const GRPC_PORT = Number(process.env.GRPC_PORT) || 50058;
 
-const configuredOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").filter(Boolean)
-  : ["http://localhost:3000"];
-
 const corsOptions = {
-  origin: configuredOrigins,
+  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-app.use(helmet());
-app.use(morgan("dev"));
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -86,7 +79,7 @@ async function startServer() {
     }
 
     // Start HTTP server
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, () => {
       console.log(`📍 HTTP: http://localhost:${PORT}`);
       console.log(`📍 gRPC: localhost:${GRPC_PORT}`);
     });

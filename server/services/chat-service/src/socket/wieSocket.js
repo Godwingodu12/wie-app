@@ -81,11 +81,11 @@ wieIO.on('connection', async (socket) => {
   }
     try {
       const WieChat = mongoose.model('WieChat');
-      const userId = socket.userId;      
+      const userId = new mongoose.Types.ObjectId(socket.userId);      
       const unreadCounts = await WieChat.aggregate([
         {
           $match: {
-            participants: userId,
+            participants: userId.toString(),
             isActive: true
           }
         },
@@ -99,8 +99,8 @@ wieIO.on('connection', async (socket) => {
                   as: 'msg',
                   cond: {
                     $and: [
-                      { $ne: ['$$msg.sender', userId] },
-                      { $not: { $in: [userId, '$$msg.readBy'] } }
+                      { $ne: ['$$msg.sender', userId.toString()] },
+                      { $not: { $in: [userId.toString(), '$$msg.readBy'] } }
                     ]
                   }
                 }
@@ -128,12 +128,12 @@ wieIO.on('connection', async (socket) => {
     socket.on('request-unread-counts', async () => {
       try {
         const WieChat = mongoose.model('WieChat');
-        const userId = socket.userId;
+        const userId = new mongoose.Types.ObjectId(socket.userId);
         
         const unreadCounts = await WieChat.aggregate([
           {
             $match: {
-              participants: userId,
+              participants: userId.toString(),
               isActive: true
             }
           },
@@ -147,8 +147,8 @@ wieIO.on('connection', async (socket) => {
                     as: 'msg',
                     cond: {
                       $and: [
-                        { $ne: ['$$msg.sender', userId] },
-                        { $not: { $in: [userId, '$$msg.readBy'] } }
+                        { $ne: ['$$msg.sender', userId.toString()] },
+                        { $not: { $in: [userId.toString(), '$$msg.readBy'] } }
                       ]
                     }
                   }

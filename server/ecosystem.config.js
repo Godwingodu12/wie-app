@@ -263,7 +263,7 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 5011,
+        PORT: 5009,
         GRPC_PORT: 50056,
         INSTANCE_ID: 'wie-user-3',
         
@@ -295,48 +295,6 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '10s',
       max_memory_restart: '500M',
-    },
-
-    // ============================================
-    // Follow Service (Port 5009) - MongoDB
-    // ============================================
-    {
-      name: 'wie-follow-service',
-      cwd: './services/wie-follow-service',
-      script: 'dist/index.js',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 5009,
-        GRPC_PORT: 50058,
-      },
-      error_file: './logs/follow-err.log',
-      out_file: './logs/follow-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      merge_logs: true,
-      autorestart: true,
-    },
-
-    // ============================================
-    // Media Service (Port 5010) - MongoDB
-    // ============================================
-    {
-      name: 'wie-media-service',
-      cwd: './services/wie-media-service',
-      script: 'dist/index.js',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 5010,
-        GRPC_PORT: 50055,
-      },
-      error_file: './logs/media-err.log',
-      out_file: './logs/media-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      merge_logs: true,
-      autorestart: true,
     },
   ],
 };

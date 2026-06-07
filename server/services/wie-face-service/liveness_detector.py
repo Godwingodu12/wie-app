@@ -9,82 +9,7 @@ Returns one of: center | left | right | up | down | no_face
 import cv2
 import numpy as np
 import mediapipe as mp
-import face_recognition
-from typing import Tuple, Optional, Any
-
-
-# ── MediaPipe / FaceRecognition Fallback setup ────────────────────
-try:
-    _mp_face_mesh    = mp.solutions.face_mesh
-    HAS_MEDIAPIPE_SOLUTIONS = True
-except AttributeError:
-    HAS_MEDIAPIPE_SOLUTIONS = False
-    _mp_face_mesh = None
-
-class LandmarkProxy:
-    """Mock MediaPipe landmark object for fallback."""
-    def __init__(self, x, y, z=0.0):
-        self.x = x
-        self.y = y
-        self.z = z
-
-class FaceMeshResultsProxy:
-    """Mock MediaPipe results object for fallback."""
-    def __init__(self, landmarks_list):
-        self.multi_face_landmarks = landmarks_list
-
-class LandmarksProxy:
-    """Mock MediaPipe multi_face_landmarks[0] for fallback."""
-    def __init__(self, landmarks):
-        self.landmark = landmarks
-
-def _get_face_landmarks_fallback(rgb: np.ndarray) -> Any:
-    """
-    Fallback using face_recognition (dlib) when MediaPipe is unavailable.
-    Maps dlib 68-point landmarks to the indices expected by the code.
-    """
-    face_locations = face_recognition.face_locations(rgb, model="hog")
-    if not face_locations:
-        return FaceMeshResultsProxy(None)
-
-    landmarks_list = face_recognition.face_landmarks(rgb, face_locations)
-    if not landmarks_list:
-        return FaceMeshResultsProxy(None)
-
-    d = landmarks_list[0]
-    h, w = rgb.shape[:2]
-
-    def to_proxy(pt):
-        return LandmarkProxy(pt[0] / w, pt[1] / h)
-
-    proxy_dict = {}
-    try:
-        # 1: Nose tip -> nose_tip[2]
-        proxy_dict[1] = to_proxy(d['nose_tip'][2])
-        # 33: Left eye outer -> left_eye[0]
-        proxy_dict[33] = to_proxy(d['left_eye'][0])
-        # 263: Right eye outer -> right_eye[3]
-        proxy_dict[263] = to_proxy(d['right_eye'][3])
-        # 152: Chin bottom -> chin[8]
-        proxy_dict[152] = to_proxy(d['chin'][8])
-        
-        # 10: Forehead top -> Dlib doesn't have forehead. 
-        # Approximate: nose_bridge[0] - (chin[8] - nose_bridge[0]) * 0.5
-        # Or even simpler: nose_bridge[0] moved up by half the distance to chin
-        nose_bridge_top = np.array(d['nose_bridge'][0])
-        chin_bottom     = np.array(d['chin'][8])
-        forehead_vec    = nose_bridge_top - (chin_bottom - nose_bridge_top) * 0.4
-        proxy_dict[10]  = to_proxy(tuple(forehead_vec.astype(int)))
-        
-    except (KeyError, IndexError):
-        return FaceMeshResultsProxy(None)
-
-    max_idx = max(proxy_dict.keys())
-    full_landmarks = [LandmarkProxy(0, 0) for _ in range(max_idx + 1)]
-    for idx, proxy in proxy_dict.items():
-        full_landmarks[idx] = proxy
-
-    return FaceMeshResultsProxy([LandmarksProxy(full_landmarks)])
+from typing import Tuple, Optional
 
 
 class LivenessDetector:
@@ -106,18 +31,13 @@ class LivenessDetector:
     VERTICAL_THRESHOLD   = 0.03    # nose Y offset from face vertical midpoint
 
     def __init__(self):
-        if HAS_MEDIAPIPE_SOLUTIONS:
-            self._face_mesh = _mp_face_mesh.FaceMesh(
-                static_image_mode=True,       # single-frame mode
-                max_num_faces=1,
-                refine_landmarks=True,
-                min_detection_confidence=0.5,
-            )
-        else:
-            class FallbackFaceMesh:
-                def process(self, rgb):
-                    return _get_face_landmarks_fallback(rgb)
-            self._face_mesh = FallbackFaceMesh()
+        self._mp_face_mesh = mp.solutions.face_mesh
+        self._face_mesh    = self._mp_face_mesh.FaceMesh(
+            static_image_mode=True,       # single-frame mode
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+        )
 
     # ──────────────────────────────────────────────────────────────
     # Public: detect pose from raw image bytes

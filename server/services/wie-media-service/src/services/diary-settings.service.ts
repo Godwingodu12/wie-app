@@ -8,15 +8,7 @@ export const getDiarySettings = async (
 ): Promise<IDiarySettings> => {
   let settings = await DiarySettingsModel.findOne({ userId });
   if (!settings) {
-    settings = await DiarySettingsModel.create({
-      userId,
-      defaultVisibility: "followers",
-      allowComments: true,
-      allowReactions: true,
-      allowSharing: true,
-      showFluxCount: true,
-      autoArchive: true,
-    });
+    settings = await DiarySettingsModel.create({ userId });
   }
   return settings;
 };

@@ -1,10 +1,8 @@
 import mongoose from 'mongoose';
-import dns from 'dns';
 import Notification from '../models/notification.model.js';
 
 export const connectDB = async () => {
   try {
-    dns.setServers(["8.8.8.8", "8.8.4.4"]);
     if (!process.env.MONGO_URI) {
       throw new Error('MONGO_URI is not defined in environment variables');
     }

@@ -59,23 +59,17 @@ export const getFollowStatus = (
 
 export const checkIsFollowedBy = (
   userId: string,
-  followerId: string,
+  targetUserId: string,
 ): Promise<{ isFollowedBy: boolean }> =>
-  promisify(client.CheckIsFollowedBy, { userId, followerId });
+  promisify(client.CheckIsFollowedBy, { userId, targetUserId });
 
 export const getRelationship = (
-  userA: string,
-  userB: string,
+  userId: string,
+  targetUserId: string,
 ): Promise<{ follows: boolean; followedBy: boolean; isMutual: boolean }> =>
-  promisify(client.GetRelationship, { userA, userB });
+  promisify(client.GetRelationship, { userId, targetUserId });
 
 export const getFollowingIds = (
   userId: string,
 ): Promise<{ followingIds: string[] }> =>
   promisify(client.GetFollowingIds, { userId });
-
-export const checkCloseFriend = (
-  ownerId: string,
-  friendId: string,
-): Promise<{ isCloseFriend: boolean }> =>
-  promisify(client.CheckCloseFriend, { ownerId, friendId });

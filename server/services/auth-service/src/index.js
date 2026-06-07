@@ -1,6 +1,6 @@
-import "dotenv/config";
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import authRoutes from './routes/auth.routes.js';
 import session from 'express-session';
@@ -8,7 +8,7 @@ import passport from './config/passport.config.js';
 import { startGrpcServer } from './grpc/server.js';
 import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
-
+dotenv.config();
 const app = express();
 
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
@@ -57,8 +57,8 @@ const startServer = async () => {
       //
     }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ Auth service HTTP server running on port ${PORT}`);
+    app.listen(PORT, () => {
+      //
     });
   } catch (err) {
     process.exit(1);

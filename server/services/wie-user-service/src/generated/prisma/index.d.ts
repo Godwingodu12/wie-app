@@ -14,25 +14,20 @@ export type PrismaPromise<T> = $Public.PrismaPromise<T>
 
 
 /**
- * Model WieUser
- * 
- */
-export type WieUser = $Result.DefaultSelection<Prisma.$WieUserPayload>
-/**
  * Model Country
  * 
  */
 export type Country = $Result.DefaultSelection<Prisma.$CountryPayload>
 /**
+ * Model WieUser
+ * 
+ */
+export type WieUser = $Result.DefaultSelection<Prisma.$WieUserPayload>
+/**
  * Model Otp
  * 
  */
 export type Otp = $Result.DefaultSelection<Prisma.$OtpPayload>
-/**
- * Model UserMute
- * 
- */
-export type UserMute = $Result.DefaultSelection<Prisma.$UserMutePayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -41,8 +36,8 @@ export type UserMute = $Result.DefaultSelection<Prisma.$UserMutePayload>
  * @example
  * ```
  * const prisma = new PrismaClient()
- * // Fetch zero or more WieUsers
- * const wieUsers = await prisma.wieUser.findMany()
+ * // Fetch zero or more Countries
+ * const countries = await prisma.country.findMany()
  * ```
  *
  *
@@ -62,8 +57,8 @@ export class PrismaClient<
    * @example
    * ```
    * const prisma = new PrismaClient()
-   * // Fetch zero or more WieUsers
-   * const wieUsers = await prisma.wieUser.findMany()
+   * // Fetch zero or more Countries
+   * const countries = await prisma.country.findMany()
    * ```
    *
    *
@@ -153,16 +148,6 @@ export class PrismaClient<
   }>>
 
       /**
-   * `prisma.wieUser`: Exposes CRUD operations for the **WieUser** model.
-    * Example usage:
-    * ```ts
-    * // Fetch zero or more WieUsers
-    * const wieUsers = await prisma.wieUser.findMany()
-    * ```
-    */
-  get wieUser(): Prisma.WieUserDelegate<ExtArgs, ClientOptions>;
-
-  /**
    * `prisma.country`: Exposes CRUD operations for the **Country** model.
     * Example usage:
     * ```ts
@@ -173,6 +158,16 @@ export class PrismaClient<
   get country(): Prisma.CountryDelegate<ExtArgs, ClientOptions>;
 
   /**
+   * `prisma.wieUser`: Exposes CRUD operations for the **WieUser** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more WieUsers
+    * const wieUsers = await prisma.wieUser.findMany()
+    * ```
+    */
+  get wieUser(): Prisma.WieUserDelegate<ExtArgs, ClientOptions>;
+
+  /**
    * `prisma.otp`: Exposes CRUD operations for the **Otp** model.
     * Example usage:
     * ```ts
@@ -181,16 +176,6 @@ export class PrismaClient<
     * ```
     */
   get otp(): Prisma.OtpDelegate<ExtArgs, ClientOptions>;
-
-  /**
-   * `prisma.userMute`: Exposes CRUD operations for the **UserMute** model.
-    * Example usage:
-    * ```ts
-    * // Fetch zero or more UserMutes
-    * const userMutes = await prisma.userMute.findMany()
-    * ```
-    */
-  get userMute(): Prisma.UserMuteDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -249,8 +234,8 @@ export namespace Prisma {
   export import Exact = $Public.Exact
 
   /**
-   * Prisma Client JS version: 6.19.3
-   * Query Engine version: c2990dca591cba766e3b7ef5d9e8a84796e47ab7
+   * Prisma Client JS version: 6.19.0
+   * Query Engine version: 2ba551f319ab1df4bc874a89965d8b3641056773
    */
   export type PrismaVersion = {
     client: string
@@ -632,10 +617,9 @@ export namespace Prisma {
 
 
   export const ModelName: {
-    WieUser: 'WieUser',
     Country: 'Country',
-    Otp: 'Otp',
-    UserMute: 'UserMute'
+    WieUser: 'WieUser',
+    Otp: 'Otp'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -654,84 +638,10 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "wieUser" | "country" | "otp" | "userMute"
+      modelProps: "country" | "wieUser" | "otp"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
-      WieUser: {
-        payload: Prisma.$WieUserPayload<ExtArgs>
-        fields: Prisma.WieUserFieldRefs
-        operations: {
-          findUnique: {
-            args: Prisma.WieUserFindUniqueArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload> | null
-          }
-          findUniqueOrThrow: {
-            args: Prisma.WieUserFindUniqueOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          findFirst: {
-            args: Prisma.WieUserFindFirstArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload> | null
-          }
-          findFirstOrThrow: {
-            args: Prisma.WieUserFindFirstOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          findMany: {
-            args: Prisma.WieUserFindManyArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
-          }
-          create: {
-            args: Prisma.WieUserCreateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          createMany: {
-            args: Prisma.WieUserCreateManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          createManyAndReturn: {
-            args: Prisma.WieUserCreateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
-          }
-          delete: {
-            args: Prisma.WieUserDeleteArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          update: {
-            args: Prisma.WieUserUpdateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          deleteMany: {
-            args: Prisma.WieUserDeleteManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          updateMany: {
-            args: Prisma.WieUserUpdateManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          updateManyAndReturn: {
-            args: Prisma.WieUserUpdateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
-          }
-          upsert: {
-            args: Prisma.WieUserUpsertArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
-          }
-          aggregate: {
-            args: Prisma.WieUserAggregateArgs<ExtArgs>
-            result: $Utils.Optional<AggregateWieUser>
-          }
-          groupBy: {
-            args: Prisma.WieUserGroupByArgs<ExtArgs>
-            result: $Utils.Optional<WieUserGroupByOutputType>[]
-          }
-          count: {
-            args: Prisma.WieUserCountArgs<ExtArgs>
-            result: $Utils.Optional<WieUserCountAggregateOutputType> | number
-          }
-        }
-      }
       Country: {
         payload: Prisma.$CountryPayload<ExtArgs>
         fields: Prisma.CountryFieldRefs
@@ -806,6 +716,80 @@ export namespace Prisma {
           }
         }
       }
+      WieUser: {
+        payload: Prisma.$WieUserPayload<ExtArgs>
+        fields: Prisma.WieUserFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.WieUserFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.WieUserFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          findFirst: {
+            args: Prisma.WieUserFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.WieUserFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          findMany: {
+            args: Prisma.WieUserFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
+          }
+          create: {
+            args: Prisma.WieUserCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          createMany: {
+            args: Prisma.WieUserCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.WieUserCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
+          }
+          delete: {
+            args: Prisma.WieUserDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          update: {
+            args: Prisma.WieUserUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          deleteMany: {
+            args: Prisma.WieUserDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.WieUserUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.WieUserUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>[]
+          }
+          upsert: {
+            args: Prisma.WieUserUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$WieUserPayload>
+          }
+          aggregate: {
+            args: Prisma.WieUserAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateWieUser>
+          }
+          groupBy: {
+            args: Prisma.WieUserGroupByArgs<ExtArgs>
+            result: $Utils.Optional<WieUserGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.WieUserCountArgs<ExtArgs>
+            result: $Utils.Optional<WieUserCountAggregateOutputType> | number
+          }
+        }
+      }
       Otp: {
         payload: Prisma.$OtpPayload<ExtArgs>
         fields: Prisma.OtpFieldRefs
@@ -877,80 +861,6 @@ export namespace Prisma {
           count: {
             args: Prisma.OtpCountArgs<ExtArgs>
             result: $Utils.Optional<OtpCountAggregateOutputType> | number
-          }
-        }
-      }
-      UserMute: {
-        payload: Prisma.$UserMutePayload<ExtArgs>
-        fields: Prisma.UserMuteFieldRefs
-        operations: {
-          findUnique: {
-            args: Prisma.UserMuteFindUniqueArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload> | null
-          }
-          findUniqueOrThrow: {
-            args: Prisma.UserMuteFindUniqueOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          findFirst: {
-            args: Prisma.UserMuteFindFirstArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload> | null
-          }
-          findFirstOrThrow: {
-            args: Prisma.UserMuteFindFirstOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          findMany: {
-            args: Prisma.UserMuteFindManyArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>[]
-          }
-          create: {
-            args: Prisma.UserMuteCreateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          createMany: {
-            args: Prisma.UserMuteCreateManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          createManyAndReturn: {
-            args: Prisma.UserMuteCreateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>[]
-          }
-          delete: {
-            args: Prisma.UserMuteDeleteArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          update: {
-            args: Prisma.UserMuteUpdateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          deleteMany: {
-            args: Prisma.UserMuteDeleteManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          updateMany: {
-            args: Prisma.UserMuteUpdateManyArgs<ExtArgs>
-            result: BatchPayload
-          }
-          updateManyAndReturn: {
-            args: Prisma.UserMuteUpdateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>[]
-          }
-          upsert: {
-            args: Prisma.UserMuteUpsertArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$UserMutePayload>
-          }
-          aggregate: {
-            args: Prisma.UserMuteAggregateArgs<ExtArgs>
-            result: $Utils.Optional<AggregateUserMute>
-          }
-          groupBy: {
-            args: Prisma.UserMuteGroupByArgs<ExtArgs>
-            result: $Utils.Optional<UserMuteGroupByOutputType>[]
-          }
-          count: {
-            args: Prisma.UserMuteCountArgs<ExtArgs>
-            result: $Utils.Optional<UserMuteCountAggregateOutputType> | number
           }
         }
       }
@@ -1050,10 +960,9 @@ export namespace Prisma {
     omit?: Prisma.GlobalOmitConfig
   }
   export type GlobalOmitConfig = {
-    wieUser?: WieUserOmit
     country?: CountryOmit
+    wieUser?: WieUserOmit
     otp?: OtpOmit
-    userMute?: UserMuteOmit
   }
 
   /* Types for Logging */
@@ -1130,55 +1039,6 @@ export namespace Prisma {
 
 
   /**
-   * Count Type WieUserCountOutputType
-   */
-
-  export type WieUserCountOutputType = {
-    otps: number
-    mutedMe: number
-    mutedByMe: number
-  }
-
-  export type WieUserCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    otps?: boolean | WieUserCountOutputTypeCountOtpsArgs
-    mutedMe?: boolean | WieUserCountOutputTypeCountMutedMeArgs
-    mutedByMe?: boolean | WieUserCountOutputTypeCountMutedByMeArgs
-  }
-
-  // Custom InputTypes
-  /**
-   * WieUserCountOutputType without action
-   */
-  export type WieUserCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUserCountOutputType
-     */
-    select?: WieUserCountOutputTypeSelect<ExtArgs> | null
-  }
-
-  /**
-   * WieUserCountOutputType without action
-   */
-  export type WieUserCountOutputTypeCountOtpsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: OtpWhereInput
-  }
-
-  /**
-   * WieUserCountOutputType without action
-   */
-  export type WieUserCountOutputTypeCountMutedMeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: UserMuteWhereInput
-  }
-
-  /**
-   * WieUserCountOutputType without action
-   */
-  export type WieUserCountOutputTypeCountMutedByMeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: UserMuteWhereInput
-  }
-
-
-  /**
    * Count Type CountryCountOutputType
    */
 
@@ -1210,1641 +1070,39 @@ export namespace Prisma {
 
 
   /**
-   * Models
+   * Count Type WieUserCountOutputType
    */
 
-  /**
-   * Model WieUser
-   */
-
-  export type AggregateWieUser = {
-    _count: WieUserCountAggregateOutputType | null
-    _avg: WieUserAvgAggregateOutputType | null
-    _sum: WieUserSumAggregateOutputType | null
-    _min: WieUserMinAggregateOutputType | null
-    _max: WieUserMaxAggregateOutputType | null
+  export type WieUserCountOutputType = {
+    otps: number
   }
 
-  export type WieUserAvgAggregateOutputType = {
-    latitude: number | null
-    longitude: number | null
-    followersCount: number | null
-    followingCount: number | null
-    postsCount: number | null
-    tokenVersion: number | null
+  export type WieUserCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    otps?: boolean | WieUserCountOutputTypeCountOtpsArgs
   }
-
-  export type WieUserSumAggregateOutputType = {
-    latitude: number | null
-    longitude: number | null
-    followersCount: number | null
-    followingCount: number | null
-    postsCount: number | null
-    tokenVersion: number | null
-  }
-
-  export type WieUserMinAggregateOutputType = {
-    id: string | null
-    email: string | null
-    contactNo: string | null
-    password: string | null
-    name: string | null
-    profilePicture: string | null
-    role: string | null
-    isBlocked: boolean | null
-    isVerified: boolean | null
-    createdAt: Date | null
-    updatedAt: Date | null
-    username: string | null
-    bio: string | null
-    countryId: string | null
-    status: string | null
-    authProvider: string | null
-    googleId: string | null
-    isOnline: boolean | null
-    latitude: number | null
-    location: string | null
-    longitude: number | null
-    followersCount: number | null
-    followingCount: number | null
-    postsCount: number | null
-    tokenVersion: number | null
-    allowMessageRequests: boolean | null
-    allowMessagesFrom: string | null
-    lastSeenAt: Date | null
-    accountPrivacy: string | null
-    dob: Date | null
-    gender: string | null
-    locationSource: string | null
-    showBadge: boolean | null
-    showSuggestion: boolean | null
-    website: string | null
-    appleId: string | null
-    microsoftId: string | null
-  }
-
-  export type WieUserMaxAggregateOutputType = {
-    id: string | null
-    email: string | null
-    contactNo: string | null
-    password: string | null
-    name: string | null
-    profilePicture: string | null
-    role: string | null
-    isBlocked: boolean | null
-    isVerified: boolean | null
-    createdAt: Date | null
-    updatedAt: Date | null
-    username: string | null
-    bio: string | null
-    countryId: string | null
-    status: string | null
-    authProvider: string | null
-    googleId: string | null
-    isOnline: boolean | null
-    latitude: number | null
-    location: string | null
-    longitude: number | null
-    followersCount: number | null
-    followingCount: number | null
-    postsCount: number | null
-    tokenVersion: number | null
-    allowMessageRequests: boolean | null
-    allowMessagesFrom: string | null
-    lastSeenAt: Date | null
-    accountPrivacy: string | null
-    dob: Date | null
-    gender: string | null
-    locationSource: string | null
-    showBadge: boolean | null
-    showSuggestion: boolean | null
-    website: string | null
-    appleId: string | null
-    microsoftId: string | null
-  }
-
-  export type WieUserCountAggregateOutputType = {
-    id: number
-    email: number
-    contactNo: number
-    password: number
-    name: number
-    profilePicture: number
-    role: number
-    isBlocked: number
-    isVerified: number
-    createdAt: number
-    updatedAt: number
-    username: number
-    bio: number
-    countryId: number
-    status: number
-    authProvider: number
-    googleId: number
-    isOnline: number
-    latitude: number
-    location: number
-    longitude: number
-    followersCount: number
-    followingCount: number
-    postsCount: number
-    tokenVersion: number
-    allowMessageRequests: number
-    allowMessagesFrom: number
-    lastSeenAt: number
-    accountPrivacy: number
-    dob: number
-    gender: number
-    locationSource: number
-    showBadge: number
-    showSuggestion: number
-    website: number
-    appleId: number
-    microsoftId: number
-    _all: number
-  }
-
-
-  export type WieUserAvgAggregateInputType = {
-    latitude?: true
-    longitude?: true
-    followersCount?: true
-    followingCount?: true
-    postsCount?: true
-    tokenVersion?: true
-  }
-
-  export type WieUserSumAggregateInputType = {
-    latitude?: true
-    longitude?: true
-    followersCount?: true
-    followingCount?: true
-    postsCount?: true
-    tokenVersion?: true
-  }
-
-  export type WieUserMinAggregateInputType = {
-    id?: true
-    email?: true
-    contactNo?: true
-    password?: true
-    name?: true
-    profilePicture?: true
-    role?: true
-    isBlocked?: true
-    isVerified?: true
-    createdAt?: true
-    updatedAt?: true
-    username?: true
-    bio?: true
-    countryId?: true
-    status?: true
-    authProvider?: true
-    googleId?: true
-    isOnline?: true
-    latitude?: true
-    location?: true
-    longitude?: true
-    followersCount?: true
-    followingCount?: true
-    postsCount?: true
-    tokenVersion?: true
-    allowMessageRequests?: true
-    allowMessagesFrom?: true
-    lastSeenAt?: true
-    accountPrivacy?: true
-    dob?: true
-    gender?: true
-    locationSource?: true
-    showBadge?: true
-    showSuggestion?: true
-    website?: true
-    appleId?: true
-    microsoftId?: true
-  }
-
-  export type WieUserMaxAggregateInputType = {
-    id?: true
-    email?: true
-    contactNo?: true
-    password?: true
-    name?: true
-    profilePicture?: true
-    role?: true
-    isBlocked?: true
-    isVerified?: true
-    createdAt?: true
-    updatedAt?: true
-    username?: true
-    bio?: true
-    countryId?: true
-    status?: true
-    authProvider?: true
-    googleId?: true
-    isOnline?: true
-    latitude?: true
-    location?: true
-    longitude?: true
-    followersCount?: true
-    followingCount?: true
-    postsCount?: true
-    tokenVersion?: true
-    allowMessageRequests?: true
-    allowMessagesFrom?: true
-    lastSeenAt?: true
-    accountPrivacy?: true
-    dob?: true
-    gender?: true
-    locationSource?: true
-    showBadge?: true
-    showSuggestion?: true
-    website?: true
-    appleId?: true
-    microsoftId?: true
-  }
-
-  export type WieUserCountAggregateInputType = {
-    id?: true
-    email?: true
-    contactNo?: true
-    password?: true
-    name?: true
-    profilePicture?: true
-    role?: true
-    isBlocked?: true
-    isVerified?: true
-    createdAt?: true
-    updatedAt?: true
-    username?: true
-    bio?: true
-    countryId?: true
-    status?: true
-    authProvider?: true
-    googleId?: true
-    isOnline?: true
-    latitude?: true
-    location?: true
-    longitude?: true
-    followersCount?: true
-    followingCount?: true
-    postsCount?: true
-    tokenVersion?: true
-    allowMessageRequests?: true
-    allowMessagesFrom?: true
-    lastSeenAt?: true
-    accountPrivacy?: true
-    dob?: true
-    gender?: true
-    locationSource?: true
-    showBadge?: true
-    showSuggestion?: true
-    website?: true
-    appleId?: true
-    microsoftId?: true
-    _all?: true
-  }
-
-  export type WieUserAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Filter which WieUser to aggregate.
-     */
-    where?: WieUserWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of WieUsers to fetch.
-     */
-    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the start position
-     */
-    cursor?: WieUserWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` WieUsers from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` WieUsers.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Count returned WieUsers
-    **/
-    _count?: true | WieUserCountAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to average
-    **/
-    _avg?: WieUserAvgAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to sum
-    **/
-    _sum?: WieUserSumAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to find the minimum value
-    **/
-    _min?: WieUserMinAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to find the maximum value
-    **/
-    _max?: WieUserMaxAggregateInputType
-  }
-
-  export type GetWieUserAggregateType<T extends WieUserAggregateArgs> = {
-        [P in keyof T & keyof AggregateWieUser]: P extends '_count' | 'count'
-      ? T[P] extends true
-        ? number
-        : GetScalarType<T[P], AggregateWieUser[P]>
-      : GetScalarType<T[P], AggregateWieUser[P]>
-  }
-
-
-
-
-  export type WieUserGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: WieUserWhereInput
-    orderBy?: WieUserOrderByWithAggregationInput | WieUserOrderByWithAggregationInput[]
-    by: WieUserScalarFieldEnum[] | WieUserScalarFieldEnum
-    having?: WieUserScalarWhereWithAggregatesInput
-    take?: number
-    skip?: number
-    _count?: WieUserCountAggregateInputType | true
-    _avg?: WieUserAvgAggregateInputType
-    _sum?: WieUserSumAggregateInputType
-    _min?: WieUserMinAggregateInputType
-    _max?: WieUserMaxAggregateInputType
-  }
-
-  export type WieUserGroupByOutputType = {
-    id: string
-    email: string | null
-    contactNo: string | null
-    password: string | null
-    name: string | null
-    profilePicture: string | null
-    role: string
-    isBlocked: boolean
-    isVerified: boolean
-    createdAt: Date
-    updatedAt: Date
-    username: string | null
-    bio: string | null
-    countryId: string | null
-    status: string
-    authProvider: string
-    googleId: string | null
-    isOnline: boolean
-    latitude: number | null
-    location: string | null
-    longitude: number | null
-    followersCount: number
-    followingCount: number
-    postsCount: number
-    tokenVersion: number
-    allowMessageRequests: boolean
-    allowMessagesFrom: string
-    lastSeenAt: Date | null
-    accountPrivacy: string
-    dob: Date | null
-    gender: string | null
-    locationSource: string | null
-    showBadge: boolean
-    showSuggestion: boolean
-    website: string | null
-    appleId: string | null
-    microsoftId: string | null
-    _count: WieUserCountAggregateOutputType | null
-    _avg: WieUserAvgAggregateOutputType | null
-    _sum: WieUserSumAggregateOutputType | null
-    _min: WieUserMinAggregateOutputType | null
-    _max: WieUserMaxAggregateOutputType | null
-  }
-
-  type GetWieUserGroupByPayload<T extends WieUserGroupByArgs> = Prisma.PrismaPromise<
-    Array<
-      PickEnumerable<WieUserGroupByOutputType, T['by']> &
-        {
-          [P in ((keyof T) & (keyof WieUserGroupByOutputType))]: P extends '_count'
-            ? T[P] extends boolean
-              ? number
-              : GetScalarType<T[P], WieUserGroupByOutputType[P]>
-            : GetScalarType<T[P], WieUserGroupByOutputType[P]>
-        }
-      >
-    >
-
-
-  export type WieUserSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    email?: boolean
-    contactNo?: boolean
-    password?: boolean
-    name?: boolean
-    profilePicture?: boolean
-    role?: boolean
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: boolean
-    updatedAt?: boolean
-    username?: boolean
-    bio?: boolean
-    countryId?: boolean
-    status?: boolean
-    authProvider?: boolean
-    googleId?: boolean
-    isOnline?: boolean
-    latitude?: boolean
-    location?: boolean
-    longitude?: boolean
-    followersCount?: boolean
-    followingCount?: boolean
-    postsCount?: boolean
-    tokenVersion?: boolean
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: boolean
-    lastSeenAt?: boolean
-    accountPrivacy?: boolean
-    dob?: boolean
-    gender?: boolean
-    locationSource?: boolean
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: boolean
-    appleId?: boolean
-    microsoftId?: boolean
-    otps?: boolean | WieUser$otpsArgs<ExtArgs>
-    mutedMe?: boolean | WieUser$mutedMeArgs<ExtArgs>
-    mutedByMe?: boolean | WieUser$mutedByMeArgs<ExtArgs>
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-    _count?: boolean | WieUserCountOutputTypeDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["wieUser"]>
-
-  export type WieUserSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    email?: boolean
-    contactNo?: boolean
-    password?: boolean
-    name?: boolean
-    profilePicture?: boolean
-    role?: boolean
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: boolean
-    updatedAt?: boolean
-    username?: boolean
-    bio?: boolean
-    countryId?: boolean
-    status?: boolean
-    authProvider?: boolean
-    googleId?: boolean
-    isOnline?: boolean
-    latitude?: boolean
-    location?: boolean
-    longitude?: boolean
-    followersCount?: boolean
-    followingCount?: boolean
-    postsCount?: boolean
-    tokenVersion?: boolean
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: boolean
-    lastSeenAt?: boolean
-    accountPrivacy?: boolean
-    dob?: boolean
-    gender?: boolean
-    locationSource?: boolean
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: boolean
-    appleId?: boolean
-    microsoftId?: boolean
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-  }, ExtArgs["result"]["wieUser"]>
-
-  export type WieUserSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    email?: boolean
-    contactNo?: boolean
-    password?: boolean
-    name?: boolean
-    profilePicture?: boolean
-    role?: boolean
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: boolean
-    updatedAt?: boolean
-    username?: boolean
-    bio?: boolean
-    countryId?: boolean
-    status?: boolean
-    authProvider?: boolean
-    googleId?: boolean
-    isOnline?: boolean
-    latitude?: boolean
-    location?: boolean
-    longitude?: boolean
-    followersCount?: boolean
-    followingCount?: boolean
-    postsCount?: boolean
-    tokenVersion?: boolean
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: boolean
-    lastSeenAt?: boolean
-    accountPrivacy?: boolean
-    dob?: boolean
-    gender?: boolean
-    locationSource?: boolean
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: boolean
-    appleId?: boolean
-    microsoftId?: boolean
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-  }, ExtArgs["result"]["wieUser"]>
-
-  export type WieUserSelectScalar = {
-    id?: boolean
-    email?: boolean
-    contactNo?: boolean
-    password?: boolean
-    name?: boolean
-    profilePicture?: boolean
-    role?: boolean
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: boolean
-    updatedAt?: boolean
-    username?: boolean
-    bio?: boolean
-    countryId?: boolean
-    status?: boolean
-    authProvider?: boolean
-    googleId?: boolean
-    isOnline?: boolean
-    latitude?: boolean
-    location?: boolean
-    longitude?: boolean
-    followersCount?: boolean
-    followingCount?: boolean
-    postsCount?: boolean
-    tokenVersion?: boolean
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: boolean
-    lastSeenAt?: boolean
-    accountPrivacy?: boolean
-    dob?: boolean
-    gender?: boolean
-    locationSource?: boolean
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: boolean
-    appleId?: boolean
-    microsoftId?: boolean
-  }
-
-  export type WieUserOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "email" | "contactNo" | "password" | "name" | "profilePicture" | "role" | "isBlocked" | "isVerified" | "createdAt" | "updatedAt" | "username" | "bio" | "countryId" | "status" | "authProvider" | "googleId" | "isOnline" | "latitude" | "location" | "longitude" | "followersCount" | "followingCount" | "postsCount" | "tokenVersion" | "allowMessageRequests" | "allowMessagesFrom" | "lastSeenAt" | "accountPrivacy" | "dob" | "gender" | "locationSource" | "showBadge" | "showSuggestion" | "website" | "appleId" | "microsoftId", ExtArgs["result"]["wieUser"]>
-  export type WieUserInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    otps?: boolean | WieUser$otpsArgs<ExtArgs>
-    mutedMe?: boolean | WieUser$mutedMeArgs<ExtArgs>
-    mutedByMe?: boolean | WieUser$mutedByMeArgs<ExtArgs>
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-    _count?: boolean | WieUserCountOutputTypeDefaultArgs<ExtArgs>
-  }
-  export type WieUserIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-  }
-  export type WieUserIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    country?: boolean | WieUser$countryArgs<ExtArgs>
-  }
-
-  export type $WieUserPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    name: "WieUser"
-    objects: {
-      otps: Prisma.$OtpPayload<ExtArgs>[]
-      mutedMe: Prisma.$UserMutePayload<ExtArgs>[]
-      mutedByMe: Prisma.$UserMutePayload<ExtArgs>[]
-      country: Prisma.$CountryPayload<ExtArgs> | null
-    }
-    scalars: $Extensions.GetPayloadResult<{
-      id: string
-      email: string | null
-      contactNo: string | null
-      password: string | null
-      name: string | null
-      profilePicture: string | null
-      role: string
-      isBlocked: boolean
-      isVerified: boolean
-      createdAt: Date
-      updatedAt: Date
-      username: string | null
-      bio: string | null
-      countryId: string | null
-      status: string
-      authProvider: string
-      googleId: string | null
-      isOnline: boolean
-      latitude: number | null
-      location: string | null
-      longitude: number | null
-      followersCount: number
-      followingCount: number
-      postsCount: number
-      tokenVersion: number
-      allowMessageRequests: boolean
-      allowMessagesFrom: string
-      lastSeenAt: Date | null
-      accountPrivacy: string
-      dob: Date | null
-      gender: string | null
-      locationSource: string | null
-      showBadge: boolean
-      showSuggestion: boolean
-      website: string | null
-      appleId: string | null
-      microsoftId: string | null
-    }, ExtArgs["result"]["wieUser"]>
-    composites: {}
-  }
-
-  type WieUserGetPayload<S extends boolean | null | undefined | WieUserDefaultArgs> = $Result.GetResult<Prisma.$WieUserPayload, S>
-
-  type WieUserCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
-    Omit<WieUserFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
-      select?: WieUserCountAggregateInputType | true
-    }
-
-  export interface WieUserDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
-    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['WieUser'], meta: { name: 'WieUser' } }
-    /**
-     * Find zero or one WieUser that matches the filter.
-     * @param {WieUserFindUniqueArgs} args - Arguments to find a WieUser
-     * @example
-     * // Get one WieUser
-     * const wieUser = await prisma.wieUser.findUnique({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findUnique<T extends WieUserFindUniqueArgs>(args: SelectSubset<T, WieUserFindUniqueArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find one WieUser that matches the filter or throw an error with `error.code='P2025'`
-     * if no matches were found.
-     * @param {WieUserFindUniqueOrThrowArgs} args - Arguments to find a WieUser
-     * @example
-     * // Get one WieUser
-     * const wieUser = await prisma.wieUser.findUniqueOrThrow({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findUniqueOrThrow<T extends WieUserFindUniqueOrThrowArgs>(args: SelectSubset<T, WieUserFindUniqueOrThrowArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find the first WieUser that matches the filter.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserFindFirstArgs} args - Arguments to find a WieUser
-     * @example
-     * // Get one WieUser
-     * const wieUser = await prisma.wieUser.findFirst({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findFirst<T extends WieUserFindFirstArgs>(args?: SelectSubset<T, WieUserFindFirstArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find the first WieUser that matches the filter or
-     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserFindFirstOrThrowArgs} args - Arguments to find a WieUser
-     * @example
-     * // Get one WieUser
-     * const wieUser = await prisma.wieUser.findFirstOrThrow({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findFirstOrThrow<T extends WieUserFindFirstOrThrowArgs>(args?: SelectSubset<T, WieUserFindFirstOrThrowArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find zero or more WieUsers that matches the filter.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserFindManyArgs} args - Arguments to filter and select certain fields only.
-     * @example
-     * // Get all WieUsers
-     * const wieUsers = await prisma.wieUser.findMany()
-     * 
-     * // Get first 10 WieUsers
-     * const wieUsers = await prisma.wieUser.findMany({ take: 10 })
-     * 
-     * // Only select the `id`
-     * const wieUserWithIdOnly = await prisma.wieUser.findMany({ select: { id: true } })
-     * 
-     */
-    findMany<T extends WieUserFindManyArgs>(args?: SelectSubset<T, WieUserFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
-
-    /**
-     * Create a WieUser.
-     * @param {WieUserCreateArgs} args - Arguments to create a WieUser.
-     * @example
-     * // Create one WieUser
-     * const WieUser = await prisma.wieUser.create({
-     *   data: {
-     *     // ... data to create a WieUser
-     *   }
-     * })
-     * 
-     */
-    create<T extends WieUserCreateArgs>(args: SelectSubset<T, WieUserCreateArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Create many WieUsers.
-     * @param {WieUserCreateManyArgs} args - Arguments to create many WieUsers.
-     * @example
-     * // Create many WieUsers
-     * const wieUser = await prisma.wieUser.createMany({
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     *     
-     */
-    createMany<T extends WieUserCreateManyArgs>(args?: SelectSubset<T, WieUserCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Create many WieUsers and returns the data saved in the database.
-     * @param {WieUserCreateManyAndReturnArgs} args - Arguments to create many WieUsers.
-     * @example
-     * // Create many WieUsers
-     * const wieUser = await prisma.wieUser.createManyAndReturn({
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * 
-     * // Create many WieUsers and only return the `id`
-     * const wieUserWithIdOnly = await prisma.wieUser.createManyAndReturn({
-     *   select: { id: true },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * 
-     */
-    createManyAndReturn<T extends WieUserCreateManyAndReturnArgs>(args?: SelectSubset<T, WieUserCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
-
-    /**
-     * Delete a WieUser.
-     * @param {WieUserDeleteArgs} args - Arguments to delete one WieUser.
-     * @example
-     * // Delete one WieUser
-     * const WieUser = await prisma.wieUser.delete({
-     *   where: {
-     *     // ... filter to delete one WieUser
-     *   }
-     * })
-     * 
-     */
-    delete<T extends WieUserDeleteArgs>(args: SelectSubset<T, WieUserDeleteArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Update one WieUser.
-     * @param {WieUserUpdateArgs} args - Arguments to update one WieUser.
-     * @example
-     * // Update one WieUser
-     * const wieUser = await prisma.wieUser.update({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: {
-     *     // ... provide data here
-     *   }
-     * })
-     * 
-     */
-    update<T extends WieUserUpdateArgs>(args: SelectSubset<T, WieUserUpdateArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Delete zero or more WieUsers.
-     * @param {WieUserDeleteManyArgs} args - Arguments to filter WieUsers to delete.
-     * @example
-     * // Delete a few WieUsers
-     * const { count } = await prisma.wieUser.deleteMany({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     * 
-     */
-    deleteMany<T extends WieUserDeleteManyArgs>(args?: SelectSubset<T, WieUserDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Update zero or more WieUsers.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserUpdateManyArgs} args - Arguments to update one or more rows.
-     * @example
-     * // Update many WieUsers
-     * const wieUser = await prisma.wieUser.updateMany({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: {
-     *     // ... provide data here
-     *   }
-     * })
-     * 
-     */
-    updateMany<T extends WieUserUpdateManyArgs>(args: SelectSubset<T, WieUserUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Update zero or more WieUsers and returns the data updated in the database.
-     * @param {WieUserUpdateManyAndReturnArgs} args - Arguments to update many WieUsers.
-     * @example
-     * // Update many WieUsers
-     * const wieUser = await prisma.wieUser.updateManyAndReturn({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * 
-     * // Update zero or more WieUsers and only return the `id`
-     * const wieUserWithIdOnly = await prisma.wieUser.updateManyAndReturn({
-     *   select: { id: true },
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * 
-     */
-    updateManyAndReturn<T extends WieUserUpdateManyAndReturnArgs>(args: SelectSubset<T, WieUserUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
-
-    /**
-     * Create or update one WieUser.
-     * @param {WieUserUpsertArgs} args - Arguments to update or create a WieUser.
-     * @example
-     * // Update or create a WieUser
-     * const wieUser = await prisma.wieUser.upsert({
-     *   create: {
-     *     // ... data to create a WieUser
-     *   },
-     *   update: {
-     *     // ... in case it already exists, update
-     *   },
-     *   where: {
-     *     // ... the filter for the WieUser we want to update
-     *   }
-     * })
-     */
-    upsert<T extends WieUserUpsertArgs>(args: SelectSubset<T, WieUserUpsertArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-
-    /**
-     * Count the number of WieUsers.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserCountArgs} args - Arguments to filter WieUsers to count.
-     * @example
-     * // Count the number of WieUsers
-     * const count = await prisma.wieUser.count({
-     *   where: {
-     *     // ... the filter for the WieUsers we want to count
-     *   }
-     * })
-    **/
-    count<T extends WieUserCountArgs>(
-      args?: Subset<T, WieUserCountArgs>,
-    ): Prisma.PrismaPromise<
-      T extends $Utils.Record<'select', any>
-        ? T['select'] extends true
-          ? number
-          : GetScalarType<T['select'], WieUserCountAggregateOutputType>
-        : number
-    >
-
-    /**
-     * Allows you to perform aggregations operations on a WieUser.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
-     * @example
-     * // Ordered by age ascending
-     * // Where email contains prisma.io
-     * // Limited to the 10 users
-     * const aggregations = await prisma.user.aggregate({
-     *   _avg: {
-     *     age: true,
-     *   },
-     *   where: {
-     *     email: {
-     *       contains: "prisma.io",
-     *     },
-     *   },
-     *   orderBy: {
-     *     age: "asc",
-     *   },
-     *   take: 10,
-     * })
-    **/
-    aggregate<T extends WieUserAggregateArgs>(args: Subset<T, WieUserAggregateArgs>): Prisma.PrismaPromise<GetWieUserAggregateType<T>>
-
-    /**
-     * Group by WieUser.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {WieUserGroupByArgs} args - Group by arguments.
-     * @example
-     * // Group by city, order by createdAt, get count
-     * const result = await prisma.user.groupBy({
-     *   by: ['city', 'createdAt'],
-     *   orderBy: {
-     *     createdAt: true
-     *   },
-     *   _count: {
-     *     _all: true
-     *   },
-     * })
-     * 
-    **/
-    groupBy<
-      T extends WieUserGroupByArgs,
-      HasSelectOrTake extends Or<
-        Extends<'skip', Keys<T>>,
-        Extends<'take', Keys<T>>
-      >,
-      OrderByArg extends True extends HasSelectOrTake
-        ? { orderBy: WieUserGroupByArgs['orderBy'] }
-        : { orderBy?: WieUserGroupByArgs['orderBy'] },
-      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
-      ByFields extends MaybeTupleToUnion<T['by']>,
-      ByValid extends Has<ByFields, OrderFields>,
-      HavingFields extends GetHavingFields<T['having']>,
-      HavingValid extends Has<ByFields, HavingFields>,
-      ByEmpty extends T['by'] extends never[] ? True : False,
-      InputErrors extends ByEmpty extends True
-      ? `Error: "by" must not be empty.`
-      : HavingValid extends False
-      ? {
-          [P in HavingFields]: P extends ByFields
-            ? never
-            : P extends string
-            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
-            : [
-                Error,
-                'Field ',
-                P,
-                ` in "having" needs to be provided in "by"`,
-              ]
-        }[HavingFields]
-      : 'take' extends Keys<T>
-      ? 'orderBy' extends Keys<T>
-        ? ByValid extends True
-          ? {}
-          : {
-              [P in OrderFields]: P extends ByFields
-                ? never
-                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-            }[OrderFields]
-        : 'Error: If you provide "take", you also need to provide "orderBy"'
-      : 'skip' extends Keys<T>
-      ? 'orderBy' extends Keys<T>
-        ? ByValid extends True
-          ? {}
-          : {
-              [P in OrderFields]: P extends ByFields
-                ? never
-                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-            }[OrderFields]
-        : 'Error: If you provide "skip", you also need to provide "orderBy"'
-      : ByValid extends True
-      ? {}
-      : {
-          [P in OrderFields]: P extends ByFields
-            ? never
-            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-        }[OrderFields]
-    >(args: SubsetIntersection<T, WieUserGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetWieUserGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
-  /**
-   * Fields of the WieUser model
-   */
-  readonly fields: WieUserFieldRefs;
-  }
-
-  /**
-   * The delegate class that acts as a "Promise-like" for WieUser.
-   * Why is this prefixed with `Prisma__`?
-   * Because we want to prevent naming conflicts as mentioned in
-   * https://github.com/prisma/prisma-client-js/issues/707
-   */
-  export interface Prisma__WieUserClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
-    readonly [Symbol.toStringTag]: "PrismaPromise"
-    otps<T extends WieUser$otpsArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$otpsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OtpPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-    mutedMe<T extends WieUser$mutedMeArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$mutedMeArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-    mutedByMe<T extends WieUser$mutedByMeArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$mutedByMeArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-    country<T extends WieUser$countryArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$countryArgs<ExtArgs>>): Prisma__CountryClient<$Result.GetResult<Prisma.$CountryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-    /**
-     * Attaches callbacks for the resolution and/or rejection of the Promise.
-     * @param onfulfilled The callback to execute when the Promise is resolved.
-     * @param onrejected The callback to execute when the Promise is rejected.
-     * @returns A Promise for the completion of which ever callback is executed.
-     */
-    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
-    /**
-     * Attaches a callback for only the rejection of the Promise.
-     * @param onrejected The callback to execute when the Promise is rejected.
-     * @returns A Promise for the completion of the callback.
-     */
-    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
-    /**
-     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
-     * resolved value cannot be modified from the callback.
-     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
-     * @returns A Promise for the completion of the callback.
-     */
-    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
-  }
-
-
-
-
-  /**
-   * Fields of the WieUser model
-   */
-  interface WieUserFieldRefs {
-    readonly id: FieldRef<"WieUser", 'String'>
-    readonly email: FieldRef<"WieUser", 'String'>
-    readonly contactNo: FieldRef<"WieUser", 'String'>
-    readonly password: FieldRef<"WieUser", 'String'>
-    readonly name: FieldRef<"WieUser", 'String'>
-    readonly profilePicture: FieldRef<"WieUser", 'String'>
-    readonly role: FieldRef<"WieUser", 'String'>
-    readonly isBlocked: FieldRef<"WieUser", 'Boolean'>
-    readonly isVerified: FieldRef<"WieUser", 'Boolean'>
-    readonly createdAt: FieldRef<"WieUser", 'DateTime'>
-    readonly updatedAt: FieldRef<"WieUser", 'DateTime'>
-    readonly username: FieldRef<"WieUser", 'String'>
-    readonly bio: FieldRef<"WieUser", 'String'>
-    readonly countryId: FieldRef<"WieUser", 'String'>
-    readonly status: FieldRef<"WieUser", 'String'>
-    readonly authProvider: FieldRef<"WieUser", 'String'>
-    readonly googleId: FieldRef<"WieUser", 'String'>
-    readonly isOnline: FieldRef<"WieUser", 'Boolean'>
-    readonly latitude: FieldRef<"WieUser", 'Float'>
-    readonly location: FieldRef<"WieUser", 'String'>
-    readonly longitude: FieldRef<"WieUser", 'Float'>
-    readonly followersCount: FieldRef<"WieUser", 'Int'>
-    readonly followingCount: FieldRef<"WieUser", 'Int'>
-    readonly postsCount: FieldRef<"WieUser", 'Int'>
-    readonly tokenVersion: FieldRef<"WieUser", 'Int'>
-    readonly allowMessageRequests: FieldRef<"WieUser", 'Boolean'>
-    readonly allowMessagesFrom: FieldRef<"WieUser", 'String'>
-    readonly lastSeenAt: FieldRef<"WieUser", 'DateTime'>
-    readonly accountPrivacy: FieldRef<"WieUser", 'String'>
-    readonly dob: FieldRef<"WieUser", 'DateTime'>
-    readonly gender: FieldRef<"WieUser", 'String'>
-    readonly locationSource: FieldRef<"WieUser", 'String'>
-    readonly showBadge: FieldRef<"WieUser", 'Boolean'>
-    readonly showSuggestion: FieldRef<"WieUser", 'Boolean'>
-    readonly website: FieldRef<"WieUser", 'String'>
-    readonly appleId: FieldRef<"WieUser", 'String'>
-    readonly microsoftId: FieldRef<"WieUser", 'String'>
-  }
-    
 
   // Custom InputTypes
   /**
-   * WieUser findUnique
+   * WieUserCountOutputType without action
    */
-  export type WieUserFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type WieUserCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the WieUser
+     * Select specific fields to fetch from the WieUserCountOutputType
      */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter, which WieUser to fetch.
-     */
-    where: WieUserWhereUniqueInput
+    select?: WieUserCountOutputTypeSelect<ExtArgs> | null
   }
 
   /**
-   * WieUser findUniqueOrThrow
+   * WieUserCountOutputType without action
    */
-  export type WieUserFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter, which WieUser to fetch.
-     */
-    where: WieUserWhereUniqueInput
-  }
-
-  /**
-   * WieUser findFirst
-   */
-  export type WieUserFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter, which WieUser to fetch.
-     */
-    where?: WieUserWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of WieUsers to fetch.
-     */
-    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for searching for WieUsers.
-     */
-    cursor?: WieUserWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` WieUsers from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` WieUsers.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
-     * 
-     * Filter by unique combinations of WieUsers.
-     */
-    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
-  }
-
-  /**
-   * WieUser findFirstOrThrow
-   */
-  export type WieUserFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter, which WieUser to fetch.
-     */
-    where?: WieUserWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of WieUsers to fetch.
-     */
-    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for searching for WieUsers.
-     */
-    cursor?: WieUserWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` WieUsers from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` WieUsers.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
-     * 
-     * Filter by unique combinations of WieUsers.
-     */
-    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
-  }
-
-  /**
-   * WieUser findMany
-   */
-  export type WieUserFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter, which WieUsers to fetch.
-     */
-    where?: WieUserWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of WieUsers to fetch.
-     */
-    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for listing WieUsers.
-     */
-    cursor?: WieUserWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` WieUsers from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` WieUsers.
-     */
-    skip?: number
-    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
-  }
-
-  /**
-   * WieUser create
-   */
-  export type WieUserCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * The data needed to create a WieUser.
-     */
-    data?: XOR<WieUserCreateInput, WieUserUncheckedCreateInput>
-  }
-
-  /**
-   * WieUser createMany
-   */
-  export type WieUserCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * The data used to create many WieUsers.
-     */
-    data: WieUserCreateManyInput | WieUserCreateManyInput[]
-    skipDuplicates?: boolean
-  }
-
-  /**
-   * WieUser createManyAndReturn
-   */
-  export type WieUserCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelectCreateManyAndReturn<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * The data used to create many WieUsers.
-     */
-    data: WieUserCreateManyInput | WieUserCreateManyInput[]
-    skipDuplicates?: boolean
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserIncludeCreateManyAndReturn<ExtArgs> | null
-  }
-
-  /**
-   * WieUser update
-   */
-  export type WieUserUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * The data needed to update a WieUser.
-     */
-    data: XOR<WieUserUpdateInput, WieUserUncheckedUpdateInput>
-    /**
-     * Choose, which WieUser to update.
-     */
-    where: WieUserWhereUniqueInput
-  }
-
-  /**
-   * WieUser updateMany
-   */
-  export type WieUserUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * The data used to update WieUsers.
-     */
-    data: XOR<WieUserUpdateManyMutationInput, WieUserUncheckedUpdateManyInput>
-    /**
-     * Filter which WieUsers to update
-     */
-    where?: WieUserWhereInput
-    /**
-     * Limit how many WieUsers to update.
-     */
-    limit?: number
-  }
-
-  /**
-   * WieUser updateManyAndReturn
-   */
-  export type WieUserUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelectUpdateManyAndReturn<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * The data used to update WieUsers.
-     */
-    data: XOR<WieUserUpdateManyMutationInput, WieUserUncheckedUpdateManyInput>
-    /**
-     * Filter which WieUsers to update
-     */
-    where?: WieUserWhereInput
-    /**
-     * Limit how many WieUsers to update.
-     */
-    limit?: number
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserIncludeUpdateManyAndReturn<ExtArgs> | null
-  }
-
-  /**
-   * WieUser upsert
-   */
-  export type WieUserUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * The filter to search for the WieUser to update in case it exists.
-     */
-    where: WieUserWhereUniqueInput
-    /**
-     * In case the WieUser found by the `where` argument doesn't exist, create a new WieUser with this data.
-     */
-    create: XOR<WieUserCreateInput, WieUserUncheckedCreateInput>
-    /**
-     * In case the WieUser was found with the provided `where` argument, update it with this data.
-     */
-    update: XOR<WieUserUpdateInput, WieUserUncheckedUpdateInput>
-  }
-
-  /**
-   * WieUser delete
-   */
-  export type WieUserDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-    /**
-     * Filter which WieUser to delete.
-     */
-    where: WieUserWhereUniqueInput
-  }
-
-  /**
-   * WieUser deleteMany
-   */
-  export type WieUserDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Filter which WieUsers to delete
-     */
-    where?: WieUserWhereInput
-    /**
-     * Limit how many WieUsers to delete.
-     */
-    limit?: number
-  }
-
-  /**
-   * WieUser.otps
-   */
-  export type WieUser$otpsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the Otp
-     */
-    select?: OtpSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the Otp
-     */
-    omit?: OtpOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: OtpInclude<ExtArgs> | null
+  export type WieUserCountOutputTypeCountOtpsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: OtpWhereInput
-    orderBy?: OtpOrderByWithRelationInput | OtpOrderByWithRelationInput[]
-    cursor?: OtpWhereUniqueInput
-    take?: number
-    skip?: number
-    distinct?: OtpScalarFieldEnum | OtpScalarFieldEnum[]
   }
+
 
   /**
-   * WieUser.mutedMe
+   * Models
    */
-  export type WieUser$mutedMeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    where?: UserMuteWhereInput
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    cursor?: UserMuteWhereUniqueInput
-    take?: number
-    skip?: number
-    distinct?: UserMuteScalarFieldEnum | UserMuteScalarFieldEnum[]
-  }
-
-  /**
-   * WieUser.mutedByMe
-   */
-  export type WieUser$mutedByMeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    where?: UserMuteWhereInput
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    cursor?: UserMuteWhereUniqueInput
-    take?: number
-    skip?: number
-    distinct?: UserMuteScalarFieldEnum | UserMuteScalarFieldEnum[]
-  }
-
-  /**
-   * WieUser.country
-   */
-  export type WieUser$countryArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the Country
-     */
-    select?: CountrySelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the Country
-     */
-    omit?: CountryOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: CountryInclude<ExtArgs> | null
-    where?: CountryWhereInput
-  }
-
-  /**
-   * WieUser without action
-   */
-  export type WieUserDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the WieUser
-     */
-    select?: WieUserSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the WieUser
-     */
-    omit?: WieUserOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: WieUserInclude<ExtArgs> | null
-  }
-
 
   /**
    * Model Country
@@ -2861,7 +1119,6 @@ export namespace Prisma {
     countryCode: string | null
     countryName: string | null
     createdAt: Date | null
-    phoneCode: string | null
   }
 
   export type CountryMaxAggregateOutputType = {
@@ -2869,7 +1126,6 @@ export namespace Prisma {
     countryCode: string | null
     countryName: string | null
     createdAt: Date | null
-    phoneCode: string | null
   }
 
   export type CountryCountAggregateOutputType = {
@@ -2877,7 +1133,6 @@ export namespace Prisma {
     countryCode: number
     countryName: number
     createdAt: number
-    phoneCode: number
     _all: number
   }
 
@@ -2887,7 +1142,6 @@ export namespace Prisma {
     countryCode?: true
     countryName?: true
     createdAt?: true
-    phoneCode?: true
   }
 
   export type CountryMaxAggregateInputType = {
@@ -2895,7 +1149,6 @@ export namespace Prisma {
     countryCode?: true
     countryName?: true
     createdAt?: true
-    phoneCode?: true
   }
 
   export type CountryCountAggregateInputType = {
@@ -2903,7 +1156,6 @@ export namespace Prisma {
     countryCode?: true
     countryName?: true
     createdAt?: true
-    phoneCode?: true
     _all?: true
   }
 
@@ -2984,7 +1236,6 @@ export namespace Prisma {
     countryCode: string
     countryName: string
     createdAt: Date
-    phoneCode: string | null
     _count: CountryCountAggregateOutputType | null
     _min: CountryMinAggregateOutputType | null
     _max: CountryMaxAggregateOutputType | null
@@ -3009,7 +1260,6 @@ export namespace Prisma {
     countryCode?: boolean
     countryName?: boolean
     createdAt?: boolean
-    phoneCode?: boolean
     users?: boolean | Country$usersArgs<ExtArgs>
     _count?: boolean | CountryCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["country"]>
@@ -3019,7 +1269,6 @@ export namespace Prisma {
     countryCode?: boolean
     countryName?: boolean
     createdAt?: boolean
-    phoneCode?: boolean
   }, ExtArgs["result"]["country"]>
 
   export type CountrySelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
@@ -3027,7 +1276,6 @@ export namespace Prisma {
     countryCode?: boolean
     countryName?: boolean
     createdAt?: boolean
-    phoneCode?: boolean
   }, ExtArgs["result"]["country"]>
 
   export type CountrySelectScalar = {
@@ -3035,10 +1283,9 @@ export namespace Prisma {
     countryCode?: boolean
     countryName?: boolean
     createdAt?: boolean
-    phoneCode?: boolean
   }
 
-  export type CountryOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "countryCode" | "countryName" | "createdAt" | "phoneCode", ExtArgs["result"]["country"]>
+  export type CountryOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "countryCode" | "countryName" | "createdAt", ExtArgs["result"]["country"]>
   export type CountryInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     users?: boolean | Country$usersArgs<ExtArgs>
     _count?: boolean | CountryCountOutputTypeDefaultArgs<ExtArgs>
@@ -3056,7 +1303,6 @@ export namespace Prisma {
       countryCode: string
       countryName: string
       createdAt: Date
-      phoneCode: string | null
     }, ExtArgs["result"]["country"]>
     composites: {}
   }
@@ -3485,7 +1731,6 @@ export namespace Prisma {
     readonly countryCode: FieldRef<"Country", 'String'>
     readonly countryName: FieldRef<"Country", 'String'>
     readonly createdAt: FieldRef<"Country", 'DateTime'>
-    readonly phoneCode: FieldRef<"Country", 'String'>
   }
     
 
@@ -3917,6 +2162,1243 @@ export namespace Prisma {
 
 
   /**
+   * Model WieUser
+   */
+
+  export type AggregateWieUser = {
+    _count: WieUserCountAggregateOutputType | null
+    _min: WieUserMinAggregateOutputType | null
+    _max: WieUserMaxAggregateOutputType | null
+  }
+
+  export type WieUserMinAggregateOutputType = {
+    id: string | null
+    email: string | null
+    contactNo: string | null
+    password: string | null
+    name: string | null
+    username: string | null
+    profilePicture: string | null
+    countryId: string | null
+    role: string | null
+    status: string | null
+    bio: string | null
+    isBlocked: boolean | null
+    isVerified: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type WieUserMaxAggregateOutputType = {
+    id: string | null
+    email: string | null
+    contactNo: string | null
+    password: string | null
+    name: string | null
+    username: string | null
+    profilePicture: string | null
+    countryId: string | null
+    role: string | null
+    status: string | null
+    bio: string | null
+    isBlocked: boolean | null
+    isVerified: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type WieUserCountAggregateOutputType = {
+    id: number
+    email: number
+    contactNo: number
+    password: number
+    name: number
+    username: number
+    profilePicture: number
+    countryId: number
+    role: number
+    status: number
+    bio: number
+    isBlocked: number
+    isVerified: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type WieUserMinAggregateInputType = {
+    id?: true
+    email?: true
+    contactNo?: true
+    password?: true
+    name?: true
+    username?: true
+    profilePicture?: true
+    countryId?: true
+    role?: true
+    status?: true
+    bio?: true
+    isBlocked?: true
+    isVerified?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type WieUserMaxAggregateInputType = {
+    id?: true
+    email?: true
+    contactNo?: true
+    password?: true
+    name?: true
+    username?: true
+    profilePicture?: true
+    countryId?: true
+    role?: true
+    status?: true
+    bio?: true
+    isBlocked?: true
+    isVerified?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type WieUserCountAggregateInputType = {
+    id?: true
+    email?: true
+    contactNo?: true
+    password?: true
+    name?: true
+    username?: true
+    profilePicture?: true
+    countryId?: true
+    role?: true
+    status?: true
+    bio?: true
+    isBlocked?: true
+    isVerified?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type WieUserAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which WieUser to aggregate.
+     */
+    where?: WieUserWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of WieUsers to fetch.
+     */
+    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: WieUserWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` WieUsers from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` WieUsers.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned WieUsers
+    **/
+    _count?: true | WieUserCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: WieUserMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: WieUserMaxAggregateInputType
+  }
+
+  export type GetWieUserAggregateType<T extends WieUserAggregateArgs> = {
+        [P in keyof T & keyof AggregateWieUser]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateWieUser[P]>
+      : GetScalarType<T[P], AggregateWieUser[P]>
+  }
+
+
+
+
+  export type WieUserGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: WieUserWhereInput
+    orderBy?: WieUserOrderByWithAggregationInput | WieUserOrderByWithAggregationInput[]
+    by: WieUserScalarFieldEnum[] | WieUserScalarFieldEnum
+    having?: WieUserScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: WieUserCountAggregateInputType | true
+    _min?: WieUserMinAggregateInputType
+    _max?: WieUserMaxAggregateInputType
+  }
+
+  export type WieUserGroupByOutputType = {
+    id: string
+    email: string | null
+    contactNo: string | null
+    password: string
+    name: string | null
+    username: string | null
+    profilePicture: string | null
+    countryId: string | null
+    role: string
+    status: string
+    bio: string | null
+    isBlocked: boolean
+    isVerified: boolean
+    createdAt: Date
+    updatedAt: Date
+    _count: WieUserCountAggregateOutputType | null
+    _min: WieUserMinAggregateOutputType | null
+    _max: WieUserMaxAggregateOutputType | null
+  }
+
+  type GetWieUserGroupByPayload<T extends WieUserGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<WieUserGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof WieUserGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], WieUserGroupByOutputType[P]>
+            : GetScalarType<T[P], WieUserGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type WieUserSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    email?: boolean
+    contactNo?: boolean
+    password?: boolean
+    name?: boolean
+    username?: boolean
+    profilePicture?: boolean
+    countryId?: boolean
+    role?: boolean
+    status?: boolean
+    bio?: boolean
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+    otps?: boolean | WieUser$otpsArgs<ExtArgs>
+    _count?: boolean | WieUserCountOutputTypeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["wieUser"]>
+
+  export type WieUserSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    email?: boolean
+    contactNo?: boolean
+    password?: boolean
+    name?: boolean
+    username?: boolean
+    profilePicture?: boolean
+    countryId?: boolean
+    role?: boolean
+    status?: boolean
+    bio?: boolean
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+  }, ExtArgs["result"]["wieUser"]>
+
+  export type WieUserSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    email?: boolean
+    contactNo?: boolean
+    password?: boolean
+    name?: boolean
+    username?: boolean
+    profilePicture?: boolean
+    countryId?: boolean
+    role?: boolean
+    status?: boolean
+    bio?: boolean
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+  }, ExtArgs["result"]["wieUser"]>
+
+  export type WieUserSelectScalar = {
+    id?: boolean
+    email?: boolean
+    contactNo?: boolean
+    password?: boolean
+    name?: boolean
+    username?: boolean
+    profilePicture?: boolean
+    countryId?: boolean
+    role?: boolean
+    status?: boolean
+    bio?: boolean
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type WieUserOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "email" | "contactNo" | "password" | "name" | "username" | "profilePicture" | "countryId" | "role" | "status" | "bio" | "isBlocked" | "isVerified" | "createdAt" | "updatedAt", ExtArgs["result"]["wieUser"]>
+  export type WieUserInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+    otps?: boolean | WieUser$otpsArgs<ExtArgs>
+    _count?: boolean | WieUserCountOutputTypeDefaultArgs<ExtArgs>
+  }
+  export type WieUserIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+  }
+  export type WieUserIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    country?: boolean | WieUser$countryArgs<ExtArgs>
+  }
+
+  export type $WieUserPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "WieUser"
+    objects: {
+      country: Prisma.$CountryPayload<ExtArgs> | null
+      otps: Prisma.$OtpPayload<ExtArgs>[]
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      email: string | null
+      contactNo: string | null
+      password: string
+      name: string | null
+      username: string | null
+      profilePicture: string | null
+      countryId: string | null
+      role: string
+      status: string
+      bio: string | null
+      isBlocked: boolean
+      isVerified: boolean
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["wieUser"]>
+    composites: {}
+  }
+
+  type WieUserGetPayload<S extends boolean | null | undefined | WieUserDefaultArgs> = $Result.GetResult<Prisma.$WieUserPayload, S>
+
+  type WieUserCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<WieUserFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: WieUserCountAggregateInputType | true
+    }
+
+  export interface WieUserDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['WieUser'], meta: { name: 'WieUser' } }
+    /**
+     * Find zero or one WieUser that matches the filter.
+     * @param {WieUserFindUniqueArgs} args - Arguments to find a WieUser
+     * @example
+     * // Get one WieUser
+     * const wieUser = await prisma.wieUser.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends WieUserFindUniqueArgs>(args: SelectSubset<T, WieUserFindUniqueArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one WieUser that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {WieUserFindUniqueOrThrowArgs} args - Arguments to find a WieUser
+     * @example
+     * // Get one WieUser
+     * const wieUser = await prisma.wieUser.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends WieUserFindUniqueOrThrowArgs>(args: SelectSubset<T, WieUserFindUniqueOrThrowArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first WieUser that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserFindFirstArgs} args - Arguments to find a WieUser
+     * @example
+     * // Get one WieUser
+     * const wieUser = await prisma.wieUser.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends WieUserFindFirstArgs>(args?: SelectSubset<T, WieUserFindFirstArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first WieUser that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserFindFirstOrThrowArgs} args - Arguments to find a WieUser
+     * @example
+     * // Get one WieUser
+     * const wieUser = await prisma.wieUser.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends WieUserFindFirstOrThrowArgs>(args?: SelectSubset<T, WieUserFindFirstOrThrowArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more WieUsers that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all WieUsers
+     * const wieUsers = await prisma.wieUser.findMany()
+     * 
+     * // Get first 10 WieUsers
+     * const wieUsers = await prisma.wieUser.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const wieUserWithIdOnly = await prisma.wieUser.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends WieUserFindManyArgs>(args?: SelectSubset<T, WieUserFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a WieUser.
+     * @param {WieUserCreateArgs} args - Arguments to create a WieUser.
+     * @example
+     * // Create one WieUser
+     * const WieUser = await prisma.wieUser.create({
+     *   data: {
+     *     // ... data to create a WieUser
+     *   }
+     * })
+     * 
+     */
+    create<T extends WieUserCreateArgs>(args: SelectSubset<T, WieUserCreateArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many WieUsers.
+     * @param {WieUserCreateManyArgs} args - Arguments to create many WieUsers.
+     * @example
+     * // Create many WieUsers
+     * const wieUser = await prisma.wieUser.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends WieUserCreateManyArgs>(args?: SelectSubset<T, WieUserCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many WieUsers and returns the data saved in the database.
+     * @param {WieUserCreateManyAndReturnArgs} args - Arguments to create many WieUsers.
+     * @example
+     * // Create many WieUsers
+     * const wieUser = await prisma.wieUser.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many WieUsers and only return the `id`
+     * const wieUserWithIdOnly = await prisma.wieUser.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends WieUserCreateManyAndReturnArgs>(args?: SelectSubset<T, WieUserCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a WieUser.
+     * @param {WieUserDeleteArgs} args - Arguments to delete one WieUser.
+     * @example
+     * // Delete one WieUser
+     * const WieUser = await prisma.wieUser.delete({
+     *   where: {
+     *     // ... filter to delete one WieUser
+     *   }
+     * })
+     * 
+     */
+    delete<T extends WieUserDeleteArgs>(args: SelectSubset<T, WieUserDeleteArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one WieUser.
+     * @param {WieUserUpdateArgs} args - Arguments to update one WieUser.
+     * @example
+     * // Update one WieUser
+     * const wieUser = await prisma.wieUser.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends WieUserUpdateArgs>(args: SelectSubset<T, WieUserUpdateArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more WieUsers.
+     * @param {WieUserDeleteManyArgs} args - Arguments to filter WieUsers to delete.
+     * @example
+     * // Delete a few WieUsers
+     * const { count } = await prisma.wieUser.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends WieUserDeleteManyArgs>(args?: SelectSubset<T, WieUserDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more WieUsers.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many WieUsers
+     * const wieUser = await prisma.wieUser.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends WieUserUpdateManyArgs>(args: SelectSubset<T, WieUserUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more WieUsers and returns the data updated in the database.
+     * @param {WieUserUpdateManyAndReturnArgs} args - Arguments to update many WieUsers.
+     * @example
+     * // Update many WieUsers
+     * const wieUser = await prisma.wieUser.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more WieUsers and only return the `id`
+     * const wieUserWithIdOnly = await prisma.wieUser.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends WieUserUpdateManyAndReturnArgs>(args: SelectSubset<T, WieUserUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one WieUser.
+     * @param {WieUserUpsertArgs} args - Arguments to update or create a WieUser.
+     * @example
+     * // Update or create a WieUser
+     * const wieUser = await prisma.wieUser.upsert({
+     *   create: {
+     *     // ... data to create a WieUser
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the WieUser we want to update
+     *   }
+     * })
+     */
+    upsert<T extends WieUserUpsertArgs>(args: SelectSubset<T, WieUserUpsertArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of WieUsers.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserCountArgs} args - Arguments to filter WieUsers to count.
+     * @example
+     * // Count the number of WieUsers
+     * const count = await prisma.wieUser.count({
+     *   where: {
+     *     // ... the filter for the WieUsers we want to count
+     *   }
+     * })
+    **/
+    count<T extends WieUserCountArgs>(
+      args?: Subset<T, WieUserCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], WieUserCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a WieUser.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends WieUserAggregateArgs>(args: Subset<T, WieUserAggregateArgs>): Prisma.PrismaPromise<GetWieUserAggregateType<T>>
+
+    /**
+     * Group by WieUser.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {WieUserGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends WieUserGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: WieUserGroupByArgs['orderBy'] }
+        : { orderBy?: WieUserGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, WieUserGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetWieUserGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the WieUser model
+   */
+  readonly fields: WieUserFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for WieUser.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__WieUserClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    country<T extends WieUser$countryArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$countryArgs<ExtArgs>>): Prisma__CountryClient<$Result.GetResult<Prisma.$CountryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+    otps<T extends WieUser$otpsArgs<ExtArgs> = {}>(args?: Subset<T, WieUser$otpsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OtpPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the WieUser model
+   */
+  interface WieUserFieldRefs {
+    readonly id: FieldRef<"WieUser", 'String'>
+    readonly email: FieldRef<"WieUser", 'String'>
+    readonly contactNo: FieldRef<"WieUser", 'String'>
+    readonly password: FieldRef<"WieUser", 'String'>
+    readonly name: FieldRef<"WieUser", 'String'>
+    readonly username: FieldRef<"WieUser", 'String'>
+    readonly profilePicture: FieldRef<"WieUser", 'String'>
+    readonly countryId: FieldRef<"WieUser", 'String'>
+    readonly role: FieldRef<"WieUser", 'String'>
+    readonly status: FieldRef<"WieUser", 'String'>
+    readonly bio: FieldRef<"WieUser", 'String'>
+    readonly isBlocked: FieldRef<"WieUser", 'Boolean'>
+    readonly isVerified: FieldRef<"WieUser", 'Boolean'>
+    readonly createdAt: FieldRef<"WieUser", 'DateTime'>
+    readonly updatedAt: FieldRef<"WieUser", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * WieUser findUnique
+   */
+  export type WieUserFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter, which WieUser to fetch.
+     */
+    where: WieUserWhereUniqueInput
+  }
+
+  /**
+   * WieUser findUniqueOrThrow
+   */
+  export type WieUserFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter, which WieUser to fetch.
+     */
+    where: WieUserWhereUniqueInput
+  }
+
+  /**
+   * WieUser findFirst
+   */
+  export type WieUserFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter, which WieUser to fetch.
+     */
+    where?: WieUserWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of WieUsers to fetch.
+     */
+    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for WieUsers.
+     */
+    cursor?: WieUserWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` WieUsers from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` WieUsers.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of WieUsers.
+     */
+    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
+  }
+
+  /**
+   * WieUser findFirstOrThrow
+   */
+  export type WieUserFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter, which WieUser to fetch.
+     */
+    where?: WieUserWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of WieUsers to fetch.
+     */
+    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for WieUsers.
+     */
+    cursor?: WieUserWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` WieUsers from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` WieUsers.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of WieUsers.
+     */
+    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
+  }
+
+  /**
+   * WieUser findMany
+   */
+  export type WieUserFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter, which WieUsers to fetch.
+     */
+    where?: WieUserWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of WieUsers to fetch.
+     */
+    orderBy?: WieUserOrderByWithRelationInput | WieUserOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing WieUsers.
+     */
+    cursor?: WieUserWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` WieUsers from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` WieUsers.
+     */
+    skip?: number
+    distinct?: WieUserScalarFieldEnum | WieUserScalarFieldEnum[]
+  }
+
+  /**
+   * WieUser create
+   */
+  export type WieUserCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * The data needed to create a WieUser.
+     */
+    data: XOR<WieUserCreateInput, WieUserUncheckedCreateInput>
+  }
+
+  /**
+   * WieUser createMany
+   */
+  export type WieUserCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many WieUsers.
+     */
+    data: WieUserCreateManyInput | WieUserCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * WieUser createManyAndReturn
+   */
+  export type WieUserCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * The data used to create many WieUsers.
+     */
+    data: WieUserCreateManyInput | WieUserCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * WieUser update
+   */
+  export type WieUserUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * The data needed to update a WieUser.
+     */
+    data: XOR<WieUserUpdateInput, WieUserUncheckedUpdateInput>
+    /**
+     * Choose, which WieUser to update.
+     */
+    where: WieUserWhereUniqueInput
+  }
+
+  /**
+   * WieUser updateMany
+   */
+  export type WieUserUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update WieUsers.
+     */
+    data: XOR<WieUserUpdateManyMutationInput, WieUserUncheckedUpdateManyInput>
+    /**
+     * Filter which WieUsers to update
+     */
+    where?: WieUserWhereInput
+    /**
+     * Limit how many WieUsers to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * WieUser updateManyAndReturn
+   */
+  export type WieUserUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * The data used to update WieUsers.
+     */
+    data: XOR<WieUserUpdateManyMutationInput, WieUserUncheckedUpdateManyInput>
+    /**
+     * Filter which WieUsers to update
+     */
+    where?: WieUserWhereInput
+    /**
+     * Limit how many WieUsers to update.
+     */
+    limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserIncludeUpdateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * WieUser upsert
+   */
+  export type WieUserUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * The filter to search for the WieUser to update in case it exists.
+     */
+    where: WieUserWhereUniqueInput
+    /**
+     * In case the WieUser found by the `where` argument doesn't exist, create a new WieUser with this data.
+     */
+    create: XOR<WieUserCreateInput, WieUserUncheckedCreateInput>
+    /**
+     * In case the WieUser was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<WieUserUpdateInput, WieUserUncheckedUpdateInput>
+  }
+
+  /**
+   * WieUser delete
+   */
+  export type WieUserDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+    /**
+     * Filter which WieUser to delete.
+     */
+    where: WieUserWhereUniqueInput
+  }
+
+  /**
+   * WieUser deleteMany
+   */
+  export type WieUserDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which WieUsers to delete
+     */
+    where?: WieUserWhereInput
+    /**
+     * Limit how many WieUsers to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * WieUser.country
+   */
+  export type WieUser$countryArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Country
+     */
+    select?: CountrySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Country
+     */
+    omit?: CountryOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CountryInclude<ExtArgs> | null
+    where?: CountryWhereInput
+  }
+
+  /**
+   * WieUser.otps
+   */
+  export type WieUser$otpsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Otp
+     */
+    select?: OtpSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Otp
+     */
+    omit?: OtpOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OtpInclude<ExtArgs> | null
+    where?: OtpWhereInput
+    orderBy?: OtpOrderByWithRelationInput | OtpOrderByWithRelationInput[]
+    cursor?: OtpWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: OtpScalarFieldEnum | OtpScalarFieldEnum[]
+  }
+
+  /**
+   * WieUser without action
+   */
+  export type WieUserDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the WieUser
+     */
+    select?: WieUserSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the WieUser
+     */
+    omit?: WieUserOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: WieUserInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Model Otp
    */
 
@@ -3928,64 +3410,64 @@ export namespace Prisma {
 
   export type OtpMinAggregateOutputType = {
     id: string | null
+    userId: string | null
+    tempId: string | null
     otpValue: string | null
+    otpType: string | null
     expiresAt: Date | null
     createdAt: Date | null
-    otpType: string | null
-    tempId: string | null
-    userId: string | null
   }
 
   export type OtpMaxAggregateOutputType = {
     id: string | null
+    userId: string | null
+    tempId: string | null
     otpValue: string | null
+    otpType: string | null
     expiresAt: Date | null
     createdAt: Date | null
-    otpType: string | null
-    tempId: string | null
-    userId: string | null
   }
 
   export type OtpCountAggregateOutputType = {
     id: number
+    userId: number
+    tempId: number
     otpValue: number
+    otpType: number
     expiresAt: number
     createdAt: number
-    otpType: number
-    tempId: number
-    userId: number
     _all: number
   }
 
 
   export type OtpMinAggregateInputType = {
     id?: true
+    userId?: true
+    tempId?: true
     otpValue?: true
+    otpType?: true
     expiresAt?: true
     createdAt?: true
-    otpType?: true
-    tempId?: true
-    userId?: true
   }
 
   export type OtpMaxAggregateInputType = {
     id?: true
+    userId?: true
+    tempId?: true
     otpValue?: true
+    otpType?: true
     expiresAt?: true
     createdAt?: true
-    otpType?: true
-    tempId?: true
-    userId?: true
   }
 
   export type OtpCountAggregateInputType = {
     id?: true
+    userId?: true
+    tempId?: true
     otpValue?: true
+    otpType?: true
     expiresAt?: true
     createdAt?: true
-    otpType?: true
-    tempId?: true
-    userId?: true
     _all?: true
   }
 
@@ -4063,12 +3545,12 @@ export namespace Prisma {
 
   export type OtpGroupByOutputType = {
     id: string
+    userId: string | null
+    tempId: string | null
     otpValue: string
+    otpType: string
     expiresAt: Date
     createdAt: Date
-    otpType: string
-    tempId: string | null
-    userId: string | null
     _count: OtpCountAggregateOutputType | null
     _min: OtpMinAggregateOutputType | null
     _max: OtpMaxAggregateOutputType | null
@@ -4090,48 +3572,48 @@ export namespace Prisma {
 
   export type OtpSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    userId?: boolean
+    tempId?: boolean
     otpValue?: boolean
+    otpType?: boolean
     expiresAt?: boolean
     createdAt?: boolean
-    otpType?: boolean
-    tempId?: boolean
-    userId?: boolean
     user?: boolean | Otp$userArgs<ExtArgs>
   }, ExtArgs["result"]["otp"]>
 
   export type OtpSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    userId?: boolean
+    tempId?: boolean
     otpValue?: boolean
+    otpType?: boolean
     expiresAt?: boolean
     createdAt?: boolean
-    otpType?: boolean
-    tempId?: boolean
-    userId?: boolean
     user?: boolean | Otp$userArgs<ExtArgs>
   }, ExtArgs["result"]["otp"]>
 
   export type OtpSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    userId?: boolean
+    tempId?: boolean
     otpValue?: boolean
+    otpType?: boolean
     expiresAt?: boolean
     createdAt?: boolean
-    otpType?: boolean
-    tempId?: boolean
-    userId?: boolean
     user?: boolean | Otp$userArgs<ExtArgs>
   }, ExtArgs["result"]["otp"]>
 
   export type OtpSelectScalar = {
     id?: boolean
+    userId?: boolean
+    tempId?: boolean
     otpValue?: boolean
+    otpType?: boolean
     expiresAt?: boolean
     createdAt?: boolean
-    otpType?: boolean
-    tempId?: boolean
-    userId?: boolean
   }
 
-  export type OtpOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "otpValue" | "expiresAt" | "createdAt" | "otpType" | "tempId" | "userId", ExtArgs["result"]["otp"]>
+  export type OtpOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "tempId" | "otpValue" | "otpType" | "expiresAt" | "createdAt", ExtArgs["result"]["otp"]>
   export type OtpInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     user?: boolean | Otp$userArgs<ExtArgs>
   }
@@ -4149,12 +3631,12 @@ export namespace Prisma {
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
+      userId: string | null
+      tempId: string | null
       otpValue: string
+      otpType: string
       expiresAt: Date
       createdAt: Date
-      otpType: string
-      tempId: string | null
-      userId: string | null
     }, ExtArgs["result"]["otp"]>
     composites: {}
   }
@@ -4580,12 +4062,12 @@ export namespace Prisma {
    */
   interface OtpFieldRefs {
     readonly id: FieldRef<"Otp", 'String'>
+    readonly userId: FieldRef<"Otp", 'String'>
+    readonly tempId: FieldRef<"Otp", 'String'>
     readonly otpValue: FieldRef<"Otp", 'String'>
+    readonly otpType: FieldRef<"Otp", 'String'>
     readonly expiresAt: FieldRef<"Otp", 'DateTime'>
     readonly createdAt: FieldRef<"Otp", 'DateTime'>
-    readonly otpType: FieldRef<"Otp", 'String'>
-    readonly tempId: FieldRef<"Otp", 'String'>
-    readonly userId: FieldRef<"Otp", 'String'>
   }
     
 
@@ -5020,1111 +4502,6 @@ export namespace Prisma {
 
 
   /**
-   * Model UserMute
-   */
-
-  export type AggregateUserMute = {
-    _count: UserMuteCountAggregateOutputType | null
-    _min: UserMuteMinAggregateOutputType | null
-    _max: UserMuteMaxAggregateOutputType | null
-  }
-
-  export type UserMuteMinAggregateOutputType = {
-    id: string | null
-    muterId: string | null
-    mutedId: string | null
-    mutePosts: boolean | null
-    muteStories: boolean | null
-    muteReels: boolean | null
-    muteNotes: boolean | null
-    createdAt: Date | null
-  }
-
-  export type UserMuteMaxAggregateOutputType = {
-    id: string | null
-    muterId: string | null
-    mutedId: string | null
-    mutePosts: boolean | null
-    muteStories: boolean | null
-    muteReels: boolean | null
-    muteNotes: boolean | null
-    createdAt: Date | null
-  }
-
-  export type UserMuteCountAggregateOutputType = {
-    id: number
-    muterId: number
-    mutedId: number
-    mutePosts: number
-    muteStories: number
-    muteReels: number
-    muteNotes: number
-    createdAt: number
-    _all: number
-  }
-
-
-  export type UserMuteMinAggregateInputType = {
-    id?: true
-    muterId?: true
-    mutedId?: true
-    mutePosts?: true
-    muteStories?: true
-    muteReels?: true
-    muteNotes?: true
-    createdAt?: true
-  }
-
-  export type UserMuteMaxAggregateInputType = {
-    id?: true
-    muterId?: true
-    mutedId?: true
-    mutePosts?: true
-    muteStories?: true
-    muteReels?: true
-    muteNotes?: true
-    createdAt?: true
-  }
-
-  export type UserMuteCountAggregateInputType = {
-    id?: true
-    muterId?: true
-    mutedId?: true
-    mutePosts?: true
-    muteStories?: true
-    muteReels?: true
-    muteNotes?: true
-    createdAt?: true
-    _all?: true
-  }
-
-  export type UserMuteAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Filter which UserMute to aggregate.
-     */
-    where?: UserMuteWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of UserMutes to fetch.
-     */
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the start position
-     */
-    cursor?: UserMuteWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` UserMutes from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` UserMutes.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Count returned UserMutes
-    **/
-    _count?: true | UserMuteCountAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to find the minimum value
-    **/
-    _min?: UserMuteMinAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to find the maximum value
-    **/
-    _max?: UserMuteMaxAggregateInputType
-  }
-
-  export type GetUserMuteAggregateType<T extends UserMuteAggregateArgs> = {
-        [P in keyof T & keyof AggregateUserMute]: P extends '_count' | 'count'
-      ? T[P] extends true
-        ? number
-        : GetScalarType<T[P], AggregateUserMute[P]>
-      : GetScalarType<T[P], AggregateUserMute[P]>
-  }
-
-
-
-
-  export type UserMuteGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: UserMuteWhereInput
-    orderBy?: UserMuteOrderByWithAggregationInput | UserMuteOrderByWithAggregationInput[]
-    by: UserMuteScalarFieldEnum[] | UserMuteScalarFieldEnum
-    having?: UserMuteScalarWhereWithAggregatesInput
-    take?: number
-    skip?: number
-    _count?: UserMuteCountAggregateInputType | true
-    _min?: UserMuteMinAggregateInputType
-    _max?: UserMuteMaxAggregateInputType
-  }
-
-  export type UserMuteGroupByOutputType = {
-    id: string
-    muterId: string
-    mutedId: string
-    mutePosts: boolean
-    muteStories: boolean
-    muteReels: boolean
-    muteNotes: boolean
-    createdAt: Date
-    _count: UserMuteCountAggregateOutputType | null
-    _min: UserMuteMinAggregateOutputType | null
-    _max: UserMuteMaxAggregateOutputType | null
-  }
-
-  type GetUserMuteGroupByPayload<T extends UserMuteGroupByArgs> = Prisma.PrismaPromise<
-    Array<
-      PickEnumerable<UserMuteGroupByOutputType, T['by']> &
-        {
-          [P in ((keyof T) & (keyof UserMuteGroupByOutputType))]: P extends '_count'
-            ? T[P] extends boolean
-              ? number
-              : GetScalarType<T[P], UserMuteGroupByOutputType[P]>
-            : GetScalarType<T[P], UserMuteGroupByOutputType[P]>
-        }
-      >
-    >
-
-
-  export type UserMuteSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    muterId?: boolean
-    mutedId?: boolean
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: boolean
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["userMute"]>
-
-  export type UserMuteSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    muterId?: boolean
-    mutedId?: boolean
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: boolean
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["userMute"]>
-
-  export type UserMuteSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
-    id?: boolean
-    muterId?: boolean
-    mutedId?: boolean
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: boolean
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["userMute"]>
-
-  export type UserMuteSelectScalar = {
-    id?: boolean
-    muterId?: boolean
-    mutedId?: boolean
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: boolean
-  }
-
-  export type UserMuteOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "muterId" | "mutedId" | "mutePosts" | "muteStories" | "muteReels" | "muteNotes" | "createdAt", ExtArgs["result"]["userMute"]>
-  export type UserMuteInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }
-  export type UserMuteIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }
-  export type UserMuteIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    muted?: boolean | WieUserDefaultArgs<ExtArgs>
-    muter?: boolean | WieUserDefaultArgs<ExtArgs>
-  }
-
-  export type $UserMutePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    name: "UserMute"
-    objects: {
-      muted: Prisma.$WieUserPayload<ExtArgs>
-      muter: Prisma.$WieUserPayload<ExtArgs>
-    }
-    scalars: $Extensions.GetPayloadResult<{
-      id: string
-      muterId: string
-      mutedId: string
-      mutePosts: boolean
-      muteStories: boolean
-      muteReels: boolean
-      muteNotes: boolean
-      createdAt: Date
-    }, ExtArgs["result"]["userMute"]>
-    composites: {}
-  }
-
-  type UserMuteGetPayload<S extends boolean | null | undefined | UserMuteDefaultArgs> = $Result.GetResult<Prisma.$UserMutePayload, S>
-
-  type UserMuteCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
-    Omit<UserMuteFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
-      select?: UserMuteCountAggregateInputType | true
-    }
-
-  export interface UserMuteDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
-    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['UserMute'], meta: { name: 'UserMute' } }
-    /**
-     * Find zero or one UserMute that matches the filter.
-     * @param {UserMuteFindUniqueArgs} args - Arguments to find a UserMute
-     * @example
-     * // Get one UserMute
-     * const userMute = await prisma.userMute.findUnique({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findUnique<T extends UserMuteFindUniqueArgs>(args: SelectSubset<T, UserMuteFindUniqueArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find one UserMute that matches the filter or throw an error with `error.code='P2025'`
-     * if no matches were found.
-     * @param {UserMuteFindUniqueOrThrowArgs} args - Arguments to find a UserMute
-     * @example
-     * // Get one UserMute
-     * const userMute = await prisma.userMute.findUniqueOrThrow({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findUniqueOrThrow<T extends UserMuteFindUniqueOrThrowArgs>(args: SelectSubset<T, UserMuteFindUniqueOrThrowArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find the first UserMute that matches the filter.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteFindFirstArgs} args - Arguments to find a UserMute
-     * @example
-     * // Get one UserMute
-     * const userMute = await prisma.userMute.findFirst({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findFirst<T extends UserMuteFindFirstArgs>(args?: SelectSubset<T, UserMuteFindFirstArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find the first UserMute that matches the filter or
-     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteFindFirstOrThrowArgs} args - Arguments to find a UserMute
-     * @example
-     * // Get one UserMute
-     * const userMute = await prisma.userMute.findFirstOrThrow({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     */
-    findFirstOrThrow<T extends UserMuteFindFirstOrThrowArgs>(args?: SelectSubset<T, UserMuteFindFirstOrThrowArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Find zero or more UserMutes that matches the filter.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteFindManyArgs} args - Arguments to filter and select certain fields only.
-     * @example
-     * // Get all UserMutes
-     * const userMutes = await prisma.userMute.findMany()
-     * 
-     * // Get first 10 UserMutes
-     * const userMutes = await prisma.userMute.findMany({ take: 10 })
-     * 
-     * // Only select the `id`
-     * const userMuteWithIdOnly = await prisma.userMute.findMany({ select: { id: true } })
-     * 
-     */
-    findMany<T extends UserMuteFindManyArgs>(args?: SelectSubset<T, UserMuteFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
-
-    /**
-     * Create a UserMute.
-     * @param {UserMuteCreateArgs} args - Arguments to create a UserMute.
-     * @example
-     * // Create one UserMute
-     * const UserMute = await prisma.userMute.create({
-     *   data: {
-     *     // ... data to create a UserMute
-     *   }
-     * })
-     * 
-     */
-    create<T extends UserMuteCreateArgs>(args: SelectSubset<T, UserMuteCreateArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Create many UserMutes.
-     * @param {UserMuteCreateManyArgs} args - Arguments to create many UserMutes.
-     * @example
-     * // Create many UserMutes
-     * const userMute = await prisma.userMute.createMany({
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     *     
-     */
-    createMany<T extends UserMuteCreateManyArgs>(args?: SelectSubset<T, UserMuteCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Create many UserMutes and returns the data saved in the database.
-     * @param {UserMuteCreateManyAndReturnArgs} args - Arguments to create many UserMutes.
-     * @example
-     * // Create many UserMutes
-     * const userMute = await prisma.userMute.createManyAndReturn({
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * 
-     * // Create many UserMutes and only return the `id`
-     * const userMuteWithIdOnly = await prisma.userMute.createManyAndReturn({
-     *   select: { id: true },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * 
-     */
-    createManyAndReturn<T extends UserMuteCreateManyAndReturnArgs>(args?: SelectSubset<T, UserMuteCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
-
-    /**
-     * Delete a UserMute.
-     * @param {UserMuteDeleteArgs} args - Arguments to delete one UserMute.
-     * @example
-     * // Delete one UserMute
-     * const UserMute = await prisma.userMute.delete({
-     *   where: {
-     *     // ... filter to delete one UserMute
-     *   }
-     * })
-     * 
-     */
-    delete<T extends UserMuteDeleteArgs>(args: SelectSubset<T, UserMuteDeleteArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Update one UserMute.
-     * @param {UserMuteUpdateArgs} args - Arguments to update one UserMute.
-     * @example
-     * // Update one UserMute
-     * const userMute = await prisma.userMute.update({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: {
-     *     // ... provide data here
-     *   }
-     * })
-     * 
-     */
-    update<T extends UserMuteUpdateArgs>(args: SelectSubset<T, UserMuteUpdateArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-    /**
-     * Delete zero or more UserMutes.
-     * @param {UserMuteDeleteManyArgs} args - Arguments to filter UserMutes to delete.
-     * @example
-     * // Delete a few UserMutes
-     * const { count } = await prisma.userMute.deleteMany({
-     *   where: {
-     *     // ... provide filter here
-     *   }
-     * })
-     * 
-     */
-    deleteMany<T extends UserMuteDeleteManyArgs>(args?: SelectSubset<T, UserMuteDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Update zero or more UserMutes.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteUpdateManyArgs} args - Arguments to update one or more rows.
-     * @example
-     * // Update many UserMutes
-     * const userMute = await prisma.userMute.updateMany({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: {
-     *     // ... provide data here
-     *   }
-     * })
-     * 
-     */
-    updateMany<T extends UserMuteUpdateManyArgs>(args: SelectSubset<T, UserMuteUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
-
-    /**
-     * Update zero or more UserMutes and returns the data updated in the database.
-     * @param {UserMuteUpdateManyAndReturnArgs} args - Arguments to update many UserMutes.
-     * @example
-     * // Update many UserMutes
-     * const userMute = await prisma.userMute.updateManyAndReturn({
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * 
-     * // Update zero or more UserMutes and only return the `id`
-     * const userMuteWithIdOnly = await prisma.userMute.updateManyAndReturn({
-     *   select: { id: true },
-     *   where: {
-     *     // ... provide filter here
-     *   },
-     *   data: [
-     *     // ... provide data here
-     *   ]
-     * })
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * 
-     */
-    updateManyAndReturn<T extends UserMuteUpdateManyAndReturnArgs>(args: SelectSubset<T, UserMuteUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
-
-    /**
-     * Create or update one UserMute.
-     * @param {UserMuteUpsertArgs} args - Arguments to update or create a UserMute.
-     * @example
-     * // Update or create a UserMute
-     * const userMute = await prisma.userMute.upsert({
-     *   create: {
-     *     // ... data to create a UserMute
-     *   },
-     *   update: {
-     *     // ... in case it already exists, update
-     *   },
-     *   where: {
-     *     // ... the filter for the UserMute we want to update
-     *   }
-     * })
-     */
-    upsert<T extends UserMuteUpsertArgs>(args: SelectSubset<T, UserMuteUpsertArgs<ExtArgs>>): Prisma__UserMuteClient<$Result.GetResult<Prisma.$UserMutePayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
-
-
-    /**
-     * Count the number of UserMutes.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteCountArgs} args - Arguments to filter UserMutes to count.
-     * @example
-     * // Count the number of UserMutes
-     * const count = await prisma.userMute.count({
-     *   where: {
-     *     // ... the filter for the UserMutes we want to count
-     *   }
-     * })
-    **/
-    count<T extends UserMuteCountArgs>(
-      args?: Subset<T, UserMuteCountArgs>,
-    ): Prisma.PrismaPromise<
-      T extends $Utils.Record<'select', any>
-        ? T['select'] extends true
-          ? number
-          : GetScalarType<T['select'], UserMuteCountAggregateOutputType>
-        : number
-    >
-
-    /**
-     * Allows you to perform aggregations operations on a UserMute.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
-     * @example
-     * // Ordered by age ascending
-     * // Where email contains prisma.io
-     * // Limited to the 10 users
-     * const aggregations = await prisma.user.aggregate({
-     *   _avg: {
-     *     age: true,
-     *   },
-     *   where: {
-     *     email: {
-     *       contains: "prisma.io",
-     *     },
-     *   },
-     *   orderBy: {
-     *     age: "asc",
-     *   },
-     *   take: 10,
-     * })
-    **/
-    aggregate<T extends UserMuteAggregateArgs>(args: Subset<T, UserMuteAggregateArgs>): Prisma.PrismaPromise<GetUserMuteAggregateType<T>>
-
-    /**
-     * Group by UserMute.
-     * Note, that providing `undefined` is treated as the value not being there.
-     * Read more here: https://pris.ly/d/null-undefined
-     * @param {UserMuteGroupByArgs} args - Group by arguments.
-     * @example
-     * // Group by city, order by createdAt, get count
-     * const result = await prisma.user.groupBy({
-     *   by: ['city', 'createdAt'],
-     *   orderBy: {
-     *     createdAt: true
-     *   },
-     *   _count: {
-     *     _all: true
-     *   },
-     * })
-     * 
-    **/
-    groupBy<
-      T extends UserMuteGroupByArgs,
-      HasSelectOrTake extends Or<
-        Extends<'skip', Keys<T>>,
-        Extends<'take', Keys<T>>
-      >,
-      OrderByArg extends True extends HasSelectOrTake
-        ? { orderBy: UserMuteGroupByArgs['orderBy'] }
-        : { orderBy?: UserMuteGroupByArgs['orderBy'] },
-      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
-      ByFields extends MaybeTupleToUnion<T['by']>,
-      ByValid extends Has<ByFields, OrderFields>,
-      HavingFields extends GetHavingFields<T['having']>,
-      HavingValid extends Has<ByFields, HavingFields>,
-      ByEmpty extends T['by'] extends never[] ? True : False,
-      InputErrors extends ByEmpty extends True
-      ? `Error: "by" must not be empty.`
-      : HavingValid extends False
-      ? {
-          [P in HavingFields]: P extends ByFields
-            ? never
-            : P extends string
-            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
-            : [
-                Error,
-                'Field ',
-                P,
-                ` in "having" needs to be provided in "by"`,
-              ]
-        }[HavingFields]
-      : 'take' extends Keys<T>
-      ? 'orderBy' extends Keys<T>
-        ? ByValid extends True
-          ? {}
-          : {
-              [P in OrderFields]: P extends ByFields
-                ? never
-                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-            }[OrderFields]
-        : 'Error: If you provide "take", you also need to provide "orderBy"'
-      : 'skip' extends Keys<T>
-      ? 'orderBy' extends Keys<T>
-        ? ByValid extends True
-          ? {}
-          : {
-              [P in OrderFields]: P extends ByFields
-                ? never
-                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-            }[OrderFields]
-        : 'Error: If you provide "skip", you also need to provide "orderBy"'
-      : ByValid extends True
-      ? {}
-      : {
-          [P in OrderFields]: P extends ByFields
-            ? never
-            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
-        }[OrderFields]
-    >(args: SubsetIntersection<T, UserMuteGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetUserMuteGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
-  /**
-   * Fields of the UserMute model
-   */
-  readonly fields: UserMuteFieldRefs;
-  }
-
-  /**
-   * The delegate class that acts as a "Promise-like" for UserMute.
-   * Why is this prefixed with `Prisma__`?
-   * Because we want to prevent naming conflicts as mentioned in
-   * https://github.com/prisma/prisma-client-js/issues/707
-   */
-  export interface Prisma__UserMuteClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
-    readonly [Symbol.toStringTag]: "PrismaPromise"
-    muted<T extends WieUserDefaultArgs<ExtArgs> = {}>(args?: Subset<T, WieUserDefaultArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-    muter<T extends WieUserDefaultArgs<ExtArgs> = {}>(args?: Subset<T, WieUserDefaultArgs<ExtArgs>>): Prisma__WieUserClient<$Result.GetResult<Prisma.$WieUserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-    /**
-     * Attaches callbacks for the resolution and/or rejection of the Promise.
-     * @param onfulfilled The callback to execute when the Promise is resolved.
-     * @param onrejected The callback to execute when the Promise is rejected.
-     * @returns A Promise for the completion of which ever callback is executed.
-     */
-    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
-    /**
-     * Attaches a callback for only the rejection of the Promise.
-     * @param onrejected The callback to execute when the Promise is rejected.
-     * @returns A Promise for the completion of the callback.
-     */
-    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
-    /**
-     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
-     * resolved value cannot be modified from the callback.
-     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
-     * @returns A Promise for the completion of the callback.
-     */
-    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
-  }
-
-
-
-
-  /**
-   * Fields of the UserMute model
-   */
-  interface UserMuteFieldRefs {
-    readonly id: FieldRef<"UserMute", 'String'>
-    readonly muterId: FieldRef<"UserMute", 'String'>
-    readonly mutedId: FieldRef<"UserMute", 'String'>
-    readonly mutePosts: FieldRef<"UserMute", 'Boolean'>
-    readonly muteStories: FieldRef<"UserMute", 'Boolean'>
-    readonly muteReels: FieldRef<"UserMute", 'Boolean'>
-    readonly muteNotes: FieldRef<"UserMute", 'Boolean'>
-    readonly createdAt: FieldRef<"UserMute", 'DateTime'>
-  }
-    
-
-  // Custom InputTypes
-  /**
-   * UserMute findUnique
-   */
-  export type UserMuteFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter, which UserMute to fetch.
-     */
-    where: UserMuteWhereUniqueInput
-  }
-
-  /**
-   * UserMute findUniqueOrThrow
-   */
-  export type UserMuteFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter, which UserMute to fetch.
-     */
-    where: UserMuteWhereUniqueInput
-  }
-
-  /**
-   * UserMute findFirst
-   */
-  export type UserMuteFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter, which UserMute to fetch.
-     */
-    where?: UserMuteWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of UserMutes to fetch.
-     */
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for searching for UserMutes.
-     */
-    cursor?: UserMuteWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` UserMutes from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` UserMutes.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
-     * 
-     * Filter by unique combinations of UserMutes.
-     */
-    distinct?: UserMuteScalarFieldEnum | UserMuteScalarFieldEnum[]
-  }
-
-  /**
-   * UserMute findFirstOrThrow
-   */
-  export type UserMuteFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter, which UserMute to fetch.
-     */
-    where?: UserMuteWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of UserMutes to fetch.
-     */
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for searching for UserMutes.
-     */
-    cursor?: UserMuteWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` UserMutes from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` UserMutes.
-     */
-    skip?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
-     * 
-     * Filter by unique combinations of UserMutes.
-     */
-    distinct?: UserMuteScalarFieldEnum | UserMuteScalarFieldEnum[]
-  }
-
-  /**
-   * UserMute findMany
-   */
-  export type UserMuteFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter, which UserMutes to fetch.
-     */
-    where?: UserMuteWhereInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
-     * 
-     * Determine the order of UserMutes to fetch.
-     */
-    orderBy?: UserMuteOrderByWithRelationInput | UserMuteOrderByWithRelationInput[]
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
-     * 
-     * Sets the position for listing UserMutes.
-     */
-    cursor?: UserMuteWhereUniqueInput
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Take `±n` UserMutes from the position of the cursor.
-     */
-    take?: number
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
-     * 
-     * Skip the first `n` UserMutes.
-     */
-    skip?: number
-    distinct?: UserMuteScalarFieldEnum | UserMuteScalarFieldEnum[]
-  }
-
-  /**
-   * UserMute create
-   */
-  export type UserMuteCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * The data needed to create a UserMute.
-     */
-    data: XOR<UserMuteCreateInput, UserMuteUncheckedCreateInput>
-  }
-
-  /**
-   * UserMute createMany
-   */
-  export type UserMuteCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * The data used to create many UserMutes.
-     */
-    data: UserMuteCreateManyInput | UserMuteCreateManyInput[]
-    skipDuplicates?: boolean
-  }
-
-  /**
-   * UserMute createManyAndReturn
-   */
-  export type UserMuteCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelectCreateManyAndReturn<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * The data used to create many UserMutes.
-     */
-    data: UserMuteCreateManyInput | UserMuteCreateManyInput[]
-    skipDuplicates?: boolean
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteIncludeCreateManyAndReturn<ExtArgs> | null
-  }
-
-  /**
-   * UserMute update
-   */
-  export type UserMuteUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * The data needed to update a UserMute.
-     */
-    data: XOR<UserMuteUpdateInput, UserMuteUncheckedUpdateInput>
-    /**
-     * Choose, which UserMute to update.
-     */
-    where: UserMuteWhereUniqueInput
-  }
-
-  /**
-   * UserMute updateMany
-   */
-  export type UserMuteUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * The data used to update UserMutes.
-     */
-    data: XOR<UserMuteUpdateManyMutationInput, UserMuteUncheckedUpdateManyInput>
-    /**
-     * Filter which UserMutes to update
-     */
-    where?: UserMuteWhereInput
-    /**
-     * Limit how many UserMutes to update.
-     */
-    limit?: number
-  }
-
-  /**
-   * UserMute updateManyAndReturn
-   */
-  export type UserMuteUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelectUpdateManyAndReturn<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * The data used to update UserMutes.
-     */
-    data: XOR<UserMuteUpdateManyMutationInput, UserMuteUncheckedUpdateManyInput>
-    /**
-     * Filter which UserMutes to update
-     */
-    where?: UserMuteWhereInput
-    /**
-     * Limit how many UserMutes to update.
-     */
-    limit?: number
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteIncludeUpdateManyAndReturn<ExtArgs> | null
-  }
-
-  /**
-   * UserMute upsert
-   */
-  export type UserMuteUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * The filter to search for the UserMute to update in case it exists.
-     */
-    where: UserMuteWhereUniqueInput
-    /**
-     * In case the UserMute found by the `where` argument doesn't exist, create a new UserMute with this data.
-     */
-    create: XOR<UserMuteCreateInput, UserMuteUncheckedCreateInput>
-    /**
-     * In case the UserMute was found with the provided `where` argument, update it with this data.
-     */
-    update: XOR<UserMuteUpdateInput, UserMuteUncheckedUpdateInput>
-  }
-
-  /**
-   * UserMute delete
-   */
-  export type UserMuteDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-    /**
-     * Filter which UserMute to delete.
-     */
-    where: UserMuteWhereUniqueInput
-  }
-
-  /**
-   * UserMute deleteMany
-   */
-  export type UserMuteDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Filter which UserMutes to delete
-     */
-    where?: UserMuteWhereInput
-    /**
-     * Limit how many UserMutes to delete.
-     */
-    limit?: number
-  }
-
-  /**
-   * UserMute without action
-   */
-  export type UserMuteDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    /**
-     * Select specific fields to fetch from the UserMute
-     */
-    select?: UserMuteSelect<ExtArgs> | null
-    /**
-     * Omit specific fields from the UserMute
-     */
-    omit?: UserMuteOmit<ExtArgs> | null
-    /**
-     * Choose, which related nodes to fetch as well
-     */
-    include?: UserMuteInclude<ExtArgs> | null
-  }
-
-
-  /**
    * Enums
    */
 
@@ -6138,85 +4515,48 @@ export namespace Prisma {
   export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel]
 
 
+  export const CountryScalarFieldEnum: {
+    id: 'id',
+    countryCode: 'countryCode',
+    countryName: 'countryName',
+    createdAt: 'createdAt'
+  };
+
+  export type CountryScalarFieldEnum = (typeof CountryScalarFieldEnum)[keyof typeof CountryScalarFieldEnum]
+
+
   export const WieUserScalarFieldEnum: {
     id: 'id',
     email: 'email',
     contactNo: 'contactNo',
     password: 'password',
     name: 'name',
+    username: 'username',
     profilePicture: 'profilePicture',
+    countryId: 'countryId',
     role: 'role',
+    status: 'status',
+    bio: 'bio',
     isBlocked: 'isBlocked',
     isVerified: 'isVerified',
     createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    username: 'username',
-    bio: 'bio',
-    countryId: 'countryId',
-    status: 'status',
-    authProvider: 'authProvider',
-    googleId: 'googleId',
-    isOnline: 'isOnline',
-    latitude: 'latitude',
-    location: 'location',
-    longitude: 'longitude',
-    followersCount: 'followersCount',
-    followingCount: 'followingCount',
-    postsCount: 'postsCount',
-    tokenVersion: 'tokenVersion',
-    allowMessageRequests: 'allowMessageRequests',
-    allowMessagesFrom: 'allowMessagesFrom',
-    lastSeenAt: 'lastSeenAt',
-    accountPrivacy: 'accountPrivacy',
-    dob: 'dob',
-    gender: 'gender',
-    locationSource: 'locationSource',
-    showBadge: 'showBadge',
-    showSuggestion: 'showSuggestion',
-    website: 'website',
-    appleId: 'appleId',
-    microsoftId: 'microsoftId'
+    updatedAt: 'updatedAt'
   };
 
   export type WieUserScalarFieldEnum = (typeof WieUserScalarFieldEnum)[keyof typeof WieUserScalarFieldEnum]
 
 
-  export const CountryScalarFieldEnum: {
-    id: 'id',
-    countryCode: 'countryCode',
-    countryName: 'countryName',
-    createdAt: 'createdAt',
-    phoneCode: 'phoneCode'
-  };
-
-  export type CountryScalarFieldEnum = (typeof CountryScalarFieldEnum)[keyof typeof CountryScalarFieldEnum]
-
-
   export const OtpScalarFieldEnum: {
     id: 'id',
-    otpValue: 'otpValue',
-    expiresAt: 'expiresAt',
-    createdAt: 'createdAt',
-    otpType: 'otpType',
+    userId: 'userId',
     tempId: 'tempId',
-    userId: 'userId'
-  };
-
-  export type OtpScalarFieldEnum = (typeof OtpScalarFieldEnum)[keyof typeof OtpScalarFieldEnum]
-
-
-  export const UserMuteScalarFieldEnum: {
-    id: 'id',
-    muterId: 'muterId',
-    mutedId: 'mutedId',
-    mutePosts: 'mutePosts',
-    muteStories: 'muteStories',
-    muteReels: 'muteReels',
-    muteNotes: 'muteNotes',
+    otpValue: 'otpValue',
+    otpType: 'otpType',
+    expiresAt: 'expiresAt',
     createdAt: 'createdAt'
   };
 
-  export type UserMuteScalarFieldEnum = (typeof UserMuteScalarFieldEnum)[keyof typeof UserMuteScalarFieldEnum]
+  export type OtpScalarFieldEnum = (typeof OtpScalarFieldEnum)[keyof typeof OtpScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -6263,13 +4603,6 @@ export namespace Prisma {
 
 
   /**
-   * Reference to a field of type 'Boolean'
-   */
-  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
-    
-
-
-  /**
    * Reference to a field of type 'DateTime'
    */
   export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
@@ -6284,16 +4617,9 @@ export namespace Prisma {
 
 
   /**
-   * Reference to a field of type 'Float'
+   * Reference to a field of type 'Boolean'
    */
-  export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
-    
-
-
-  /**
-   * Reference to a field of type 'Float[]'
-   */
-  export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
+  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -6314,232 +4640,6 @@ export namespace Prisma {
    */
 
 
-  export type WieUserWhereInput = {
-    AND?: WieUserWhereInput | WieUserWhereInput[]
-    OR?: WieUserWhereInput[]
-    NOT?: WieUserWhereInput | WieUserWhereInput[]
-    id?: UuidFilter<"WieUser"> | string
-    email?: StringNullableFilter<"WieUser"> | string | null
-    contactNo?: StringNullableFilter<"WieUser"> | string | null
-    password?: StringNullableFilter<"WieUser"> | string | null
-    name?: StringNullableFilter<"WieUser"> | string | null
-    profilePicture?: StringNullableFilter<"WieUser"> | string | null
-    role?: StringFilter<"WieUser"> | string
-    isBlocked?: BoolFilter<"WieUser"> | boolean
-    isVerified?: BoolFilter<"WieUser"> | boolean
-    createdAt?: DateTimeFilter<"WieUser"> | Date | string
-    updatedAt?: DateTimeFilter<"WieUser"> | Date | string
-    username?: StringNullableFilter<"WieUser"> | string | null
-    bio?: StringNullableFilter<"WieUser"> | string | null
-    countryId?: UuidNullableFilter<"WieUser"> | string | null
-    status?: StringFilter<"WieUser"> | string
-    authProvider?: StringFilter<"WieUser"> | string
-    googleId?: StringNullableFilter<"WieUser"> | string | null
-    isOnline?: BoolFilter<"WieUser"> | boolean
-    latitude?: FloatNullableFilter<"WieUser"> | number | null
-    location?: StringNullableFilter<"WieUser"> | string | null
-    longitude?: FloatNullableFilter<"WieUser"> | number | null
-    followersCount?: IntFilter<"WieUser"> | number
-    followingCount?: IntFilter<"WieUser"> | number
-    postsCount?: IntFilter<"WieUser"> | number
-    tokenVersion?: IntFilter<"WieUser"> | number
-    allowMessageRequests?: BoolFilter<"WieUser"> | boolean
-    allowMessagesFrom?: StringFilter<"WieUser"> | string
-    lastSeenAt?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    accountPrivacy?: StringFilter<"WieUser"> | string
-    dob?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    gender?: StringNullableFilter<"WieUser"> | string | null
-    locationSource?: StringNullableFilter<"WieUser"> | string | null
-    showBadge?: BoolFilter<"WieUser"> | boolean
-    showSuggestion?: BoolFilter<"WieUser"> | boolean
-    website?: StringNullableFilter<"WieUser"> | string | null
-    appleId?: StringNullableFilter<"WieUser"> | string | null
-    microsoftId?: StringNullableFilter<"WieUser"> | string | null
-    otps?: OtpListRelationFilter
-    mutedMe?: UserMuteListRelationFilter
-    mutedByMe?: UserMuteListRelationFilter
-    country?: XOR<CountryNullableScalarRelationFilter, CountryWhereInput> | null
-  }
-
-  export type WieUserOrderByWithRelationInput = {
-    id?: SortOrder
-    email?: SortOrderInput | SortOrder
-    contactNo?: SortOrderInput | SortOrder
-    password?: SortOrderInput | SortOrder
-    name?: SortOrderInput | SortOrder
-    profilePicture?: SortOrderInput | SortOrder
-    role?: SortOrder
-    isBlocked?: SortOrder
-    isVerified?: SortOrder
-    createdAt?: SortOrder
-    updatedAt?: SortOrder
-    username?: SortOrderInput | SortOrder
-    bio?: SortOrderInput | SortOrder
-    countryId?: SortOrderInput | SortOrder
-    status?: SortOrder
-    authProvider?: SortOrder
-    googleId?: SortOrderInput | SortOrder
-    isOnline?: SortOrder
-    latitude?: SortOrderInput | SortOrder
-    location?: SortOrderInput | SortOrder
-    longitude?: SortOrderInput | SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-    allowMessageRequests?: SortOrder
-    allowMessagesFrom?: SortOrder
-    lastSeenAt?: SortOrderInput | SortOrder
-    accountPrivacy?: SortOrder
-    dob?: SortOrderInput | SortOrder
-    gender?: SortOrderInput | SortOrder
-    locationSource?: SortOrderInput | SortOrder
-    showBadge?: SortOrder
-    showSuggestion?: SortOrder
-    website?: SortOrderInput | SortOrder
-    appleId?: SortOrderInput | SortOrder
-    microsoftId?: SortOrderInput | SortOrder
-    otps?: OtpOrderByRelationAggregateInput
-    mutedMe?: UserMuteOrderByRelationAggregateInput
-    mutedByMe?: UserMuteOrderByRelationAggregateInput
-    country?: CountryOrderByWithRelationInput
-  }
-
-  export type WieUserWhereUniqueInput = Prisma.AtLeast<{
-    id?: string
-    email?: string
-    contactNo?: string
-    username?: string
-    googleId?: string
-    appleId?: string
-    microsoftId?: string
-    AND?: WieUserWhereInput | WieUserWhereInput[]
-    OR?: WieUserWhereInput[]
-    NOT?: WieUserWhereInput | WieUserWhereInput[]
-    password?: StringNullableFilter<"WieUser"> | string | null
-    name?: StringNullableFilter<"WieUser"> | string | null
-    profilePicture?: StringNullableFilter<"WieUser"> | string | null
-    role?: StringFilter<"WieUser"> | string
-    isBlocked?: BoolFilter<"WieUser"> | boolean
-    isVerified?: BoolFilter<"WieUser"> | boolean
-    createdAt?: DateTimeFilter<"WieUser"> | Date | string
-    updatedAt?: DateTimeFilter<"WieUser"> | Date | string
-    bio?: StringNullableFilter<"WieUser"> | string | null
-    countryId?: UuidNullableFilter<"WieUser"> | string | null
-    status?: StringFilter<"WieUser"> | string
-    authProvider?: StringFilter<"WieUser"> | string
-    isOnline?: BoolFilter<"WieUser"> | boolean
-    latitude?: FloatNullableFilter<"WieUser"> | number | null
-    location?: StringNullableFilter<"WieUser"> | string | null
-    longitude?: FloatNullableFilter<"WieUser"> | number | null
-    followersCount?: IntFilter<"WieUser"> | number
-    followingCount?: IntFilter<"WieUser"> | number
-    postsCount?: IntFilter<"WieUser"> | number
-    tokenVersion?: IntFilter<"WieUser"> | number
-    allowMessageRequests?: BoolFilter<"WieUser"> | boolean
-    allowMessagesFrom?: StringFilter<"WieUser"> | string
-    lastSeenAt?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    accountPrivacy?: StringFilter<"WieUser"> | string
-    dob?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    gender?: StringNullableFilter<"WieUser"> | string | null
-    locationSource?: StringNullableFilter<"WieUser"> | string | null
-    showBadge?: BoolFilter<"WieUser"> | boolean
-    showSuggestion?: BoolFilter<"WieUser"> | boolean
-    website?: StringNullableFilter<"WieUser"> | string | null
-    otps?: OtpListRelationFilter
-    mutedMe?: UserMuteListRelationFilter
-    mutedByMe?: UserMuteListRelationFilter
-    country?: XOR<CountryNullableScalarRelationFilter, CountryWhereInput> | null
-  }, "id" | "email" | "contactNo" | "username" | "googleId" | "appleId" | "microsoftId">
-
-  export type WieUserOrderByWithAggregationInput = {
-    id?: SortOrder
-    email?: SortOrderInput | SortOrder
-    contactNo?: SortOrderInput | SortOrder
-    password?: SortOrderInput | SortOrder
-    name?: SortOrderInput | SortOrder
-    profilePicture?: SortOrderInput | SortOrder
-    role?: SortOrder
-    isBlocked?: SortOrder
-    isVerified?: SortOrder
-    createdAt?: SortOrder
-    updatedAt?: SortOrder
-    username?: SortOrderInput | SortOrder
-    bio?: SortOrderInput | SortOrder
-    countryId?: SortOrderInput | SortOrder
-    status?: SortOrder
-    authProvider?: SortOrder
-    googleId?: SortOrderInput | SortOrder
-    isOnline?: SortOrder
-    latitude?: SortOrderInput | SortOrder
-    location?: SortOrderInput | SortOrder
-    longitude?: SortOrderInput | SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-    allowMessageRequests?: SortOrder
-    allowMessagesFrom?: SortOrder
-    lastSeenAt?: SortOrderInput | SortOrder
-    accountPrivacy?: SortOrder
-    dob?: SortOrderInput | SortOrder
-    gender?: SortOrderInput | SortOrder
-    locationSource?: SortOrderInput | SortOrder
-    showBadge?: SortOrder
-    showSuggestion?: SortOrder
-    website?: SortOrderInput | SortOrder
-    appleId?: SortOrderInput | SortOrder
-    microsoftId?: SortOrderInput | SortOrder
-    _count?: WieUserCountOrderByAggregateInput
-    _avg?: WieUserAvgOrderByAggregateInput
-    _max?: WieUserMaxOrderByAggregateInput
-    _min?: WieUserMinOrderByAggregateInput
-    _sum?: WieUserSumOrderByAggregateInput
-  }
-
-  export type WieUserScalarWhereWithAggregatesInput = {
-    AND?: WieUserScalarWhereWithAggregatesInput | WieUserScalarWhereWithAggregatesInput[]
-    OR?: WieUserScalarWhereWithAggregatesInput[]
-    NOT?: WieUserScalarWhereWithAggregatesInput | WieUserScalarWhereWithAggregatesInput[]
-    id?: UuidWithAggregatesFilter<"WieUser"> | string
-    email?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    contactNo?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    password?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    name?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    profilePicture?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    role?: StringWithAggregatesFilter<"WieUser"> | string
-    isBlocked?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    isVerified?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    createdAt?: DateTimeWithAggregatesFilter<"WieUser"> | Date | string
-    updatedAt?: DateTimeWithAggregatesFilter<"WieUser"> | Date | string
-    username?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    bio?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    countryId?: UuidNullableWithAggregatesFilter<"WieUser"> | string | null
-    status?: StringWithAggregatesFilter<"WieUser"> | string
-    authProvider?: StringWithAggregatesFilter<"WieUser"> | string
-    googleId?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    isOnline?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    latitude?: FloatNullableWithAggregatesFilter<"WieUser"> | number | null
-    location?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    longitude?: FloatNullableWithAggregatesFilter<"WieUser"> | number | null
-    followersCount?: IntWithAggregatesFilter<"WieUser"> | number
-    followingCount?: IntWithAggregatesFilter<"WieUser"> | number
-    postsCount?: IntWithAggregatesFilter<"WieUser"> | number
-    tokenVersion?: IntWithAggregatesFilter<"WieUser"> | number
-    allowMessageRequests?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    allowMessagesFrom?: StringWithAggregatesFilter<"WieUser"> | string
-    lastSeenAt?: DateTimeNullableWithAggregatesFilter<"WieUser"> | Date | string | null
-    accountPrivacy?: StringWithAggregatesFilter<"WieUser"> | string
-    dob?: DateTimeNullableWithAggregatesFilter<"WieUser"> | Date | string | null
-    gender?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    locationSource?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    showBadge?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    showSuggestion?: BoolWithAggregatesFilter<"WieUser"> | boolean
-    website?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    appleId?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-    microsoftId?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
-  }
-
   export type CountryWhereInput = {
     AND?: CountryWhereInput | CountryWhereInput[]
     OR?: CountryWhereInput[]
@@ -6548,7 +4648,6 @@ export namespace Prisma {
     countryCode?: StringFilter<"Country"> | string
     countryName?: StringFilter<"Country"> | string
     createdAt?: DateTimeFilter<"Country"> | Date | string
-    phoneCode?: StringNullableFilter<"Country"> | string | null
     users?: WieUserListRelationFilter
   }
 
@@ -6557,7 +4656,6 @@ export namespace Prisma {
     countryCode?: SortOrder
     countryName?: SortOrder
     createdAt?: SortOrder
-    phoneCode?: SortOrderInput | SortOrder
     users?: WieUserOrderByRelationAggregateInput
   }
 
@@ -6569,7 +4667,6 @@ export namespace Prisma {
     NOT?: CountryWhereInput | CountryWhereInput[]
     countryName?: StringFilter<"Country"> | string
     createdAt?: DateTimeFilter<"Country"> | Date | string
-    phoneCode?: StringNullableFilter<"Country"> | string | null
     users?: WieUserListRelationFilter
   }, "id" | "countryCode">
 
@@ -6578,7 +4675,6 @@ export namespace Prisma {
     countryCode?: SortOrder
     countryName?: SortOrder
     createdAt?: SortOrder
-    phoneCode?: SortOrderInput | SortOrder
     _count?: CountryCountOrderByAggregateInput
     _max?: CountryMaxOrderByAggregateInput
     _min?: CountryMinOrderByAggregateInput
@@ -6592,7 +4688,114 @@ export namespace Prisma {
     countryCode?: StringWithAggregatesFilter<"Country"> | string
     countryName?: StringWithAggregatesFilter<"Country"> | string
     createdAt?: DateTimeWithAggregatesFilter<"Country"> | Date | string
-    phoneCode?: StringNullableWithAggregatesFilter<"Country"> | string | null
+  }
+
+  export type WieUserWhereInput = {
+    AND?: WieUserWhereInput | WieUserWhereInput[]
+    OR?: WieUserWhereInput[]
+    NOT?: WieUserWhereInput | WieUserWhereInput[]
+    id?: UuidFilter<"WieUser"> | string
+    email?: StringNullableFilter<"WieUser"> | string | null
+    contactNo?: StringNullableFilter<"WieUser"> | string | null
+    password?: StringFilter<"WieUser"> | string
+    name?: StringNullableFilter<"WieUser"> | string | null
+    username?: StringNullableFilter<"WieUser"> | string | null
+    profilePicture?: StringNullableFilter<"WieUser"> | string | null
+    countryId?: UuidNullableFilter<"WieUser"> | string | null
+    role?: StringFilter<"WieUser"> | string
+    status?: StringFilter<"WieUser"> | string
+    bio?: StringNullableFilter<"WieUser"> | string | null
+    isBlocked?: BoolFilter<"WieUser"> | boolean
+    isVerified?: BoolFilter<"WieUser"> | boolean
+    createdAt?: DateTimeFilter<"WieUser"> | Date | string
+    updatedAt?: DateTimeFilter<"WieUser"> | Date | string
+    country?: XOR<CountryNullableScalarRelationFilter, CountryWhereInput> | null
+    otps?: OtpListRelationFilter
+  }
+
+  export type WieUserOrderByWithRelationInput = {
+    id?: SortOrder
+    email?: SortOrderInput | SortOrder
+    contactNo?: SortOrderInput | SortOrder
+    password?: SortOrder
+    name?: SortOrderInput | SortOrder
+    username?: SortOrderInput | SortOrder
+    profilePicture?: SortOrderInput | SortOrder
+    countryId?: SortOrderInput | SortOrder
+    role?: SortOrder
+    status?: SortOrder
+    bio?: SortOrderInput | SortOrder
+    isBlocked?: SortOrder
+    isVerified?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    country?: CountryOrderByWithRelationInput
+    otps?: OtpOrderByRelationAggregateInput
+  }
+
+  export type WieUserWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    email?: string
+    contactNo?: string
+    username?: string
+    AND?: WieUserWhereInput | WieUserWhereInput[]
+    OR?: WieUserWhereInput[]
+    NOT?: WieUserWhereInput | WieUserWhereInput[]
+    password?: StringFilter<"WieUser"> | string
+    name?: StringNullableFilter<"WieUser"> | string | null
+    profilePicture?: StringNullableFilter<"WieUser"> | string | null
+    countryId?: UuidNullableFilter<"WieUser"> | string | null
+    role?: StringFilter<"WieUser"> | string
+    status?: StringFilter<"WieUser"> | string
+    bio?: StringNullableFilter<"WieUser"> | string | null
+    isBlocked?: BoolFilter<"WieUser"> | boolean
+    isVerified?: BoolFilter<"WieUser"> | boolean
+    createdAt?: DateTimeFilter<"WieUser"> | Date | string
+    updatedAt?: DateTimeFilter<"WieUser"> | Date | string
+    country?: XOR<CountryNullableScalarRelationFilter, CountryWhereInput> | null
+    otps?: OtpListRelationFilter
+  }, "id" | "email" | "contactNo" | "username">
+
+  export type WieUserOrderByWithAggregationInput = {
+    id?: SortOrder
+    email?: SortOrderInput | SortOrder
+    contactNo?: SortOrderInput | SortOrder
+    password?: SortOrder
+    name?: SortOrderInput | SortOrder
+    username?: SortOrderInput | SortOrder
+    profilePicture?: SortOrderInput | SortOrder
+    countryId?: SortOrderInput | SortOrder
+    role?: SortOrder
+    status?: SortOrder
+    bio?: SortOrderInput | SortOrder
+    isBlocked?: SortOrder
+    isVerified?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: WieUserCountOrderByAggregateInput
+    _max?: WieUserMaxOrderByAggregateInput
+    _min?: WieUserMinOrderByAggregateInput
+  }
+
+  export type WieUserScalarWhereWithAggregatesInput = {
+    AND?: WieUserScalarWhereWithAggregatesInput | WieUserScalarWhereWithAggregatesInput[]
+    OR?: WieUserScalarWhereWithAggregatesInput[]
+    NOT?: WieUserScalarWhereWithAggregatesInput | WieUserScalarWhereWithAggregatesInput[]
+    id?: UuidWithAggregatesFilter<"WieUser"> | string
+    email?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    contactNo?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    password?: StringWithAggregatesFilter<"WieUser"> | string
+    name?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    username?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    profilePicture?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    countryId?: UuidNullableWithAggregatesFilter<"WieUser"> | string | null
+    role?: StringWithAggregatesFilter<"WieUser"> | string
+    status?: StringWithAggregatesFilter<"WieUser"> | string
+    bio?: StringNullableWithAggregatesFilter<"WieUser"> | string | null
+    isBlocked?: BoolWithAggregatesFilter<"WieUser"> | boolean
+    isVerified?: BoolWithAggregatesFilter<"WieUser"> | boolean
+    createdAt?: DateTimeWithAggregatesFilter<"WieUser"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"WieUser"> | Date | string
   }
 
   export type OtpWhereInput = {
@@ -6600,23 +4803,23 @@ export namespace Prisma {
     OR?: OtpWhereInput[]
     NOT?: OtpWhereInput | OtpWhereInput[]
     id?: UuidFilter<"Otp"> | string
+    userId?: UuidNullableFilter<"Otp"> | string | null
+    tempId?: StringNullableFilter<"Otp"> | string | null
     otpValue?: StringFilter<"Otp"> | string
+    otpType?: StringFilter<"Otp"> | string
     expiresAt?: DateTimeFilter<"Otp"> | Date | string
     createdAt?: DateTimeFilter<"Otp"> | Date | string
-    otpType?: StringFilter<"Otp"> | string
-    tempId?: StringNullableFilter<"Otp"> | string | null
-    userId?: UuidNullableFilter<"Otp"> | string | null
     user?: XOR<WieUserNullableScalarRelationFilter, WieUserWhereInput> | null
   }
 
   export type OtpOrderByWithRelationInput = {
     id?: SortOrder
+    userId?: SortOrderInput | SortOrder
+    tempId?: SortOrderInput | SortOrder
     otpValue?: SortOrder
+    otpType?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
-    otpType?: SortOrder
-    tempId?: SortOrderInput | SortOrder
-    userId?: SortOrderInput | SortOrder
     user?: WieUserOrderByWithRelationInput
   }
 
@@ -6625,23 +4828,23 @@ export namespace Prisma {
     AND?: OtpWhereInput | OtpWhereInput[]
     OR?: OtpWhereInput[]
     NOT?: OtpWhereInput | OtpWhereInput[]
+    userId?: UuidNullableFilter<"Otp"> | string | null
+    tempId?: StringNullableFilter<"Otp"> | string | null
     otpValue?: StringFilter<"Otp"> | string
+    otpType?: StringFilter<"Otp"> | string
     expiresAt?: DateTimeFilter<"Otp"> | Date | string
     createdAt?: DateTimeFilter<"Otp"> | Date | string
-    otpType?: StringFilter<"Otp"> | string
-    tempId?: StringNullableFilter<"Otp"> | string | null
-    userId?: UuidNullableFilter<"Otp"> | string | null
     user?: XOR<WieUserNullableScalarRelationFilter, WieUserWhereInput> | null
   }, "id">
 
   export type OtpOrderByWithAggregationInput = {
     id?: SortOrder
+    userId?: SortOrderInput | SortOrder
+    tempId?: SortOrderInput | SortOrder
     otpValue?: SortOrder
+    otpType?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
-    otpType?: SortOrder
-    tempId?: SortOrderInput | SortOrder
-    userId?: SortOrderInput | SortOrder
     _count?: OtpCountOrderByAggregateInput
     _max?: OtpMaxOrderByAggregateInput
     _min?: OtpMinOrderByAggregateInput
@@ -6652,377 +4855,12 @@ export namespace Prisma {
     OR?: OtpScalarWhereWithAggregatesInput[]
     NOT?: OtpScalarWhereWithAggregatesInput | OtpScalarWhereWithAggregatesInput[]
     id?: UuidWithAggregatesFilter<"Otp"> | string
+    userId?: UuidNullableWithAggregatesFilter<"Otp"> | string | null
+    tempId?: StringNullableWithAggregatesFilter<"Otp"> | string | null
     otpValue?: StringWithAggregatesFilter<"Otp"> | string
+    otpType?: StringWithAggregatesFilter<"Otp"> | string
     expiresAt?: DateTimeWithAggregatesFilter<"Otp"> | Date | string
     createdAt?: DateTimeWithAggregatesFilter<"Otp"> | Date | string
-    otpType?: StringWithAggregatesFilter<"Otp"> | string
-    tempId?: StringNullableWithAggregatesFilter<"Otp"> | string | null
-    userId?: UuidNullableWithAggregatesFilter<"Otp"> | string | null
-  }
-
-  export type UserMuteWhereInput = {
-    AND?: UserMuteWhereInput | UserMuteWhereInput[]
-    OR?: UserMuteWhereInput[]
-    NOT?: UserMuteWhereInput | UserMuteWhereInput[]
-    id?: UuidFilter<"UserMute"> | string
-    muterId?: UuidFilter<"UserMute"> | string
-    mutedId?: UuidFilter<"UserMute"> | string
-    mutePosts?: BoolFilter<"UserMute"> | boolean
-    muteStories?: BoolFilter<"UserMute"> | boolean
-    muteReels?: BoolFilter<"UserMute"> | boolean
-    muteNotes?: BoolFilter<"UserMute"> | boolean
-    createdAt?: DateTimeFilter<"UserMute"> | Date | string
-    muted?: XOR<WieUserScalarRelationFilter, WieUserWhereInput>
-    muter?: XOR<WieUserScalarRelationFilter, WieUserWhereInput>
-  }
-
-  export type UserMuteOrderByWithRelationInput = {
-    id?: SortOrder
-    muterId?: SortOrder
-    mutedId?: SortOrder
-    mutePosts?: SortOrder
-    muteStories?: SortOrder
-    muteReels?: SortOrder
-    muteNotes?: SortOrder
-    createdAt?: SortOrder
-    muted?: WieUserOrderByWithRelationInput
-    muter?: WieUserOrderByWithRelationInput
-  }
-
-  export type UserMuteWhereUniqueInput = Prisma.AtLeast<{
-    id?: string
-    unique_mute?: UserMuteUnique_muteCompoundUniqueInput
-    AND?: UserMuteWhereInput | UserMuteWhereInput[]
-    OR?: UserMuteWhereInput[]
-    NOT?: UserMuteWhereInput | UserMuteWhereInput[]
-    muterId?: UuidFilter<"UserMute"> | string
-    mutedId?: UuidFilter<"UserMute"> | string
-    mutePosts?: BoolFilter<"UserMute"> | boolean
-    muteStories?: BoolFilter<"UserMute"> | boolean
-    muteReels?: BoolFilter<"UserMute"> | boolean
-    muteNotes?: BoolFilter<"UserMute"> | boolean
-    createdAt?: DateTimeFilter<"UserMute"> | Date | string
-    muted?: XOR<WieUserScalarRelationFilter, WieUserWhereInput>
-    muter?: XOR<WieUserScalarRelationFilter, WieUserWhereInput>
-  }, "id" | "unique_mute">
-
-  export type UserMuteOrderByWithAggregationInput = {
-    id?: SortOrder
-    muterId?: SortOrder
-    mutedId?: SortOrder
-    mutePosts?: SortOrder
-    muteStories?: SortOrder
-    muteReels?: SortOrder
-    muteNotes?: SortOrder
-    createdAt?: SortOrder
-    _count?: UserMuteCountOrderByAggregateInput
-    _max?: UserMuteMaxOrderByAggregateInput
-    _min?: UserMuteMinOrderByAggregateInput
-  }
-
-  export type UserMuteScalarWhereWithAggregatesInput = {
-    AND?: UserMuteScalarWhereWithAggregatesInput | UserMuteScalarWhereWithAggregatesInput[]
-    OR?: UserMuteScalarWhereWithAggregatesInput[]
-    NOT?: UserMuteScalarWhereWithAggregatesInput | UserMuteScalarWhereWithAggregatesInput[]
-    id?: UuidWithAggregatesFilter<"UserMute"> | string
-    muterId?: UuidWithAggregatesFilter<"UserMute"> | string
-    mutedId?: UuidWithAggregatesFilter<"UserMute"> | string
-    mutePosts?: BoolWithAggregatesFilter<"UserMute"> | boolean
-    muteStories?: BoolWithAggregatesFilter<"UserMute"> | boolean
-    muteReels?: BoolWithAggregatesFilter<"UserMute"> | boolean
-    muteNotes?: BoolWithAggregatesFilter<"UserMute"> | boolean
-    createdAt?: DateTimeWithAggregatesFilter<"UserMute"> | Date | string
-  }
-
-  export type WieUserCreateInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteCreateNestedManyWithoutMuterInput
-    country?: CountryCreateNestedOneWithoutUsersInput
-  }
-
-  export type WieUserUncheckedCreateInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    countryId?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpUncheckedCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteUncheckedCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteUncheckedCreateNestedManyWithoutMuterInput
-  }
-
-  export type WieUserUpdateInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUpdateManyWithoutMuterNestedInput
-    country?: CountryUpdateOneWithoutUsersNestedInput
-  }
-
-  export type WieUserUncheckedUpdateInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    countryId?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUncheckedUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUncheckedUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUncheckedUpdateManyWithoutMuterNestedInput
-  }
-
-  export type WieUserCreateManyInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    countryId?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-  }
-
-  export type WieUserUpdateManyMutationInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type WieUserUncheckedUpdateManyInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    countryId?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type CountryCreateInput = {
@@ -7030,7 +4868,6 @@ export namespace Prisma {
     countryCode: string
     countryName: string
     createdAt?: Date | string
-    phoneCode?: string | null
     users?: WieUserCreateNestedManyWithoutCountryInput
   }
 
@@ -7039,7 +4876,6 @@ export namespace Prisma {
     countryCode: string
     countryName: string
     createdAt?: Date | string
-    phoneCode?: string | null
     users?: WieUserUncheckedCreateNestedManyWithoutCountryInput
   }
 
@@ -7048,7 +4884,6 @@ export namespace Prisma {
     countryCode?: StringFieldUpdateOperationsInput | string
     countryName?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
     users?: WieUserUpdateManyWithoutCountryNestedInput
   }
 
@@ -7057,7 +4892,6 @@ export namespace Prisma {
     countryCode?: StringFieldUpdateOperationsInput | string
     countryName?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
     users?: WieUserUncheckedUpdateManyWithoutCountryNestedInput
   }
 
@@ -7066,7 +4900,6 @@ export namespace Prisma {
     countryCode: string
     countryName: string
     createdAt?: Date | string
-    phoneCode?: string | null
   }
 
   export type CountryUpdateManyMutationInput = {
@@ -7074,7 +4907,6 @@ export namespace Prisma {
     countryCode?: StringFieldUpdateOperationsInput | string
     countryName?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type CountryUncheckedUpdateManyInput = {
@@ -7082,150 +4914,203 @@ export namespace Prisma {
     countryCode?: StringFieldUpdateOperationsInput | string
     countryName?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type WieUserCreateInput = {
+    id?: string
+    email?: string | null
+    contactNo?: string | null
+    password: string
+    name?: string | null
+    username?: string | null
+    profilePicture?: string | null
+    role?: string
+    status?: string
+    bio?: string | null
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    country?: CountryCreateNestedOneWithoutUsersInput
+    otps?: OtpCreateNestedManyWithoutUserInput
+  }
+
+  export type WieUserUncheckedCreateInput = {
+    id?: string
+    email?: string | null
+    contactNo?: string | null
+    password: string
+    name?: string | null
+    username?: string | null
+    profilePicture?: string | null
+    countryId?: string | null
+    role?: string
+    status?: string
+    bio?: string | null
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    otps?: OtpUncheckedCreateNestedManyWithoutUserInput
+  }
+
+  export type WieUserUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
+    isBlocked?: BoolFieldUpdateOperationsInput | boolean
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    country?: CountryUpdateOneWithoutUsersNestedInput
+    otps?: OtpUpdateManyWithoutUserNestedInput
+  }
+
+  export type WieUserUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
+    countryId?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
+    isBlocked?: BoolFieldUpdateOperationsInput | boolean
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    otps?: OtpUncheckedUpdateManyWithoutUserNestedInput
+  }
+
+  export type WieUserCreateManyInput = {
+    id?: string
+    email?: string | null
+    contactNo?: string | null
+    password: string
+    name?: string | null
+    username?: string | null
+    profilePicture?: string | null
+    countryId?: string | null
+    role?: string
+    status?: string
+    bio?: string | null
+    isBlocked?: boolean
+    isVerified?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type WieUserUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
+    isBlocked?: BoolFieldUpdateOperationsInput | boolean
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type WieUserUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
+    countryId?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
+    isBlocked?: BoolFieldUpdateOperationsInput | boolean
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type OtpCreateInput = {
     id?: string
+    tempId?: string | null
     otpValue: string
+    otpType?: string
     expiresAt: Date | string
     createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
     user?: WieUserCreateNestedOneWithoutOtpsInput
   }
 
   export type OtpUncheckedCreateInput = {
     id?: string
+    userId?: string | null
+    tempId?: string | null
     otpValue: string
+    otpType?: string
     expiresAt: Date | string
     createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
-    userId?: string | null
   }
 
   export type OtpUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
     otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
     user?: WieUserUpdateOneWithoutOtpsNestedInput
   }
 
   export type OtpUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
+    userId?: NullableStringFieldUpdateOperationsInput | string | null
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
     otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
-    userId?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type OtpCreateManyInput = {
     id?: string
+    userId?: string | null
+    tempId?: string | null
     otpValue: string
+    otpType?: string
     expiresAt: Date | string
     createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
-    userId?: string | null
   }
 
   export type OtpUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
     otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type OtpUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
-    otpValue?: StringFieldUpdateOperationsInput | string
-    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
     userId?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type UserMuteCreateInput = {
-    id?: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-    muted: WieUserCreateNestedOneWithoutMutedMeInput
-    muter: WieUserCreateNestedOneWithoutMutedByMeInput
-  }
-
-  export type UserMuteUncheckedCreateInput = {
-    id?: string
-    muterId: string
-    mutedId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type UserMuteUpdateInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    muted?: WieUserUpdateOneRequiredWithoutMutedMeNestedInput
-    muter?: WieUserUpdateOneRequiredWithoutMutedByMeNestedInput
-  }
-
-  export type UserMuteUncheckedUpdateInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    muterId?: StringFieldUpdateOperationsInput | string
-    mutedId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-  }
-
-  export type UserMuteCreateManyInput = {
-    id?: string
-    muterId: string
-    mutedId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type UserMuteUpdateManyMutationInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-  }
-
-  export type UserMuteUncheckedUpdateManyInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    muterId?: StringFieldUpdateOperationsInput | string
-    mutedId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
+    otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -7239,21 +5124,6 @@ export namespace Prisma {
     gte?: string | StringFieldRefInput<$PrismaModel>
     mode?: QueryMode
     not?: NestedUuidFilter<$PrismaModel> | string
-  }
-
-  export type StringNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    mode?: QueryMode
-    not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
   export type StringFilter<$PrismaModel = never> = {
@@ -7271,11 +5141,6 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
-  export type BoolFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
-  }
-
   export type DateTimeFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
@@ -7287,217 +5152,35 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
-  export type UuidNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    mode?: QueryMode
-    not?: NestedUuidNullableFilter<$PrismaModel> | string | null
+  export type WieUserListRelationFilter = {
+    every?: WieUserWhereInput
+    some?: WieUserWhereInput
+    none?: WieUserWhereInput
   }
 
-  export type FloatNullableFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel> | null
-    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
-  }
-
-  export type IntFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[] | ListIntFieldRefInput<$PrismaModel>
-    notIn?: number[] | ListIntFieldRefInput<$PrismaModel>
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntFilter<$PrismaModel> | number
-  }
-
-  export type DateTimeNullableFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
-  }
-
-  export type OtpListRelationFilter = {
-    every?: OtpWhereInput
-    some?: OtpWhereInput
-    none?: OtpWhereInput
-  }
-
-  export type UserMuteListRelationFilter = {
-    every?: UserMuteWhereInput
-    some?: UserMuteWhereInput
-    none?: UserMuteWhereInput
-  }
-
-  export type CountryNullableScalarRelationFilter = {
-    is?: CountryWhereInput | null
-    isNot?: CountryWhereInput | null
-  }
-
-  export type SortOrderInput = {
-    sort: SortOrder
-    nulls?: NullsOrder
-  }
-
-  export type OtpOrderByRelationAggregateInput = {
+  export type WieUserOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
-  export type UserMuteOrderByRelationAggregateInput = {
-    _count?: SortOrder
-  }
-
-  export type WieUserCountOrderByAggregateInput = {
+  export type CountryCountOrderByAggregateInput = {
     id?: SortOrder
-    email?: SortOrder
-    contactNo?: SortOrder
-    password?: SortOrder
-    name?: SortOrder
-    profilePicture?: SortOrder
-    role?: SortOrder
-    isBlocked?: SortOrder
-    isVerified?: SortOrder
+    countryCode?: SortOrder
+    countryName?: SortOrder
     createdAt?: SortOrder
-    updatedAt?: SortOrder
-    username?: SortOrder
-    bio?: SortOrder
-    countryId?: SortOrder
-    status?: SortOrder
-    authProvider?: SortOrder
-    googleId?: SortOrder
-    isOnline?: SortOrder
-    latitude?: SortOrder
-    location?: SortOrder
-    longitude?: SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-    allowMessageRequests?: SortOrder
-    allowMessagesFrom?: SortOrder
-    lastSeenAt?: SortOrder
-    accountPrivacy?: SortOrder
-    dob?: SortOrder
-    gender?: SortOrder
-    locationSource?: SortOrder
-    showBadge?: SortOrder
-    showSuggestion?: SortOrder
-    website?: SortOrder
-    appleId?: SortOrder
-    microsoftId?: SortOrder
   }
 
-  export type WieUserAvgOrderByAggregateInput = {
-    latitude?: SortOrder
-    longitude?: SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-  }
-
-  export type WieUserMaxOrderByAggregateInput = {
+  export type CountryMaxOrderByAggregateInput = {
     id?: SortOrder
-    email?: SortOrder
-    contactNo?: SortOrder
-    password?: SortOrder
-    name?: SortOrder
-    profilePicture?: SortOrder
-    role?: SortOrder
-    isBlocked?: SortOrder
-    isVerified?: SortOrder
+    countryCode?: SortOrder
+    countryName?: SortOrder
     createdAt?: SortOrder
-    updatedAt?: SortOrder
-    username?: SortOrder
-    bio?: SortOrder
-    countryId?: SortOrder
-    status?: SortOrder
-    authProvider?: SortOrder
-    googleId?: SortOrder
-    isOnline?: SortOrder
-    latitude?: SortOrder
-    location?: SortOrder
-    longitude?: SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-    allowMessageRequests?: SortOrder
-    allowMessagesFrom?: SortOrder
-    lastSeenAt?: SortOrder
-    accountPrivacy?: SortOrder
-    dob?: SortOrder
-    gender?: SortOrder
-    locationSource?: SortOrder
-    showBadge?: SortOrder
-    showSuggestion?: SortOrder
-    website?: SortOrder
-    appleId?: SortOrder
-    microsoftId?: SortOrder
   }
 
-  export type WieUserMinOrderByAggregateInput = {
+  export type CountryMinOrderByAggregateInput = {
     id?: SortOrder
-    email?: SortOrder
-    contactNo?: SortOrder
-    password?: SortOrder
-    name?: SortOrder
-    profilePicture?: SortOrder
-    role?: SortOrder
-    isBlocked?: SortOrder
-    isVerified?: SortOrder
+    countryCode?: SortOrder
+    countryName?: SortOrder
     createdAt?: SortOrder
-    updatedAt?: SortOrder
-    username?: SortOrder
-    bio?: SortOrder
-    countryId?: SortOrder
-    status?: SortOrder
-    authProvider?: SortOrder
-    googleId?: SortOrder
-    isOnline?: SortOrder
-    latitude?: SortOrder
-    location?: SortOrder
-    longitude?: SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
-    allowMessageRequests?: SortOrder
-    allowMessagesFrom?: SortOrder
-    lastSeenAt?: SortOrder
-    accountPrivacy?: SortOrder
-    dob?: SortOrder
-    gender?: SortOrder
-    locationSource?: SortOrder
-    showBadge?: SortOrder
-    showSuggestion?: SortOrder
-    website?: SortOrder
-    appleId?: SortOrder
-    microsoftId?: SortOrder
-  }
-
-  export type WieUserSumOrderByAggregateInput = {
-    latitude?: SortOrder
-    longitude?: SortOrder
-    followersCount?: SortOrder
-    followingCount?: SortOrder
-    postsCount?: SortOrder
-    tokenVersion?: SortOrder
   }
 
   export type UuidWithAggregatesFilter<$PrismaModel = never> = {
@@ -7513,24 +5196,6 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedStringFilter<$PrismaModel>
     _max?: NestedStringFilter<$PrismaModel>
-  }
-
-  export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    mode?: QueryMode
-    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedStringNullableFilter<$PrismaModel>
-    _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
   export type StringWithAggregatesFilter<$PrismaModel = never> = {
@@ -7551,14 +5216,6 @@ export namespace Prisma {
     _max?: NestedStringFilter<$PrismaModel>
   }
 
-  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedBoolFilter<$PrismaModel>
-    _max?: NestedBoolFilter<$PrismaModel>
-  }
-
   export type DateTimeWithAggregatesFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
@@ -7571,6 +5228,130 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedDateTimeFilter<$PrismaModel>
     _max?: NestedDateTimeFilter<$PrismaModel>
+  }
+
+  export type StringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type UuidNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedUuidNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type BoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
+  export type CountryNullableScalarRelationFilter = {
+    is?: CountryWhereInput | null
+    isNot?: CountryWhereInput | null
+  }
+
+  export type OtpListRelationFilter = {
+    every?: OtpWhereInput
+    some?: OtpWhereInput
+    none?: OtpWhereInput
+  }
+
+  export type SortOrderInput = {
+    sort: SortOrder
+    nulls?: NullsOrder
+  }
+
+  export type OtpOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type WieUserCountOrderByAggregateInput = {
+    id?: SortOrder
+    email?: SortOrder
+    contactNo?: SortOrder
+    password?: SortOrder
+    name?: SortOrder
+    username?: SortOrder
+    profilePicture?: SortOrder
+    countryId?: SortOrder
+    role?: SortOrder
+    status?: SortOrder
+    bio?: SortOrder
+    isBlocked?: SortOrder
+    isVerified?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type WieUserMaxOrderByAggregateInput = {
+    id?: SortOrder
+    email?: SortOrder
+    contactNo?: SortOrder
+    password?: SortOrder
+    name?: SortOrder
+    username?: SortOrder
+    profilePicture?: SortOrder
+    countryId?: SortOrder
+    role?: SortOrder
+    status?: SortOrder
+    bio?: SortOrder
+    isBlocked?: SortOrder
+    isVerified?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type WieUserMinOrderByAggregateInput = {
+    id?: SortOrder
+    email?: SortOrder
+    contactNo?: SortOrder
+    password?: SortOrder
+    name?: SortOrder
+    username?: SortOrder
+    profilePicture?: SortOrder
+    countryId?: SortOrder
+    role?: SortOrder
+    status?: SortOrder
+    bio?: SortOrder
+    isBlocked?: SortOrder
+    isVerified?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedStringNullableFilter<$PrismaModel>
+    _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
   export type UuidNullableWithAggregatesFilter<$PrismaModel = never> = {
@@ -7588,84 +5369,12 @@ export namespace Prisma {
     _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
-  export type FloatNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel> | null
-    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatNullableWithAggregatesFilter<$PrismaModel> | number | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _avg?: NestedFloatNullableFilter<$PrismaModel>
-    _sum?: NestedFloatNullableFilter<$PrismaModel>
-    _min?: NestedFloatNullableFilter<$PrismaModel>
-    _max?: NestedFloatNullableFilter<$PrismaModel>
-  }
-
-  export type IntWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[] | ListIntFieldRefInput<$PrismaModel>
-    notIn?: number[] | ListIntFieldRefInput<$PrismaModel>
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
+  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
     _count?: NestedIntFilter<$PrismaModel>
-    _avg?: NestedFloatFilter<$PrismaModel>
-    _sum?: NestedIntFilter<$PrismaModel>
-    _min?: NestedIntFilter<$PrismaModel>
-    _max?: NestedIntFilter<$PrismaModel>
-  }
-
-  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedDateTimeNullableFilter<$PrismaModel>
-    _max?: NestedDateTimeNullableFilter<$PrismaModel>
-  }
-
-  export type WieUserListRelationFilter = {
-    every?: WieUserWhereInput
-    some?: WieUserWhereInput
-    none?: WieUserWhereInput
-  }
-
-  export type WieUserOrderByRelationAggregateInput = {
-    _count?: SortOrder
-  }
-
-  export type CountryCountOrderByAggregateInput = {
-    id?: SortOrder
-    countryCode?: SortOrder
-    countryName?: SortOrder
-    createdAt?: SortOrder
-    phoneCode?: SortOrder
-  }
-
-  export type CountryMaxOrderByAggregateInput = {
-    id?: SortOrder
-    countryCode?: SortOrder
-    countryName?: SortOrder
-    createdAt?: SortOrder
-    phoneCode?: SortOrder
-  }
-
-  export type CountryMinOrderByAggregateInput = {
-    id?: SortOrder
-    countryCode?: SortOrder
-    countryName?: SortOrder
-    createdAt?: SortOrder
-    phoneCode?: SortOrder
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type WieUserNullableScalarRelationFilter = {
@@ -7675,253 +5384,32 @@ export namespace Prisma {
 
   export type OtpCountOrderByAggregateInput = {
     id?: SortOrder
+    userId?: SortOrder
+    tempId?: SortOrder
     otpValue?: SortOrder
+    otpType?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
-    otpType?: SortOrder
-    tempId?: SortOrder
-    userId?: SortOrder
   }
 
   export type OtpMaxOrderByAggregateInput = {
     id?: SortOrder
+    userId?: SortOrder
+    tempId?: SortOrder
     otpValue?: SortOrder
+    otpType?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
-    otpType?: SortOrder
-    tempId?: SortOrder
-    userId?: SortOrder
   }
 
   export type OtpMinOrderByAggregateInput = {
     id?: SortOrder
+    userId?: SortOrder
+    tempId?: SortOrder
     otpValue?: SortOrder
+    otpType?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
-    otpType?: SortOrder
-    tempId?: SortOrder
-    userId?: SortOrder
-  }
-
-  export type WieUserScalarRelationFilter = {
-    is?: WieUserWhereInput
-    isNot?: WieUserWhereInput
-  }
-
-  export type UserMuteUnique_muteCompoundUniqueInput = {
-    muterId: string
-    mutedId: string
-  }
-
-  export type UserMuteCountOrderByAggregateInput = {
-    id?: SortOrder
-    muterId?: SortOrder
-    mutedId?: SortOrder
-    mutePosts?: SortOrder
-    muteStories?: SortOrder
-    muteReels?: SortOrder
-    muteNotes?: SortOrder
-    createdAt?: SortOrder
-  }
-
-  export type UserMuteMaxOrderByAggregateInput = {
-    id?: SortOrder
-    muterId?: SortOrder
-    mutedId?: SortOrder
-    mutePosts?: SortOrder
-    muteStories?: SortOrder
-    muteReels?: SortOrder
-    muteNotes?: SortOrder
-    createdAt?: SortOrder
-  }
-
-  export type UserMuteMinOrderByAggregateInput = {
-    id?: SortOrder
-    muterId?: SortOrder
-    mutedId?: SortOrder
-    mutePosts?: SortOrder
-    muteStories?: SortOrder
-    muteReels?: SortOrder
-    muteNotes?: SortOrder
-    createdAt?: SortOrder
-  }
-
-  export type OtpCreateNestedManyWithoutUserInput = {
-    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
-    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
-    createMany?: OtpCreateManyUserInputEnvelope
-    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-  }
-
-  export type UserMuteCreateNestedManyWithoutMutedInput = {
-    create?: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput> | UserMuteCreateWithoutMutedInput[] | UserMuteUncheckedCreateWithoutMutedInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMutedInput | UserMuteCreateOrConnectWithoutMutedInput[]
-    createMany?: UserMuteCreateManyMutedInputEnvelope
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-  }
-
-  export type UserMuteCreateNestedManyWithoutMuterInput = {
-    create?: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput> | UserMuteCreateWithoutMuterInput[] | UserMuteUncheckedCreateWithoutMuterInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMuterInput | UserMuteCreateOrConnectWithoutMuterInput[]
-    createMany?: UserMuteCreateManyMuterInputEnvelope
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-  }
-
-  export type CountryCreateNestedOneWithoutUsersInput = {
-    create?: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
-    connectOrCreate?: CountryCreateOrConnectWithoutUsersInput
-    connect?: CountryWhereUniqueInput
-  }
-
-  export type OtpUncheckedCreateNestedManyWithoutUserInput = {
-    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
-    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
-    createMany?: OtpCreateManyUserInputEnvelope
-    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-  }
-
-  export type UserMuteUncheckedCreateNestedManyWithoutMutedInput = {
-    create?: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput> | UserMuteCreateWithoutMutedInput[] | UserMuteUncheckedCreateWithoutMutedInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMutedInput | UserMuteCreateOrConnectWithoutMutedInput[]
-    createMany?: UserMuteCreateManyMutedInputEnvelope
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-  }
-
-  export type UserMuteUncheckedCreateNestedManyWithoutMuterInput = {
-    create?: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput> | UserMuteCreateWithoutMuterInput[] | UserMuteUncheckedCreateWithoutMuterInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMuterInput | UserMuteCreateOrConnectWithoutMuterInput[]
-    createMany?: UserMuteCreateManyMuterInputEnvelope
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-  }
-
-  export type StringFieldUpdateOperationsInput = {
-    set?: string
-  }
-
-  export type NullableStringFieldUpdateOperationsInput = {
-    set?: string | null
-  }
-
-  export type BoolFieldUpdateOperationsInput = {
-    set?: boolean
-  }
-
-  export type DateTimeFieldUpdateOperationsInput = {
-    set?: Date | string
-  }
-
-  export type NullableFloatFieldUpdateOperationsInput = {
-    set?: number | null
-    increment?: number
-    decrement?: number
-    multiply?: number
-    divide?: number
-  }
-
-  export type IntFieldUpdateOperationsInput = {
-    set?: number
-    increment?: number
-    decrement?: number
-    multiply?: number
-    divide?: number
-  }
-
-  export type NullableDateTimeFieldUpdateOperationsInput = {
-    set?: Date | string | null
-  }
-
-  export type OtpUpdateManyWithoutUserNestedInput = {
-    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
-    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
-    upsert?: OtpUpsertWithWhereUniqueWithoutUserInput | OtpUpsertWithWhereUniqueWithoutUserInput[]
-    createMany?: OtpCreateManyUserInputEnvelope
-    set?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    disconnect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    delete?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    update?: OtpUpdateWithWhereUniqueWithoutUserInput | OtpUpdateWithWhereUniqueWithoutUserInput[]
-    updateMany?: OtpUpdateManyWithWhereWithoutUserInput | OtpUpdateManyWithWhereWithoutUserInput[]
-    deleteMany?: OtpScalarWhereInput | OtpScalarWhereInput[]
-  }
-
-  export type UserMuteUpdateManyWithoutMutedNestedInput = {
-    create?: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput> | UserMuteCreateWithoutMutedInput[] | UserMuteUncheckedCreateWithoutMutedInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMutedInput | UserMuteCreateOrConnectWithoutMutedInput[]
-    upsert?: UserMuteUpsertWithWhereUniqueWithoutMutedInput | UserMuteUpsertWithWhereUniqueWithoutMutedInput[]
-    createMany?: UserMuteCreateManyMutedInputEnvelope
-    set?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    disconnect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    delete?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    update?: UserMuteUpdateWithWhereUniqueWithoutMutedInput | UserMuteUpdateWithWhereUniqueWithoutMutedInput[]
-    updateMany?: UserMuteUpdateManyWithWhereWithoutMutedInput | UserMuteUpdateManyWithWhereWithoutMutedInput[]
-    deleteMany?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
-  }
-
-  export type UserMuteUpdateManyWithoutMuterNestedInput = {
-    create?: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput> | UserMuteCreateWithoutMuterInput[] | UserMuteUncheckedCreateWithoutMuterInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMuterInput | UserMuteCreateOrConnectWithoutMuterInput[]
-    upsert?: UserMuteUpsertWithWhereUniqueWithoutMuterInput | UserMuteUpsertWithWhereUniqueWithoutMuterInput[]
-    createMany?: UserMuteCreateManyMuterInputEnvelope
-    set?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    disconnect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    delete?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    update?: UserMuteUpdateWithWhereUniqueWithoutMuterInput | UserMuteUpdateWithWhereUniqueWithoutMuterInput[]
-    updateMany?: UserMuteUpdateManyWithWhereWithoutMuterInput | UserMuteUpdateManyWithWhereWithoutMuterInput[]
-    deleteMany?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
-  }
-
-  export type CountryUpdateOneWithoutUsersNestedInput = {
-    create?: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
-    connectOrCreate?: CountryCreateOrConnectWithoutUsersInput
-    upsert?: CountryUpsertWithoutUsersInput
-    disconnect?: CountryWhereInput | boolean
-    delete?: CountryWhereInput | boolean
-    connect?: CountryWhereUniqueInput
-    update?: XOR<XOR<CountryUpdateToOneWithWhereWithoutUsersInput, CountryUpdateWithoutUsersInput>, CountryUncheckedUpdateWithoutUsersInput>
-  }
-
-  export type OtpUncheckedUpdateManyWithoutUserNestedInput = {
-    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
-    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
-    upsert?: OtpUpsertWithWhereUniqueWithoutUserInput | OtpUpsertWithWhereUniqueWithoutUserInput[]
-    createMany?: OtpCreateManyUserInputEnvelope
-    set?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    disconnect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    delete?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
-    update?: OtpUpdateWithWhereUniqueWithoutUserInput | OtpUpdateWithWhereUniqueWithoutUserInput[]
-    updateMany?: OtpUpdateManyWithWhereWithoutUserInput | OtpUpdateManyWithWhereWithoutUserInput[]
-    deleteMany?: OtpScalarWhereInput | OtpScalarWhereInput[]
-  }
-
-  export type UserMuteUncheckedUpdateManyWithoutMutedNestedInput = {
-    create?: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput> | UserMuteCreateWithoutMutedInput[] | UserMuteUncheckedCreateWithoutMutedInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMutedInput | UserMuteCreateOrConnectWithoutMutedInput[]
-    upsert?: UserMuteUpsertWithWhereUniqueWithoutMutedInput | UserMuteUpsertWithWhereUniqueWithoutMutedInput[]
-    createMany?: UserMuteCreateManyMutedInputEnvelope
-    set?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    disconnect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    delete?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    update?: UserMuteUpdateWithWhereUniqueWithoutMutedInput | UserMuteUpdateWithWhereUniqueWithoutMutedInput[]
-    updateMany?: UserMuteUpdateManyWithWhereWithoutMutedInput | UserMuteUpdateManyWithWhereWithoutMutedInput[]
-    deleteMany?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
-  }
-
-  export type UserMuteUncheckedUpdateManyWithoutMuterNestedInput = {
-    create?: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput> | UserMuteCreateWithoutMuterInput[] | UserMuteUncheckedCreateWithoutMuterInput[]
-    connectOrCreate?: UserMuteCreateOrConnectWithoutMuterInput | UserMuteCreateOrConnectWithoutMuterInput[]
-    upsert?: UserMuteUpsertWithWhereUniqueWithoutMuterInput | UserMuteUpsertWithWhereUniqueWithoutMuterInput[]
-    createMany?: UserMuteCreateManyMuterInputEnvelope
-    set?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    disconnect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    delete?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    connect?: UserMuteWhereUniqueInput | UserMuteWhereUniqueInput[]
-    update?: UserMuteUpdateWithWhereUniqueWithoutMuterInput | UserMuteUpdateWithWhereUniqueWithoutMuterInput[]
-    updateMany?: UserMuteUpdateManyWithWhereWithoutMuterInput | UserMuteUpdateManyWithWhereWithoutMuterInput[]
-    deleteMany?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
   }
 
   export type WieUserCreateNestedManyWithoutCountryInput = {
@@ -7936,6 +5424,14 @@ export namespace Prisma {
     connectOrCreate?: WieUserCreateOrConnectWithoutCountryInput | WieUserCreateOrConnectWithoutCountryInput[]
     createMany?: WieUserCreateManyCountryInputEnvelope
     connect?: WieUserWhereUniqueInput | WieUserWhereUniqueInput[]
+  }
+
+  export type StringFieldUpdateOperationsInput = {
+    set?: string
+  }
+
+  export type DateTimeFieldUpdateOperationsInput = {
+    set?: Date | string
   }
 
   export type WieUserUpdateManyWithoutCountryNestedInput = {
@@ -7966,6 +5462,72 @@ export namespace Prisma {
     deleteMany?: WieUserScalarWhereInput | WieUserScalarWhereInput[]
   }
 
+  export type CountryCreateNestedOneWithoutUsersInput = {
+    create?: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
+    connectOrCreate?: CountryCreateOrConnectWithoutUsersInput
+    connect?: CountryWhereUniqueInput
+  }
+
+  export type OtpCreateNestedManyWithoutUserInput = {
+    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
+    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
+    createMany?: OtpCreateManyUserInputEnvelope
+    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+  }
+
+  export type OtpUncheckedCreateNestedManyWithoutUserInput = {
+    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
+    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
+    createMany?: OtpCreateManyUserInputEnvelope
+    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+  }
+
+  export type NullableStringFieldUpdateOperationsInput = {
+    set?: string | null
+  }
+
+  export type BoolFieldUpdateOperationsInput = {
+    set?: boolean
+  }
+
+  export type CountryUpdateOneWithoutUsersNestedInput = {
+    create?: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
+    connectOrCreate?: CountryCreateOrConnectWithoutUsersInput
+    upsert?: CountryUpsertWithoutUsersInput
+    disconnect?: CountryWhereInput | boolean
+    delete?: CountryWhereInput | boolean
+    connect?: CountryWhereUniqueInput
+    update?: XOR<XOR<CountryUpdateToOneWithWhereWithoutUsersInput, CountryUpdateWithoutUsersInput>, CountryUncheckedUpdateWithoutUsersInput>
+  }
+
+  export type OtpUpdateManyWithoutUserNestedInput = {
+    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
+    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
+    upsert?: OtpUpsertWithWhereUniqueWithoutUserInput | OtpUpsertWithWhereUniqueWithoutUserInput[]
+    createMany?: OtpCreateManyUserInputEnvelope
+    set?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    disconnect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    delete?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    update?: OtpUpdateWithWhereUniqueWithoutUserInput | OtpUpdateWithWhereUniqueWithoutUserInput[]
+    updateMany?: OtpUpdateManyWithWhereWithoutUserInput | OtpUpdateManyWithWhereWithoutUserInput[]
+    deleteMany?: OtpScalarWhereInput | OtpScalarWhereInput[]
+  }
+
+  export type OtpUncheckedUpdateManyWithoutUserNestedInput = {
+    create?: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput> | OtpCreateWithoutUserInput[] | OtpUncheckedCreateWithoutUserInput[]
+    connectOrCreate?: OtpCreateOrConnectWithoutUserInput | OtpCreateOrConnectWithoutUserInput[]
+    upsert?: OtpUpsertWithWhereUniqueWithoutUserInput | OtpUpsertWithWhereUniqueWithoutUserInput[]
+    createMany?: OtpCreateManyUserInputEnvelope
+    set?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    disconnect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    delete?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    connect?: OtpWhereUniqueInput | OtpWhereUniqueInput[]
+    update?: OtpUpdateWithWhereUniqueWithoutUserInput | OtpUpdateWithWhereUniqueWithoutUserInput[]
+    updateMany?: OtpUpdateManyWithWhereWithoutUserInput | OtpUpdateManyWithWhereWithoutUserInput[]
+    deleteMany?: OtpScalarWhereInput | OtpScalarWhereInput[]
+  }
+
   export type WieUserCreateNestedOneWithoutOtpsInput = {
     create?: XOR<WieUserCreateWithoutOtpsInput, WieUserUncheckedCreateWithoutOtpsInput>
     connectOrCreate?: WieUserCreateOrConnectWithoutOtpsInput
@@ -7982,34 +5544,6 @@ export namespace Prisma {
     update?: XOR<XOR<WieUserUpdateToOneWithWhereWithoutOtpsInput, WieUserUpdateWithoutOtpsInput>, WieUserUncheckedUpdateWithoutOtpsInput>
   }
 
-  export type WieUserCreateNestedOneWithoutMutedMeInput = {
-    create?: XOR<WieUserCreateWithoutMutedMeInput, WieUserUncheckedCreateWithoutMutedMeInput>
-    connectOrCreate?: WieUserCreateOrConnectWithoutMutedMeInput
-    connect?: WieUserWhereUniqueInput
-  }
-
-  export type WieUserCreateNestedOneWithoutMutedByMeInput = {
-    create?: XOR<WieUserCreateWithoutMutedByMeInput, WieUserUncheckedCreateWithoutMutedByMeInput>
-    connectOrCreate?: WieUserCreateOrConnectWithoutMutedByMeInput
-    connect?: WieUserWhereUniqueInput
-  }
-
-  export type WieUserUpdateOneRequiredWithoutMutedMeNestedInput = {
-    create?: XOR<WieUserCreateWithoutMutedMeInput, WieUserUncheckedCreateWithoutMutedMeInput>
-    connectOrCreate?: WieUserCreateOrConnectWithoutMutedMeInput
-    upsert?: WieUserUpsertWithoutMutedMeInput
-    connect?: WieUserWhereUniqueInput
-    update?: XOR<XOR<WieUserUpdateToOneWithWhereWithoutMutedMeInput, WieUserUpdateWithoutMutedMeInput>, WieUserUncheckedUpdateWithoutMutedMeInput>
-  }
-
-  export type WieUserUpdateOneRequiredWithoutMutedByMeNestedInput = {
-    create?: XOR<WieUserCreateWithoutMutedByMeInput, WieUserUncheckedCreateWithoutMutedByMeInput>
-    connectOrCreate?: WieUserCreateOrConnectWithoutMutedByMeInput
-    upsert?: WieUserUpsertWithoutMutedByMeInput
-    connect?: WieUserWhereUniqueInput
-    update?: XOR<XOR<WieUserUpdateToOneWithWhereWithoutMutedByMeInput, WieUserUpdateWithoutMutedByMeInput>, WieUserUncheckedUpdateWithoutMutedByMeInput>
-  }
-
   export type NestedUuidFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -8019,20 +5553,6 @@ export namespace Prisma {
     gt?: string | StringFieldRefInput<$PrismaModel>
     gte?: string | StringFieldRefInput<$PrismaModel>
     not?: NestedUuidFilter<$PrismaModel> | string
-  }
-
-  export type NestedStringNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
   export type NestedStringFilter<$PrismaModel = never> = {
@@ -8049,11 +5569,6 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
-  export type NestedBoolFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
-  }
-
   export type NestedDateTimeFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
@@ -8063,50 +5578,6 @@ export namespace Prisma {
     gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
-  }
-
-  export type NestedUuidNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    not?: NestedUuidNullableFilter<$PrismaModel> | string | null
-  }
-
-  export type NestedFloatNullableFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel> | null
-    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
-  }
-
-  export type NestedIntFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[] | ListIntFieldRefInput<$PrismaModel>
-    notIn?: number[] | ListIntFieldRefInput<$PrismaModel>
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntFilter<$PrismaModel> | number
-  }
-
-  export type NestedDateTimeNullableFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
   }
 
   export type NestedUuidWithAggregatesFilter<$PrismaModel = never> = {
@@ -8121,6 +5592,78 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedStringFilter<$PrismaModel>
     _max?: NestedStringFilter<$PrismaModel>
+  }
+
+  export type NestedIntFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel>
+    in?: number[] | ListIntFieldRefInput<$PrismaModel>
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel>
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntFilter<$PrismaModel> | number
+  }
+
+  export type NestedStringWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel>
+    in?: string[] | ListStringFieldRefInput<$PrismaModel>
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringWithAggregatesFilter<$PrismaModel> | string
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedStringFilter<$PrismaModel>
+    _max?: NestedStringFilter<$PrismaModel>
+  }
+
+  export type NestedDateTimeWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeWithAggregatesFilter<$PrismaModel> | Date | string
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedDateTimeFilter<$PrismaModel>
+    _max?: NestedDateTimeFilter<$PrismaModel>
+  }
+
+  export type NestedStringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type NestedUuidNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedUuidNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type NestedBoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
   }
 
   export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
@@ -8151,45 +5694,6 @@ export namespace Prisma {
     not?: NestedIntNullableFilter<$PrismaModel> | number | null
   }
 
-  export type NestedStringWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel>
-    in?: string[] | ListStringFieldRefInput<$PrismaModel>
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    not?: NestedStringWithAggregatesFilter<$PrismaModel> | string
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedStringFilter<$PrismaModel>
-    _max?: NestedStringFilter<$PrismaModel>
-  }
-
-  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedBoolFilter<$PrismaModel>
-    _max?: NestedBoolFilter<$PrismaModel>
-  }
-
-  export type NestedDateTimeWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel>
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeWithAggregatesFilter<$PrismaModel> | Date | string
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedDateTimeFilter<$PrismaModel>
-    _max?: NestedDateTimeFilter<$PrismaModel>
-  }
-
   export type NestedUuidNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
@@ -8204,356 +5708,48 @@ export namespace Prisma {
     _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
-  export type NestedFloatNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel> | null
-    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatNullableWithAggregatesFilter<$PrismaModel> | number | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _avg?: NestedFloatNullableFilter<$PrismaModel>
-    _sum?: NestedFloatNullableFilter<$PrismaModel>
-    _min?: NestedFloatNullableFilter<$PrismaModel>
-    _max?: NestedFloatNullableFilter<$PrismaModel>
-  }
-
-  export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[] | ListIntFieldRefInput<$PrismaModel>
-    notIn?: number[] | ListIntFieldRefInput<$PrismaModel>
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
+  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
     _count?: NestedIntFilter<$PrismaModel>
-    _avg?: NestedFloatFilter<$PrismaModel>
-    _sum?: NestedIntFilter<$PrismaModel>
-    _min?: NestedIntFilter<$PrismaModel>
-    _max?: NestedIntFilter<$PrismaModel>
-  }
-
-  export type NestedFloatFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel>
-    in?: number[] | ListFloatFieldRefInput<$PrismaModel>
-    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel>
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatFilter<$PrismaModel> | number
-  }
-
-  export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedDateTimeNullableFilter<$PrismaModel>
-    _max?: NestedDateTimeNullableFilter<$PrismaModel>
-  }
-
-  export type OtpCreateWithoutUserInput = {
-    id?: string
-    otpValue: string
-    expiresAt: Date | string
-    createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
-  }
-
-  export type OtpUncheckedCreateWithoutUserInput = {
-    id?: string
-    otpValue: string
-    expiresAt: Date | string
-    createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
-  }
-
-  export type OtpCreateOrConnectWithoutUserInput = {
-    where: OtpWhereUniqueInput
-    create: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput>
-  }
-
-  export type OtpCreateManyUserInputEnvelope = {
-    data: OtpCreateManyUserInput | OtpCreateManyUserInput[]
-    skipDuplicates?: boolean
-  }
-
-  export type UserMuteCreateWithoutMutedInput = {
-    id?: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-    muter: WieUserCreateNestedOneWithoutMutedByMeInput
-  }
-
-  export type UserMuteUncheckedCreateWithoutMutedInput = {
-    id?: string
-    muterId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type UserMuteCreateOrConnectWithoutMutedInput = {
-    where: UserMuteWhereUniqueInput
-    create: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput>
-  }
-
-  export type UserMuteCreateManyMutedInputEnvelope = {
-    data: UserMuteCreateManyMutedInput | UserMuteCreateManyMutedInput[]
-    skipDuplicates?: boolean
-  }
-
-  export type UserMuteCreateWithoutMuterInput = {
-    id?: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-    muted: WieUserCreateNestedOneWithoutMutedMeInput
-  }
-
-  export type UserMuteUncheckedCreateWithoutMuterInput = {
-    id?: string
-    mutedId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type UserMuteCreateOrConnectWithoutMuterInput = {
-    where: UserMuteWhereUniqueInput
-    create: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput>
-  }
-
-  export type UserMuteCreateManyMuterInputEnvelope = {
-    data: UserMuteCreateManyMuterInput | UserMuteCreateManyMuterInput[]
-    skipDuplicates?: boolean
-  }
-
-  export type CountryCreateWithoutUsersInput = {
-    id?: string
-    countryCode: string
-    countryName: string
-    createdAt?: Date | string
-    phoneCode?: string | null
-  }
-
-  export type CountryUncheckedCreateWithoutUsersInput = {
-    id?: string
-    countryCode: string
-    countryName: string
-    createdAt?: Date | string
-    phoneCode?: string | null
-  }
-
-  export type CountryCreateOrConnectWithoutUsersInput = {
-    where: CountryWhereUniqueInput
-    create: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
-  }
-
-  export type OtpUpsertWithWhereUniqueWithoutUserInput = {
-    where: OtpWhereUniqueInput
-    update: XOR<OtpUpdateWithoutUserInput, OtpUncheckedUpdateWithoutUserInput>
-    create: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput>
-  }
-
-  export type OtpUpdateWithWhereUniqueWithoutUserInput = {
-    where: OtpWhereUniqueInput
-    data: XOR<OtpUpdateWithoutUserInput, OtpUncheckedUpdateWithoutUserInput>
-  }
-
-  export type OtpUpdateManyWithWhereWithoutUserInput = {
-    where: OtpScalarWhereInput
-    data: XOR<OtpUpdateManyMutationInput, OtpUncheckedUpdateManyWithoutUserInput>
-  }
-
-  export type OtpScalarWhereInput = {
-    AND?: OtpScalarWhereInput | OtpScalarWhereInput[]
-    OR?: OtpScalarWhereInput[]
-    NOT?: OtpScalarWhereInput | OtpScalarWhereInput[]
-    id?: UuidFilter<"Otp"> | string
-    otpValue?: StringFilter<"Otp"> | string
-    expiresAt?: DateTimeFilter<"Otp"> | Date | string
-    createdAt?: DateTimeFilter<"Otp"> | Date | string
-    otpType?: StringFilter<"Otp"> | string
-    tempId?: StringNullableFilter<"Otp"> | string | null
-    userId?: UuidNullableFilter<"Otp"> | string | null
-  }
-
-  export type UserMuteUpsertWithWhereUniqueWithoutMutedInput = {
-    where: UserMuteWhereUniqueInput
-    update: XOR<UserMuteUpdateWithoutMutedInput, UserMuteUncheckedUpdateWithoutMutedInput>
-    create: XOR<UserMuteCreateWithoutMutedInput, UserMuteUncheckedCreateWithoutMutedInput>
-  }
-
-  export type UserMuteUpdateWithWhereUniqueWithoutMutedInput = {
-    where: UserMuteWhereUniqueInput
-    data: XOR<UserMuteUpdateWithoutMutedInput, UserMuteUncheckedUpdateWithoutMutedInput>
-  }
-
-  export type UserMuteUpdateManyWithWhereWithoutMutedInput = {
-    where: UserMuteScalarWhereInput
-    data: XOR<UserMuteUpdateManyMutationInput, UserMuteUncheckedUpdateManyWithoutMutedInput>
-  }
-
-  export type UserMuteScalarWhereInput = {
-    AND?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
-    OR?: UserMuteScalarWhereInput[]
-    NOT?: UserMuteScalarWhereInput | UserMuteScalarWhereInput[]
-    id?: UuidFilter<"UserMute"> | string
-    muterId?: UuidFilter<"UserMute"> | string
-    mutedId?: UuidFilter<"UserMute"> | string
-    mutePosts?: BoolFilter<"UserMute"> | boolean
-    muteStories?: BoolFilter<"UserMute"> | boolean
-    muteReels?: BoolFilter<"UserMute"> | boolean
-    muteNotes?: BoolFilter<"UserMute"> | boolean
-    createdAt?: DateTimeFilter<"UserMute"> | Date | string
-  }
-
-  export type UserMuteUpsertWithWhereUniqueWithoutMuterInput = {
-    where: UserMuteWhereUniqueInput
-    update: XOR<UserMuteUpdateWithoutMuterInput, UserMuteUncheckedUpdateWithoutMuterInput>
-    create: XOR<UserMuteCreateWithoutMuterInput, UserMuteUncheckedCreateWithoutMuterInput>
-  }
-
-  export type UserMuteUpdateWithWhereUniqueWithoutMuterInput = {
-    where: UserMuteWhereUniqueInput
-    data: XOR<UserMuteUpdateWithoutMuterInput, UserMuteUncheckedUpdateWithoutMuterInput>
-  }
-
-  export type UserMuteUpdateManyWithWhereWithoutMuterInput = {
-    where: UserMuteScalarWhereInput
-    data: XOR<UserMuteUpdateManyMutationInput, UserMuteUncheckedUpdateManyWithoutMuterInput>
-  }
-
-  export type CountryUpsertWithoutUsersInput = {
-    update: XOR<CountryUpdateWithoutUsersInput, CountryUncheckedUpdateWithoutUsersInput>
-    create: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
-    where?: CountryWhereInput
-  }
-
-  export type CountryUpdateToOneWithWhereWithoutUsersInput = {
-    where?: CountryWhereInput
-    data: XOR<CountryUpdateWithoutUsersInput, CountryUncheckedUpdateWithoutUsersInput>
-  }
-
-  export type CountryUpdateWithoutUsersInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    countryCode?: StringFieldUpdateOperationsInput | string
-    countryName?: StringFieldUpdateOperationsInput | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type CountryUncheckedUpdateWithoutUsersInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    countryCode?: StringFieldUpdateOperationsInput | string
-    countryName?: StringFieldUpdateOperationsInput | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    phoneCode?: NullableStringFieldUpdateOperationsInput | string | null
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type WieUserCreateWithoutCountryInput = {
     id?: string
     email?: string | null
     contactNo?: string | null
-    password?: string | null
+    password: string
     name?: string | null
+    username?: string | null
     profilePicture?: string | null
     role?: string
+    status?: string
+    bio?: string | null
     isBlocked?: boolean
     isVerified?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
     otps?: OtpCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteCreateNestedManyWithoutMuterInput
   }
 
   export type WieUserUncheckedCreateWithoutCountryInput = {
     id?: string
     email?: string | null
     contactNo?: string | null
-    password?: string | null
+    password: string
     name?: string | null
+    username?: string | null
     profilePicture?: string | null
     role?: string
+    status?: string
+    bio?: string | null
     isBlocked?: boolean
     isVerified?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
     otps?: OtpUncheckedCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteUncheckedCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteUncheckedCreateNestedManyWithoutMuterInput
   }
 
   export type WieUserCreateOrConnectWithoutCountryInput = {
@@ -8589,81 +5785,136 @@ export namespace Prisma {
     id?: UuidFilter<"WieUser"> | string
     email?: StringNullableFilter<"WieUser"> | string | null
     contactNo?: StringNullableFilter<"WieUser"> | string | null
-    password?: StringNullableFilter<"WieUser"> | string | null
+    password?: StringFilter<"WieUser"> | string
     name?: StringNullableFilter<"WieUser"> | string | null
+    username?: StringNullableFilter<"WieUser"> | string | null
     profilePicture?: StringNullableFilter<"WieUser"> | string | null
+    countryId?: UuidNullableFilter<"WieUser"> | string | null
     role?: StringFilter<"WieUser"> | string
+    status?: StringFilter<"WieUser"> | string
+    bio?: StringNullableFilter<"WieUser"> | string | null
     isBlocked?: BoolFilter<"WieUser"> | boolean
     isVerified?: BoolFilter<"WieUser"> | boolean
     createdAt?: DateTimeFilter<"WieUser"> | Date | string
     updatedAt?: DateTimeFilter<"WieUser"> | Date | string
-    username?: StringNullableFilter<"WieUser"> | string | null
-    bio?: StringNullableFilter<"WieUser"> | string | null
-    countryId?: UuidNullableFilter<"WieUser"> | string | null
-    status?: StringFilter<"WieUser"> | string
-    authProvider?: StringFilter<"WieUser"> | string
-    googleId?: StringNullableFilter<"WieUser"> | string | null
-    isOnline?: BoolFilter<"WieUser"> | boolean
-    latitude?: FloatNullableFilter<"WieUser"> | number | null
-    location?: StringNullableFilter<"WieUser"> | string | null
-    longitude?: FloatNullableFilter<"WieUser"> | number | null
-    followersCount?: IntFilter<"WieUser"> | number
-    followingCount?: IntFilter<"WieUser"> | number
-    postsCount?: IntFilter<"WieUser"> | number
-    tokenVersion?: IntFilter<"WieUser"> | number
-    allowMessageRequests?: BoolFilter<"WieUser"> | boolean
-    allowMessagesFrom?: StringFilter<"WieUser"> | string
-    lastSeenAt?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    accountPrivacy?: StringFilter<"WieUser"> | string
-    dob?: DateTimeNullableFilter<"WieUser"> | Date | string | null
-    gender?: StringNullableFilter<"WieUser"> | string | null
-    locationSource?: StringNullableFilter<"WieUser"> | string | null
-    showBadge?: BoolFilter<"WieUser"> | boolean
-    showSuggestion?: BoolFilter<"WieUser"> | boolean
-    website?: StringNullableFilter<"WieUser"> | string | null
-    appleId?: StringNullableFilter<"WieUser"> | string | null
-    microsoftId?: StringNullableFilter<"WieUser"> | string | null
+  }
+
+  export type CountryCreateWithoutUsersInput = {
+    id?: string
+    countryCode: string
+    countryName: string
+    createdAt?: Date | string
+  }
+
+  export type CountryUncheckedCreateWithoutUsersInput = {
+    id?: string
+    countryCode: string
+    countryName: string
+    createdAt?: Date | string
+  }
+
+  export type CountryCreateOrConnectWithoutUsersInput = {
+    where: CountryWhereUniqueInput
+    create: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
+  }
+
+  export type OtpCreateWithoutUserInput = {
+    id?: string
+    tempId?: string | null
+    otpValue: string
+    otpType?: string
+    expiresAt: Date | string
+    createdAt?: Date | string
+  }
+
+  export type OtpUncheckedCreateWithoutUserInput = {
+    id?: string
+    tempId?: string | null
+    otpValue: string
+    otpType?: string
+    expiresAt: Date | string
+    createdAt?: Date | string
+  }
+
+  export type OtpCreateOrConnectWithoutUserInput = {
+    where: OtpWhereUniqueInput
+    create: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput>
+  }
+
+  export type OtpCreateManyUserInputEnvelope = {
+    data: OtpCreateManyUserInput | OtpCreateManyUserInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type CountryUpsertWithoutUsersInput = {
+    update: XOR<CountryUpdateWithoutUsersInput, CountryUncheckedUpdateWithoutUsersInput>
+    create: XOR<CountryCreateWithoutUsersInput, CountryUncheckedCreateWithoutUsersInput>
+    where?: CountryWhereInput
+  }
+
+  export type CountryUpdateToOneWithWhereWithoutUsersInput = {
+    where?: CountryWhereInput
+    data: XOR<CountryUpdateWithoutUsersInput, CountryUncheckedUpdateWithoutUsersInput>
+  }
+
+  export type CountryUpdateWithoutUsersInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    countryCode?: StringFieldUpdateOperationsInput | string
+    countryName?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CountryUncheckedUpdateWithoutUsersInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    countryCode?: StringFieldUpdateOperationsInput | string
+    countryName?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OtpUpsertWithWhereUniqueWithoutUserInput = {
+    where: OtpWhereUniqueInput
+    update: XOR<OtpUpdateWithoutUserInput, OtpUncheckedUpdateWithoutUserInput>
+    create: XOR<OtpCreateWithoutUserInput, OtpUncheckedCreateWithoutUserInput>
+  }
+
+  export type OtpUpdateWithWhereUniqueWithoutUserInput = {
+    where: OtpWhereUniqueInput
+    data: XOR<OtpUpdateWithoutUserInput, OtpUncheckedUpdateWithoutUserInput>
+  }
+
+  export type OtpUpdateManyWithWhereWithoutUserInput = {
+    where: OtpScalarWhereInput
+    data: XOR<OtpUpdateManyMutationInput, OtpUncheckedUpdateManyWithoutUserInput>
+  }
+
+  export type OtpScalarWhereInput = {
+    AND?: OtpScalarWhereInput | OtpScalarWhereInput[]
+    OR?: OtpScalarWhereInput[]
+    NOT?: OtpScalarWhereInput | OtpScalarWhereInput[]
+    id?: UuidFilter<"Otp"> | string
+    userId?: UuidNullableFilter<"Otp"> | string | null
+    tempId?: StringNullableFilter<"Otp"> | string | null
+    otpValue?: StringFilter<"Otp"> | string
+    otpType?: StringFilter<"Otp"> | string
+    expiresAt?: DateTimeFilter<"Otp"> | Date | string
+    createdAt?: DateTimeFilter<"Otp"> | Date | string
   }
 
   export type WieUserCreateWithoutOtpsInput = {
     id?: string
     email?: string | null
     contactNo?: string | null
-    password?: string | null
+    password: string
     name?: string | null
+    username?: string | null
     profilePicture?: string | null
     role?: string
+    status?: string
+    bio?: string | null
     isBlocked?: boolean
     isVerified?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    mutedMe?: UserMuteCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteCreateNestedManyWithoutMuterInput
     country?: CountryCreateNestedOneWithoutUsersInput
   }
 
@@ -8671,42 +5922,18 @@ export namespace Prisma {
     id?: string
     email?: string | null
     contactNo?: string | null
-    password?: string | null
+    password: string
     name?: string | null
+    username?: string | null
     profilePicture?: string | null
+    countryId?: string | null
     role?: string
+    status?: string
+    bio?: string | null
     isBlocked?: boolean
     isVerified?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    countryId?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    mutedMe?: UserMuteUncheckedCreateNestedManyWithoutMutedInput
-    mutedByMe?: UserMuteUncheckedCreateNestedManyWithoutMuterInput
   }
 
   export type WieUserCreateOrConnectWithoutOtpsInput = {
@@ -8729,41 +5956,17 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
     contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
     name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
     profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
     isBlocked?: BoolFieldUpdateOperationsInput | boolean
     isVerified?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    mutedMe?: UserMuteUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUpdateManyWithoutMuterNestedInput
     country?: CountryUpdateOneWithoutUsersNestedInput
   }
 
@@ -8771,688 +5974,124 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
     contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
     name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
+    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     countryId?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    mutedMe?: UserMuteUncheckedUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUncheckedUpdateManyWithoutMuterNestedInput
-  }
-
-  export type WieUserCreateWithoutMutedMeInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpCreateNestedManyWithoutUserInput
-    mutedByMe?: UserMuteCreateNestedManyWithoutMuterInput
-    country?: CountryCreateNestedOneWithoutUsersInput
-  }
-
-  export type WieUserUncheckedCreateWithoutMutedMeInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    countryId?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpUncheckedCreateNestedManyWithoutUserInput
-    mutedByMe?: UserMuteUncheckedCreateNestedManyWithoutMuterInput
-  }
-
-  export type WieUserCreateOrConnectWithoutMutedMeInput = {
-    where: WieUserWhereUniqueInput
-    create: XOR<WieUserCreateWithoutMutedMeInput, WieUserUncheckedCreateWithoutMutedMeInput>
-  }
-
-  export type WieUserCreateWithoutMutedByMeInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteCreateNestedManyWithoutMutedInput
-    country?: CountryCreateNestedOneWithoutUsersInput
-  }
-
-  export type WieUserUncheckedCreateWithoutMutedByMeInput = {
-    id?: string
-    email?: string | null
-    contactNo?: string | null
-    password?: string | null
-    name?: string | null
-    profilePicture?: string | null
-    role?: string
-    isBlocked?: boolean
-    isVerified?: boolean
-    createdAt?: Date | string
-    updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    countryId?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
-    otps?: OtpUncheckedCreateNestedManyWithoutUserInput
-    mutedMe?: UserMuteUncheckedCreateNestedManyWithoutMutedInput
-  }
-
-  export type WieUserCreateOrConnectWithoutMutedByMeInput = {
-    where: WieUserWhereUniqueInput
-    create: XOR<WieUserCreateWithoutMutedByMeInput, WieUserUncheckedCreateWithoutMutedByMeInput>
-  }
-
-  export type WieUserUpsertWithoutMutedMeInput = {
-    update: XOR<WieUserUpdateWithoutMutedMeInput, WieUserUncheckedUpdateWithoutMutedMeInput>
-    create: XOR<WieUserCreateWithoutMutedMeInput, WieUserUncheckedCreateWithoutMutedMeInput>
-    where?: WieUserWhereInput
-  }
-
-  export type WieUserUpdateToOneWithWhereWithoutMutedMeInput = {
-    where?: WieUserWhereInput
-    data: XOR<WieUserUpdateWithoutMutedMeInput, WieUserUncheckedUpdateWithoutMutedMeInput>
-  }
-
-  export type WieUserUpdateWithoutMutedMeInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
     isBlocked?: BoolFieldUpdateOperationsInput | boolean
     isVerified?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUpdateManyWithoutUserNestedInput
-    mutedByMe?: UserMuteUpdateManyWithoutMuterNestedInput
-    country?: CountryUpdateOneWithoutUsersNestedInput
-  }
-
-  export type WieUserUncheckedUpdateWithoutMutedMeInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    countryId?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUncheckedUpdateManyWithoutUserNestedInput
-    mutedByMe?: UserMuteUncheckedUpdateManyWithoutMuterNestedInput
-  }
-
-  export type WieUserUpsertWithoutMutedByMeInput = {
-    update: XOR<WieUserUpdateWithoutMutedByMeInput, WieUserUncheckedUpdateWithoutMutedByMeInput>
-    create: XOR<WieUserCreateWithoutMutedByMeInput, WieUserUncheckedCreateWithoutMutedByMeInput>
-    where?: WieUserWhereInput
-  }
-
-  export type WieUserUpdateToOneWithWhereWithoutMutedByMeInput = {
-    where?: WieUserWhereInput
-    data: XOR<WieUserUpdateWithoutMutedByMeInput, WieUserUncheckedUpdateWithoutMutedByMeInput>
-  }
-
-  export type WieUserUpdateWithoutMutedByMeInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUpdateManyWithoutMutedNestedInput
-    country?: CountryUpdateOneWithoutUsersNestedInput
-  }
-
-  export type WieUserUncheckedUpdateWithoutMutedByMeInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    email?: NullableStringFieldUpdateOperationsInput | string | null
-    contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
-    name?: NullableStringFieldUpdateOperationsInput | string | null
-    profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
-    role?: StringFieldUpdateOperationsInput | string
-    isBlocked?: BoolFieldUpdateOperationsInput | boolean
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    countryId?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
-    otps?: OtpUncheckedUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUncheckedUpdateManyWithoutMutedNestedInput
-  }
-
-  export type OtpCreateManyUserInput = {
-    id?: string
-    otpValue: string
-    expiresAt: Date | string
-    createdAt?: Date | string
-    otpType?: string
-    tempId?: string | null
-  }
-
-  export type UserMuteCreateManyMutedInput = {
-    id?: string
-    muterId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type UserMuteCreateManyMuterInput = {
-    id?: string
-    mutedId: string
-    mutePosts?: boolean
-    muteStories?: boolean
-    muteReels?: boolean
-    muteNotes?: boolean
-    createdAt?: Date | string
-  }
-
-  export type OtpUpdateWithoutUserInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    otpValue?: StringFieldUpdateOperationsInput | string
-    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type OtpUncheckedUpdateWithoutUserInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    otpValue?: StringFieldUpdateOperationsInput | string
-    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type OtpUncheckedUpdateManyWithoutUserInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    otpValue?: StringFieldUpdateOperationsInput | string
-    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    otpType?: StringFieldUpdateOperationsInput | string
-    tempId?: NullableStringFieldUpdateOperationsInput | string | null
-  }
-
-  export type UserMuteUpdateWithoutMutedInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    muter?: WieUserUpdateOneRequiredWithoutMutedByMeNestedInput
-  }
-
-  export type UserMuteUncheckedUpdateWithoutMutedInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    muterId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-  }
-
-  export type UserMuteUncheckedUpdateManyWithoutMutedInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    muterId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-  }
-
-  export type UserMuteUpdateWithoutMuterInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    muted?: WieUserUpdateOneRequiredWithoutMutedMeNestedInput
-  }
-
-  export type UserMuteUncheckedUpdateWithoutMuterInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutedId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
-  }
-
-  export type UserMuteUncheckedUpdateManyWithoutMuterInput = {
-    id?: StringFieldUpdateOperationsInput | string
-    mutedId?: StringFieldUpdateOperationsInput | string
-    mutePosts?: BoolFieldUpdateOperationsInput | boolean
-    muteStories?: BoolFieldUpdateOperationsInput | boolean
-    muteReels?: BoolFieldUpdateOperationsInput | boolean
-    muteNotes?: BoolFieldUpdateOperationsInput | boolean
-    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type WieUserCreateManyCountryInput = {
     id?: string
     email?: string | null
     contactNo?: string | null
-    password?: string | null
+    password: string
     name?: string | null
+    username?: string | null
     profilePicture?: string | null
     role?: string
+    status?: string
+    bio?: string | null
     isBlocked?: boolean
     isVerified?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
-    username?: string | null
-    bio?: string | null
-    status?: string
-    authProvider?: string
-    googleId?: string | null
-    isOnline?: boolean
-    latitude?: number | null
-    location?: string | null
-    longitude?: number | null
-    followersCount?: number
-    followingCount?: number
-    postsCount?: number
-    tokenVersion?: number
-    allowMessageRequests?: boolean
-    allowMessagesFrom?: string
-    lastSeenAt?: Date | string | null
-    accountPrivacy?: string
-    dob?: Date | string | null
-    gender?: string | null
-    locationSource?: string | null
-    showBadge?: boolean
-    showSuggestion?: boolean
-    website?: string | null
-    appleId?: string | null
-    microsoftId?: string | null
   }
 
   export type WieUserUpdateWithoutCountryInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
     contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
     name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
     profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
     isBlocked?: BoolFieldUpdateOperationsInput | boolean
     isVerified?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
     otps?: OtpUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUpdateManyWithoutMuterNestedInput
   }
 
   export type WieUserUncheckedUpdateWithoutCountryInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
     contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
     name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
     profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
     isBlocked?: BoolFieldUpdateOperationsInput | boolean
     isVerified?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
     otps?: OtpUncheckedUpdateManyWithoutUserNestedInput
-    mutedMe?: UserMuteUncheckedUpdateManyWithoutMutedNestedInput
-    mutedByMe?: UserMuteUncheckedUpdateManyWithoutMuterNestedInput
   }
 
   export type WieUserUncheckedUpdateManyWithoutCountryInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
     contactNo?: NullableStringFieldUpdateOperationsInput | string | null
-    password?: NullableStringFieldUpdateOperationsInput | string | null
+    password?: StringFieldUpdateOperationsInput | string
     name?: NullableStringFieldUpdateOperationsInput | string | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
     profilePicture?: NullableStringFieldUpdateOperationsInput | string | null
     role?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    bio?: NullableStringFieldUpdateOperationsInput | string | null
     isBlocked?: BoolFieldUpdateOperationsInput | boolean
     isVerified?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    username?: NullableStringFieldUpdateOperationsInput | string | null
-    bio?: NullableStringFieldUpdateOperationsInput | string | null
-    status?: StringFieldUpdateOperationsInput | string
-    authProvider?: StringFieldUpdateOperationsInput | string
-    googleId?: NullableStringFieldUpdateOperationsInput | string | null
-    isOnline?: BoolFieldUpdateOperationsInput | boolean
-    latitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    location?: NullableStringFieldUpdateOperationsInput | string | null
-    longitude?: NullableFloatFieldUpdateOperationsInput | number | null
-    followersCount?: IntFieldUpdateOperationsInput | number
-    followingCount?: IntFieldUpdateOperationsInput | number
-    postsCount?: IntFieldUpdateOperationsInput | number
-    tokenVersion?: IntFieldUpdateOperationsInput | number
-    allowMessageRequests?: BoolFieldUpdateOperationsInput | boolean
-    allowMessagesFrom?: StringFieldUpdateOperationsInput | string
-    lastSeenAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    accountPrivacy?: StringFieldUpdateOperationsInput | string
-    dob?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-    gender?: NullableStringFieldUpdateOperationsInput | string | null
-    locationSource?: NullableStringFieldUpdateOperationsInput | string | null
-    showBadge?: BoolFieldUpdateOperationsInput | boolean
-    showSuggestion?: BoolFieldUpdateOperationsInput | boolean
-    website?: NullableStringFieldUpdateOperationsInput | string | null
-    appleId?: NullableStringFieldUpdateOperationsInput | string | null
-    microsoftId?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type OtpCreateManyUserInput = {
+    id?: string
+    tempId?: string | null
+    otpValue: string
+    otpType?: string
+    expiresAt: Date | string
+    createdAt?: Date | string
+  }
+
+  export type OtpUpdateWithoutUserInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
+    otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OtpUncheckedUpdateWithoutUserInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
+    otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OtpUncheckedUpdateManyWithoutUserInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    tempId?: NullableStringFieldUpdateOperationsInput | string | null
+    otpValue?: StringFieldUpdateOperationsInput | string
+    otpType?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
 

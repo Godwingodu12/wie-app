@@ -1,46 +1,98 @@
 import express from "express";
 import { authenticate } from "../middlewares/auth";
 import { upload } from "../middlewares/upload";
-import * as fluxController from "../controllers/flux.controller";
+import * as postController from "../controllers/post.controller";
+
 const router: express.Router = express.Router();
 
+// All routes require authentication
 router.use(authenticate);
 
-// ── POST & REELS ENDPOINTS ──────────────────────────────────
-// As per WIE_Posts_Reels_API_Documentation.pdf
+// ── Feed / Discovery
+// GET /api/post/feed?page=1&limit=20
+router.get("/feed", postController.getPostFeed);
+router.get("/reels", postController.getReelsFeed);
+// GET /api/post/explore?page=1&limit=20
+router.get("/explore", postController.getExplorePosts);
+// GET /api/post/saved
+router.get("/saved", postController.getSavedPosts);
 
-// Static / Non-parameterized
-router.post("/create", upload.array("media", 10), fluxController.createFlux); // Post creation supports up to 10 media items
-router.get("/feed", fluxController.getFluxFeed); // Personalised post feed
-router.get("/explore", fluxController.getExploreFeed);
-router.get("/reels", fluxController.getReelsFeed);
-router.get("/saved", fluxController.getSavedFluxes);
-router.get("/user/:userId", fluxController.getUserFluxes);
+// ── Create
+// POST /api/post/create   (multipart: media[] + body fields)
+router.post(
+  "/create",
+  upload.array("media", 10), // up to 10 files per post (carousel)
+  postController.createPost,
+);
+// Giphy Search (Comments)
+// GET /api/post/giphy/search?q=cats&type=gifs&offset=0
+router.get("/giphy/search", postController.searchGiphy);
+// ── User posts
+// GET /api/post/user/:userId?page=1&limit=12
+router.get("/user/:userId", postController.getUserPosts);
 
-// Parameterized Routes
-router.get("/:fluxId", fluxController.getFluxById);
-router.patch("/:fluxId", fluxController.updatePost);
-router.delete("/:fluxId", fluxController.deleteFlux);
+// ── Single post CRUD
+// GET    /api/post/:postId
+router.get("/:postId", postController.getPostById);
 
-// Interactions
-router.patch("/:fluxId/settings", fluxController.updatePostSettings);
-router.post("/:fluxId/like", fluxController.toggleFluxLike);
-router.get("/:fluxId/likes", fluxController.getFluxLikes);
-router.post("/:fluxId/save", fluxController.toggleSaveFlux);
-router.post("/:fluxId/share", fluxController.shareFlux);
+// PATCH  /api/post/:postId  (update caption / visibility / location)
+router.patch("/:postId", postController.updatePost);
 
-// Tags
-router.post("/:fluxId/tags", fluxController.setTaggedUsers);
-router.get("/:fluxId/tags", fluxController.getTaggedUsers);
+// DELETE /api/post/:postId
+router.delete("/:postId", postController.deletePost);
 
-// Comments
-router.post("/:fluxId/comments", fluxController.addFluxComment);
-router.get("/:fluxId/comments", fluxController.getFluxComments);
-router.delete("/:fluxId/comments/:commentId", fluxController.deleteFluxComment);
-router.post("/:fluxId/comments/:commentId/reply", fluxController.addCommentReply);
-router.post("/:fluxId/comments/:commentId/replies/:replyId/like", fluxController.likeCommentReply);
+// ── Settings
+// PATCH /api/post/:postId/settings
+// Body: { commentsDisabled?, likesHidden?, visibility?, isPinned? }
+router.patch("/:postId/settings", postController.updatePostSettings);
 
-// Analytics
-router.get("/:fluxId/analytics", fluxController.getFluxAnalytics);
+// ── Likes & Reactions
+// POST /api/post/:postId/like   Body: { emoji?: string }
+router.post("/:postId/like", postController.toggleLike);
+
+// GET  /api/post/:postId/likes
+router.get("/:postId/likes", postController.getPostLikes);
+
+// ── Comments
+// POST /api/post/:postId/comments             Body: { text }
+router.post("/:postId/comments", postController.addComment);
+
+// GET  /api/post/:postId/comments?page=1
+router.get("/:postId/comments", postController.getPostComments);
+
+// POST /api/post/:postId/comments/:commentId/reply  Body: { text }
+router.post(
+  "/:postId/comments/:commentId/reply",
+  postController.replyToComment,
+);
+
+// POST /api/post/:postId/comments/:commentId/like
+router.post("/:postId/comments/:commentId/like", postController.likeComment);
+
+// POST /api/post/:postId/comments/:commentId/replies/:replyId/like
+router.post(
+  "/:postId/comments/:commentId/replies/:replyId/like",
+  postController.likeCommentReply,
+);
+
+// DELETE /api/post/:postId/comments/:commentId
+router.delete("/:postId/comments/:commentId", postController.deleteComment);
+
+// ── Share
+// POST /api/post/:postId/share   Body: { receiverIds: string[] }
+router.post("/:postId/share", postController.sharePost);
+
+// ── Save / Bookmark
+// POST /api/post/:postId/save   Body: { collection?: string }
+// (toggles — same route saves and unsaves)
+router.post("/:postId/save", postController.toggleSave);
+
+// ── Tags
+// POST /api/post/:postId/tags
+// Body: { taggedUsers: [{ userId, x?, y?, mediaIndex? }] }
+router.post("/:postId/tags", postController.tagUsers);
+
+// GET  /api/post/:postId/tags
+router.get("/:postId/tags", postController.getPostTags);
 
 export default router;

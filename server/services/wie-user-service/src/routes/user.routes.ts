@@ -4,6 +4,7 @@ import {
   getCountries,
   signupSendOtp,
   signupVerifyOtp,
+  setupProfile,
   login,
   logout,
   resendOtp,
@@ -48,6 +49,12 @@ router.get("/", index);
 router.get("/countries", getCountries);
 router.post("/signup/send-otp", signupSendOtp);
 router.post("/signup/verify-otp", signupVerifyOtp);
+router.post(
+  "/setup-profile",
+  authenticateToken,
+  upload.single("profile_picture"),
+  setupProfile,
+);
 router.post("/login", login);
 router.post("/resend-otp", resendOtp);
 router.post("/forgot-password", forgotPassword);

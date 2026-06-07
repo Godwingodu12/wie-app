@@ -5,7 +5,6 @@ import helmet from "helmet";
 import morgan from "morgan";
 import compression from "compression";
 import mongoose from "mongoose";
-import dns from "dns";
 import profileRoutes from "./routes/profile.routes";
 import purposeRoutes from "./routes/purpose.routes";
 import requestRoutes from "./routes/request.routes";
@@ -39,7 +38,6 @@ app.use("/api", generalLimiter);
 
 // ── MongoDB ───────────────────────────────────────────────────────
 const connectDB = async (): Promise<void> => {
-  dns.setServers(["8.8.8.8", "8.8.4.4"]);
   const uri = process.env.MONGODB_URI;
 
   if (!uri) {
@@ -47,7 +45,12 @@ const connectDB = async (): Promise<void> => {
     process.exit(1);
   }
 
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, {
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    family: 4,
+  });
 
   console.log(`✅ MongoDB Connected — db: ${mongoose.connection.name}`);
 
@@ -102,10 +105,10 @@ const startServer = async (): Promise<void> => {
     console.log("⏳ Connecting to MongoDB...");
     await connectDB();
 
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, () => {
       console.log(`🚀 Connection Service HTTP  → http://localhost:${PORT}`);
     });
-
+    console.log(`🔗 Face detector URL: ${process.env.FACE_DETECTOR_URL}`);
     await startGRPCServer(Number(GRPC_PORT));
     console.log(`🚀 Connection Service gRPC  → port ${GRPC_PORT}`);
   } catch (error: any) {

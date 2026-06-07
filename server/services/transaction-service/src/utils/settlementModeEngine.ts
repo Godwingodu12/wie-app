@@ -17,7 +17,14 @@ export interface SettlementModeResult {
   onHoldForRazorpay: 0 | 1; // Razorpay Route on_hold flag
 }
 
-const HIGH_VALUE_THRESHOLD = 50_000; // ₹50K+
+const HIGH_VALUE_THRESHOLD = parseFloat(process.env.HIGH_VALUE_THRESHOLD || "50000"); // ₹50K+
+
+if (isNaN(HIGH_VALUE_THRESHOLD)) {
+  throw new Error(
+    "Environment variable HIGH_VALUE_THRESHOLD must be set and be a valid number.",
+  );
+}
+
 const TRUSTED_SCORE = 75;
 const MIN_EVENTS_FOR_TRUSTED = 10;
 

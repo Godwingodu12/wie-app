@@ -649,7 +649,7 @@ const getEventTransactionList = async (call: any, callback: any) => {
   }
 };
 
-const verifyBookingQR = async (call: any, callback: any) => {
+export const verifyBookingQR = async (call: any, callback: any) => {
   try {
     const { qrData } = call.request;
     if (!qrData) {
@@ -709,7 +709,6 @@ const verifyBookingQR = async (call: any, callback: any) => {
       eventTime: eventDet.eventTime || parsed.eventTime || "",
       eventEndDate: eventDet.eventEndDate || eventDet.end_date || "",
       venue: eventDet.venue || eventDet.location || parsed.venue || "",
-      // Financials
       totalAmount: parseFloat(booking.totalAmount?.toString() || "0"),
       subtotal: parseFloat((booking as any).subtotal?.toString() || "0"),
       // Event image for scanner display
@@ -721,6 +720,120 @@ const verifyBookingQR = async (call: any, callback: any) => {
     });
   } catch (err: any) {
     console.error("❌ [gRPC] verifyBookingQR error:", err.message);
+    callback(null, { success: false, error: err.message });
+  }
+};
+const getEventUserResponses = async (call: any, callback: any) => {
+  try {
+    const { ticket_id } = call.request;
+    if (!ticket_id) {
+      return callback(null, { success: false, error: 'ticket_id required', responses: [], count: 0 });
+    }
+
+    const rows = await BookingModel.getEventUserResponsesByTicketId(ticket_id);
+
+    const responses = rows.map((r: any) => ({
+      id: String(r.id),
+      booking_id: r.booking_id || '',
+      ticket_id: r.ticket_id || '',
+      group_id: r.group_id || '',
+      user_id: r.user_id || '',
+      question_answers: {
+        answer_name: r.answer_name || '',
+        answer_email: r.answer_email || '',
+        answer_phone: r.answer_phone || '',
+        answer_position: r.answer_position || '',
+      },
+      food_addon: {
+        food_selected: r.food_selected || false,
+        food_quantity: r.food_quantity || 0,
+        food_menu: Array.isArray(r.food_menu) ? r.food_menu : [],
+        food_catering_name: r.food_catering_name || '',
+        food_price: parseFloat(r.food_price?.toString() || '0'),
+        food_picture: r.food_picture || '',
+      },
+      accommodation_addon: {
+        accommodation_selected: r.accommodation_selected || false,
+        accommodation_quantity: r.accommodation_quantity || 0,
+        accommodation_type: Array.isArray(r.accommodation_type) ? r.accommodation_type : [],
+        accommodation_catering_name: r.accommodation_catering_name || '',
+        accommodation_price: parseFloat(r.accommodation_price?.toString() || '0'),
+        accommodation_picture: r.accommodation_picture || '',
+      },
+      created_at: r.created_at?.toISOString() || '',
+    }));
+
+    callback(null, { success: true, error: '', responses, count: responses.length });
+  } catch (err: any) {
+    console.error('❌ [gRPC] getEventUserResponses error:', err.message);
+    callback(null, { success: false, error: err.message, responses: [], count: 0 });
+  }
+};
+
+const getBookingAddons = async (call: any, callback: any) => {
+  try {
+    const { booking_id } = call.request;
+    if (!booking_id) {
+      return callback(null, { success: false, error: 'booking_id required' });
+    }
+
+    const row = await BookingModel.getEventUserResponseByBookingId(booking_id);
+
+    // Also get addon amounts from the booking itself
+    const booking = await prisma.booking.findFirst({
+      where: { bookingId: booking_id },
+      select: { food_addon_amount: true, accommodation_addon_amount: true },
+    });
+
+    const foodAmt = parseFloat(booking?.food_addon_amount?.toString() || '0');
+    const accAmt = parseFloat(booking?.accommodation_addon_amount?.toString() || '0');
+
+    if (!row) {
+      return callback(null, {
+        success: true,
+        error: '',
+        booking_id,
+        question_answers: { answer_name: '', answer_email: '', answer_phone: '', answer_position: '' },
+        food_addon: { food_selected: false, food_quantity: 0, food_menu: [], food_catering_name: '', food_price: 0, food_picture: '' },
+        accommodation_addon: { accommodation_selected: false, accommodation_quantity: 0, accommodation_type: [], accommodation_catering_name: '', accommodation_price: 0, accommodation_picture: '' },
+        food_addon_amount: foodAmt,
+        accommodation_addon_amount: accAmt,
+        total_addon_amount: foodAmt + accAmt,
+      });
+    }
+
+    callback(null, {
+      success: true,
+      error: '',
+      booking_id,
+      question_answers: {
+        answer_name: row.answer_name || '',
+        answer_email: row.answer_email || '',
+        answer_phone: row.answer_phone || '',
+        answer_position: row.answer_position || '',
+      },
+      food_addon: {
+        food_selected: row.food_selected || false,
+        food_quantity: row.food_quantity || 0,
+        food_menu: Array.isArray(row.food_menu) ? row.food_menu : [],
+        food_catering_name: row.food_catering_name || '',
+        food_price: parseFloat(row.food_price?.toString() || '0'),
+        food_picture: row.food_picture || '',
+      },
+      accommodation_addon: {
+        accommodation_selected: row.accommodation_selected || false,
+        accommodation_quantity: row.accommodation_quantity || 0,
+        accommodation_type: Array.isArray(row.accommodation_type) ? row.accommodation_type : [],
+        accommodation_catering_name: row.accommodation_catering_name || '',
+        accommodation_price: parseFloat(row.accommodation_price?.toString() || '0'),
+        accommodation_picture: row.accommodation_picture || '',
+      },
+      food_addon_amount: foodAmt,
+      accommodation_addon_amount: accAmt,
+      total_addon_amount: foodAmt + accAmt,
+    });
+  } catch (err: any) {
+    console.error('❌ [gRPC] getBookingAddons error:', err.message);
     callback(null, { success: false, error: err.message });
   }
 };
@@ -744,6 +857,8 @@ export const startGrpcServer = (): Promise<void> => {
         GetEventFinancialSummary: getEventFinancialSummary,
         GetEventTransactionList: getEventTransactionList,
         VerifyBookingQR: verifyBookingQR,
+        GetEventUserResponses: getEventUserResponses,
+        GetBookingAddons: getBookingAddons,
       });
 
       const port = process.env.BOOKING_GRPC_PORT || "50054";

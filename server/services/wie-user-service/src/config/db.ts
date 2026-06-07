@@ -9,15 +9,20 @@ class Database {
 
   async connect(): Promise<void> {
     try {
-      const connectionString =
-        process.env.DIRECT_URL || process.env.DATABASE_URL!;
-      const cleanUrl = connectionString.split("?")[0];
+      const poolerUrl = process.env.DATABASE_URL!;
+
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
       this.pool = new Pool({
-        connectionString: cleanUrl,
-        ssl: { rejectUnauthorized: false },
-        max: 5,
+        connectionString: poolerUrl,
+        ssl: {
+          rejectUnauthorized: false,
+          checkServerIdentity: () => undefined,
+        },
+        max: 3,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 15000,
+        connectionTimeoutMillis: 20000,
+        allowExitOnIdle: true,
       });
 
       this.pool.on("error", (err) => {

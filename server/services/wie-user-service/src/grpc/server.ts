@@ -82,9 +82,6 @@ const formatUser = (user: any) => {
     created_at: createdAt,
     updated_at: updatedAt,
     last_seen_at: lastSeenAt,
-    posts_count: user.postsCount || 0,
-    followers_count: user.followersCount || 0,
-    following_count: user.followingCount || 0,
   };
 };
 
@@ -290,54 +287,6 @@ const getAccountPrivacy = async (call: any, callback: any) => {
     callback(null, { accountPrivacy: "public" });
   }
 };
-
-const incrementPosts = async (call: any, callback: any) => {
-  try {
-    const { userId } = call.request;
-    if (!userId) {
-      return callback(null, { success: false });
-    }
-    await WieUserModel.incrementPosts(userId);
-    callback(null, { success: true });
-  } catch (error: any) {
-    callback(null, { success: false });
-  }
-};
-
-const decrementPosts = async (call: any, callback: any) => {
-  try {
-    const { userId } = call.request;
-    if (!userId) {
-      return callback(null, { success: false });
-    }
-    // @ts-ignore
-    if (WieUserModel.decrementPosts) {
-      // @ts-ignore
-      await WieUserModel.decrementPosts(userId);
-    }
-    callback(null, { success: true });
-  } catch (error: any) {
-    callback(null, { success: false });
-  }
-};
-
-const setPostsCount = async (call: any, callback: any) => {
-  try {
-    const { userId, count } = call.request;
-    if (!userId) {
-      return callback(null, { success: false });
-    }
-    // @ts-ignore
-    if (WieUserModel.setPostsCount) {
-      // @ts-ignore
-      await WieUserModel.setPostsCount(userId, count);
-    }
-    callback(null, { success: true });
-  } catch (error: any) {
-    callback(null, { success: false });
-  }
-};
-
 export const startGrpcServer = (port: number = 50053) => {
   const server = new grpc.Server();
 
@@ -353,9 +302,6 @@ export const startGrpcServer = (port: number = 50053) => {
     UpdateOnlineStatus: updateOnlineStatus,
     GetOnlineStatus: getOnlineStatus,
     GetAccountPrivacy: getAccountPrivacy,
-    IncrementPosts: incrementPosts,
-    DecrementPosts: decrementPosts,
-    SetPostsCount: setPostsCount,
   });
 
   server.bindAsync(

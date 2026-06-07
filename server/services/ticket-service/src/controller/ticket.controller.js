@@ -5,19 +5,21 @@ import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket,snapshotAndLockSubEvent, rehostMainEventV2 } from '../services/ticket.service.js';
+import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket, snapshotAndLockSubEvent, rehostMainEventV2, sanitizeDescriptionHtml, stripHtmlForValidation } from '../services/ticket.service.js';
 import TicketAudit from '../models/ticketAudit.model.js';
 import { resolveGSTApplicability, extractGSTFromInclusive } from '../services/ticket.service.js';
-import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { validateIFSCCode, validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { publishEventCancellation, publishToExchange } from "../utils/eventPublisher.js";
-import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings, 
-  getEventFinancialSummary, getEventTransactionList } from '../grpc/bookingClient.js';
+import {
+  getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings,
+  getEventFinancialSummary, getEventTransactionList
+} from '../grpc/bookingClient.js';
 import ExcelJS from 'exceljs';
-import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
-import { 
-  generateSeatingLayoutFromFile, 
+import { getWieUsersByIds } from '../grpc/wieUserClient.js';
+import {
+  generateSeatingLayoutFromFile,
   validateSeatingLayout,
-  generateFallbackLayout  
+  generateFallbackLayout
 } from '../utils/seatingLayoutGenerator.js';
 import {
   processFileUploads,
@@ -31,55 +33,55 @@ import mongoose from 'mongoose';
 const GST_PERCENTAGE = parseFloat(process.env.TAX_PERCENTAGE || '18');
 
 export const getGroupsTypes = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const userRole = req.user.role;
-        const groups = await Group.find({ userId: userId });
-        const adminGroups = groups.filter(group => group.grp_type === 'admin');
-        const orgGroups = groups.filter(group => group.grp_type === 'organisation');
-        
-        logger.info('Groups retrieved successfully', {
-            userId,
-            userRole,
-            adminCount: adminGroups.length,
-            organisationCount: orgGroups.length
-        });
-        
-        res.status(200).json({
-            message: "Groups retrieved successfully",
-            adminCount: adminGroups.length,
-            userRole: userRole,
-            organisationCount: orgGroups.length,
-            adminGroups: adminGroups,
-            organisationGroups: orgGroups
-        });
-    } catch (error) {
-        logger.error('Error fetching groups', {
-            error: error.message,
-            stack: error.stack,
-            userId: req.user?._id || req.user?.id
-        });
-        
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const userId = req.user._id || req.user.id;
+    const userRole = req.user.role;
+    const groups = await Group.find({ userId: userId });
+    const adminGroups = groups.filter(group => group.grp_type === 'admin');
+    const orgGroups = groups.filter(group => group.grp_type === 'organisation');
+
+    logger.info('Groups retrieved successfully', {
+      userId,
+      userRole,
+      adminCount: adminGroups.length,
+      organisationCount: orgGroups.length
+    });
+
+    res.status(200).json({
+      message: "Groups retrieved successfully",
+      adminCount: adminGroups.length,
+      userRole: userRole,
+      organisationCount: orgGroups.length,
+      adminGroups: adminGroups,
+      organisationGroups: orgGroups
+    });
+  } catch (error) {
+    logger.error('Error fetching groups', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?._id || req.user?.id
+    });
+
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 
 export const getTicketSubEvents = async (req, res) => {
   const ticketId = req.params.ticketId;
-  
+
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     logger.warn('Invalid ticket ID format provided', { ticketId });
-    return res.status(400).json({ 
-      message: "Invalid ticket ID format" 
+    return res.status(400).json({
+      message: "Invalid ticket ID format"
     });
   }
-  
+
   try {
     const ticket = await Ticket.findById(ticketId).select('sub_events event_name');
-    
+
     if (!ticket) {
       logger.warn('Ticket not found', { ticketId });
       return res.status(404).json({ message: "Ticket not found" });
@@ -96,26 +98,28 @@ export const getTicketSubEvents = async (req, res) => {
       stack: error.stack,
       ticketId
     });
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
 export const updateSubEvent = async (req, res) => {
-  let processedFiles = {}; 
+  let processedFiles = {};
   let guestProfileFiles = {};
   let ticketPhotoFiles = {};
+  const foodPictureFiles = {};
+  const accommodationPictureFiles = {};
   try {
     const { ticketId, subEventId } = req.params;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({ 
-        message: "Invalid ticket ID format" 
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
       });
     }
     if (!subEventId || !subEventId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({ 
-        message: "Invalid sub-event ID format" 
+      return res.status(400).json({
+        message: "Invalid sub-event ID format"
       });
     }
 
@@ -137,8 +141,8 @@ export const updateSubEvent = async (req, res) => {
     let updateData;
     try {
       if (req.body.sub_event) {
-        updateData = typeof req.body.sub_event === 'string' 
-          ? JSON.parse(req.body.sub_event) 
+        updateData = typeof req.body.sub_event === 'string'
+          ? JSON.parse(req.body.sub_event)
           : req.body.sub_event;
       } else {
         updateData = req.body;
@@ -150,7 +154,7 @@ export const updateSubEvent = async (req, res) => {
       }
     } catch (parseError) {
       console.error('❌ Parse error:', parseError);
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Invalid sub_event data format",
         error: parseError.message
       });
@@ -160,7 +164,7 @@ export const updateSubEvent = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
-    
+
     // Find the sub-event index
     const subEventIndex = ticket.sub_events.findIndex(
       (se) => se._id.toString() === subEventId
@@ -190,10 +194,9 @@ export const updateSubEvent = async (req, res) => {
     );
     const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
     // Process file uploads
-    const uploadedFiles = await processFileUploads(req.files || {});  
-    const guestProfileFiles = {};
+    const uploadedFiles = await processFileUploads(req.files || {});
     processedFiles = uploadedFiles;
-    
+
     // Process guest profiles and ticket photos
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
@@ -208,7 +211,33 @@ export const updateSubEvent = async (req, res) => {
           }
         }
       }
-      
+
+      if (fieldName.startsWith('food_picture_')) {
+        const index = fieldName.split('_')[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const foodPicFile = fileData[0];
+            if (foodPicFile.path) {
+              foodPictureFiles[parseInt(index)] = foodPicFile;
+            }
+          }
+        }
+      }
+
+      if (fieldName.startsWith('accommodation_picture_')) {
+        const index = fieldName.split('_')[2];
+        if (!isNaN(index)) {
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const accPicFile = fileData[0];
+            if (accPicFile.path) {
+              accommodationPictureFiles[parseInt(index)] = accPicFile;
+            }
+          }
+        }
+      }
+
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0) {
@@ -222,7 +251,7 @@ export const updateSubEvent = async (req, res) => {
         }
       }
     });
-    
+
     // Handle event banner
     if (uploadedFiles.event_banner) {
       let bannerFile = uploadedFiles.event_banner;
@@ -248,7 +277,7 @@ export const updateSubEvent = async (req, res) => {
         processedFiles.event_portrait_public_id = portraitFile.public_id;
       }
     }
-    
+
     // Handle event logo
     if (uploadedFiles.event_logo) {
       let logoFile = uploadedFiles.event_logo;
@@ -262,28 +291,28 @@ export const updateSubEvent = async (req, res) => {
         processedFiles.event_logo_public_id = logoFile.public_id;
       }
     }
-    
-    // Handle event images
-if (uploadedFiles.event_images) {
-  // Ensure we are taking the full array from processFileUploads
-  const newImages = Array.isArray(uploadedFiles.event_images) 
-    ? uploadedFiles.event_images 
-    : [uploadedFiles.event_images];
 
-  processedFiles.event_images = newImages.map(file => ({
-    path: file.path || file.cloudinaryUrl || file,
-    originalName: file.originalName || "image",
-    mimeType: file.mimeType || "image/jpeg",
-    size: file.size || 0,
-    public_id: file.public_id || "",
-    uploadedAt: new Date()
-  }));
-}
+    // Handle event images
+    if (uploadedFiles.event_images) {
+      // Ensure we are taking the full array from processFileUploads
+      const newImages = Array.isArray(uploadedFiles.event_images)
+        ? uploadedFiles.event_images
+        : [uploadedFiles.event_images];
+
+      processedFiles.event_images = newImages.map(file => ({
+        path: file.path || file.cloudinaryUrl || file,
+        originalName: file.originalName || "image",
+        mimeType: file.mimeType || "image/jpeg",
+        size: file.size || 0,
+        public_id: file.public_id || "",
+        uploadedAt: new Date()
+      }));
+    }
     if (uploadedFiles.event_videos && uploadedFiles.event_videos.length > 0) {
-      const validVideos = uploadedFiles.event_videos.filter(file => 
+      const validVideos = uploadedFiles.event_videos.filter(file =>
         file.path && file.originalName
       );
-      
+
       if (validVideos.length > 0) {
         processedFiles.event_videos = validVideos.map(file => ({
           path: file.path,
@@ -296,7 +325,7 @@ if (uploadedFiles.event_images) {
         }));
       }
     }
-    
+
     // Handle event rules
     if (uploadedFiles.event_rules) {
       let rulesFile = uploadedFiles.event_rules;
@@ -321,14 +350,14 @@ if (uploadedFiles.event_images) {
     let processedSeatingLayout = null;
     if (uploadedFiles.ticket_layout) {
       let layoutFile = uploadedFiles.ticket_layout;
-      
+
       // Normalize to object if needed
       if (typeof layoutFile === 'string') {
         processedFiles.ticket_layout = layoutFile;
       } else if (Array.isArray(layoutFile) && layoutFile.length > 0) {
         layoutFile = layoutFile[0];
       }
-      
+
       if (layoutFile && typeof layoutFile === 'object') {
         // Store the uploaded file URL
         if (layoutFile.cloudinaryUrl) {
@@ -342,11 +371,11 @@ if (uploadedFiles.event_images) {
         // Generate seating layout if this is an offline event
         const locationType = updateData.location_type || existingSubEvent.location_type;
         const totalCapacity = updateData.total_capacity || existingSubEvent.total_capacity;
-        
+
         if (locationType === 'offline' && totalCapacity && Number(totalCapacity) > 0) {
           try {
             let localFilePath = layoutFile.localPath;
-            
+
             // Download from Cloudinary if needed
             if (!localFilePath && layoutFile.cloudinaryUrl) {
               localFilePath = await downloadFileFromCloudinary(
@@ -354,19 +383,19 @@ if (uploadedFiles.event_images) {
                 `layout_${ticketId}_${Date.now()}.${layoutFile.mimeType?.split('/')[1] || 'jpg'}`
               );
             }
-            
-            if (localFilePath) {              
+
+            if (localFilePath) {
               const generatedLayout = await generateSeatingLayoutFromFile(
                 localFilePath,
                 Number(totalCapacity),
                 layoutFile.mimeType || 'image/jpeg'
               );
-              
+
               // Clean up temp file if downloaded
               if (layoutFile.cloudinaryUrl && localFilePath !== layoutFile.localPath) {
                 await cleanupTempFile(localFilePath);
               }
-              
+
               if (generatedLayout && generatedLayout.seats && generatedLayout.seats.length > 0) {
                 processedSeatingLayout = {
                   rows: generatedLayout.rows || [],
@@ -399,7 +428,7 @@ if (uploadedFiles.event_images) {
         }
       }
     }
-    if (updateData.seating_layout) {  
+    if (updateData.seating_layout) {
       try {
         const seatingLayoutData = typeof updateData.seating_layout === 'string'
           ? JSON.parse(updateData.seating_layout)
@@ -432,9 +461,9 @@ if (uploadedFiles.event_images) {
 
           // Map assignments - PRESERVE ALL FIELDS
           const processedAssignments = (seatingLayoutData.ticketTypeAssignments || [])
-            .filter(assignment => 
-              assignment.ticketTypeId && 
-              assignment.ticketTypeName && 
+            .filter(assignment =>
+              assignment.ticketTypeId &&
+              assignment.ticketTypeName &&
               String(assignment.ticketTypeName).trim() !== ''
             )
             .map(assignment => ({
@@ -480,7 +509,7 @@ if (uploadedFiles.event_images) {
     if (rawBankingDetails && rawBankingDetails.length > 0) {
       for (let index = 0; index < rawBankingDetails.length; index++) {
         const banking = rawBankingDetails[index];
-        
+
         // Validate bank_acc_type
         if (!banking.bank_acc_type || String(banking.bank_acc_type).trim() === "") {
           return res.status(400).json({
@@ -532,7 +561,7 @@ if (uploadedFiles.event_images) {
 
         const ifscCode = String(banking.bank_ifsc).trim().toUpperCase();
         const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-        
+
         if (!ifscRegex.test(ifscCode)) {
           return res.status(400).json({
             message: `Invalid IFSC code format for banking detail ${index + 1}`,
@@ -596,11 +625,11 @@ if (uploadedFiles.event_images) {
           guest_profile: guest.guest_profile || existingSubEvent.guests?.[index]?.guest_profile || '',
           guest_link: guest.guest_link || ''
         };
-        
+
         if (guestProfileFiles[index]) {
           guestData.guest_profile = guestProfileFiles[index].path;
         }
-        
+
         return guestData;
       });
     } else if (existingSubEvent.guests) {
@@ -613,18 +642,18 @@ if (uploadedFiles.event_images) {
         const parsedPrice = Number(ticket.ticket_price) || 0;
         const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type:            ticket.ticket_type || "",
-          ticket_price:           parsedPrice,
-          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
-          ticket_gst_percentage:  appliedGSTPct,
-          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
-          ticket_gst_applicable:  gstApplicable,
-          max_capacity:           Number(ticket.max_capacity) || 0,
-          ticket_photo:           ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || "",
+          ticket_type: ticket.ticket_type || "",
+          ticket_price: parsedPrice,
+          ticket_base_price: gstApplicable ? basePrice : parsedPrice,
+          ticket_gst_percentage: appliedGSTPct,
+          ticket_gst_amount: gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable: gstApplicable,
+          max_capacity: Number(ticket.max_capacity) || 0,
+          ticket_photo: ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || "",
           ticket_photo_public_id: ticket.ticket_photo_public_id || existingSubEvent.ticket_types?.[index]?.ticket_photo_public_id || "",
         };
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo           = ticketPhotoFiles[index].path;
+          ticketData.ticket_photo = ticketPhotoFiles[index].path;
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         }
         return ticketData;
@@ -636,21 +665,69 @@ if (uploadedFiles.event_images) {
         const { basePrice, gstAmount } = extractGSTFromInclusive(inclPrice, appliedGSTPct);
         return {
           ...(t.toObject ? t.toObject() : t),
-          ticket_price:           inclPrice,
-          ticket_base_price:      gstApplicable ? basePrice : inclPrice,
-          ticket_gst_percentage:  appliedGSTPct,
-          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
-          ticket_gst_applicable:  gstApplicable,
+          ticket_price: inclPrice,
+          ticket_base_price: gstApplicable ? basePrice : inclPrice,
+          ticket_gst_percentage: appliedGSTPct,
+          ticket_gst_amount: gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable: gstApplicable,
         };
       });
     }
+
+    // Parse food and accommodation details
+    const parsedFoodAccoum = updateData.food_accoum !== undefined
+      ? Boolean(updateData.food_accoum === 'true' || updateData.food_accoum === true)
+      : existingSubEvent.food_accoum;
+
+    const parsedFoodAccoumType = updateData.food_accoum_type || existingSubEvent.food_accoum_type || 'none';
+
+    const parsedQuestionData = updateData.question_data !== undefined
+      ? Boolean(updateData.question_data === 'true' || updateData.question_data === true)
+      : existingSubEvent.question_data;
+
+    const parsedQuestionDetails = updateData.question_details
+      ? (typeof updateData.question_details === 'string'
+        ? parseJSONSafely(updateData.question_details, { name: false, email: false, phone_number: false, position: false })
+        : updateData.question_details)
+      : existingSubEvent.question_details || { name: false, email: false, phone_number: false, position: false };
+
+    let parsedFoodDetails = updateData.food_details ? parseJSONSafely(updateData.food_details, []) : existingSubEvent.food_details || [];
+    let parsedAccommodationDetails = updateData.accommodation_details ? parseJSONSafely(updateData.accommodation_details, []) : existingSubEvent.accommodation_details || [];
+
+    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
+      const foodItem = {
+        food_quantity: Number(item.food_quantity) || 0,
+        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+        food_catering_name: item.food_catering_name || "",
+        food_price: Number(item.food_price) || 0,
+        food_picture: item.food_picture || ""
+      };
+      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+        foodItem.food_picture = foodPictureFiles[index].path;
+      }
+      return foodItem;
+    });
+
+    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
+      const accItem = {
+        accommodation_quantity: Number(item.accommodation_quantity) || 0,
+        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+        accommodation_catering_name: item.accommodation_catering_name || "",
+        accommodation_price: Number(item.accommodation_price) || 0,
+        accommodation_picture: item.accommodation_picture || ""
+      };
+      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+        accItem.accommodation_picture = accommodationPictureFiles[index].path;
+      }
+      return accItem;
+    });
 
     // Build updated sub-event object
     const updatedSubEvent = {
       ...existingSubEvent.toObject(),
       ...updateData,
       _id: existingSubEvent._id,
-      
+
       // Basic fields
       event_name: updateData.event_name || existingSubEvent.event_name,
       event_category: updateData.event_category || existingSubEvent.event_category,
@@ -659,29 +736,38 @@ if (uploadedFiles.event_images) {
       location_type: updateData.location_type || existingSubEvent.location_type,
       min_age_allowed: updateData.min_age_allowed !== undefined ? Number(updateData.min_age_allowed) : existingSubEvent.min_age_allowed,
       max_age_allowed: updateData.max_age_allowed !== undefined ? Number(updateData.max_age_allowed) : existingSubEvent.max_age_allowed,
-      event_description: updateData.event_description || existingSubEvent.event_description,
+      event_description: updateData.event_description !== undefined ? sanitizeDescriptionHtml(updateData.event_description) : existingSubEvent.event_description,
       payment_type: updateData.payment_type || existingSubEvent.payment_type,
-      gst_applicable:       gstApplicable,
-      gst_percentage:       appliedGSTPct,
+      gst_applicable: gstApplicable,
+      gst_percentage: appliedGSTPct,
       gst_registered_group: groupHasGSTIN,
       // Boolean fields
       kids_friendly: updateData.kids_friendly !== undefined ? Boolean(updateData.kids_friendly === 'true' || updateData.kids_friendly === true) : existingSubEvent.kids_friendly,
       pet_friendly: updateData.pet_friendly !== undefined ? Boolean(updateData.pet_friendly === 'true' || updateData.pet_friendly === true) : existingSubEvent.pet_friendly,
       attendance_count: updateData.attendance_count !== undefined ? Boolean(updateData.attendance_count === 'true' || updateData.attendance_count === true) : existingSubEvent.attendance_count,
+      // restrict_booking: true = allow multiple tickets per person, false (default) = 1 ticket only
+      restrict_booking: updateData.restrict_booking !== undefined ? Boolean(updateData.restrict_booking === 'true' || updateData.restrict_booking === true) : existingSubEvent.restrict_booking,
+      food_accoum: parsedFoodAccoum,
+      food_accoum_type: parsedFoodAccoumType,
+      food_details: parsedFoodDetails,
+      accommodation_details: parsedAccommodationDetails,
+      question_data: parsedQuestionData,
+      question_details: parsedQuestionDetails,
       // Optional fields
       event_date_type: updateData.event_date_type || existingSubEvent.event_date_type,
+      recurring_type: updateData.recurring_type || existingSubEvent.recurring_type,
       event_instagram_link: updateData.event_instagram_link || existingSubEvent.event_instagram_link,
       event_youtube_link: updateData.event_youtube_link || existingSubEvent.event_youtube_link,
-      
+
       // Arrays
       event_language: updateData.event_language ? parseJSONSafely(updateData.event_language, []) : existingSubEvent.event_language,
       hashtag: updateData.hashtag ? parseJSONSafely(updateData.hashtag, []) : existingSubEvent.hashtag,
-      
+
       // Dates and capacity
       total_capacity: updateData.total_capacity || existingSubEvent.total_capacity,
       booking_start_date: updateData.booking_start_date || existingSubEvent.booking_start_date,
       booking_end_date: updateData.booking_end_date || existingSubEvent.booking_end_date,
-      
+
       // Nested objects
       guests: processedGuests,
       banking_details: validatedBankingDetails,
@@ -696,23 +782,23 @@ if (uploadedFiles.event_images) {
           video_file_path: date.video_file_path || "",
           preview_image_path: date.preview_image_path || "",
         };
-        
+
         if (date.start_time && String(date.start_time).trim() !== "") {
           dateEntry.start_time = date.start_time;
         }
         if (date.end_time && String(date.end_time).trim() !== "") {
           dateEntry.end_time = date.end_time;
         }
-        
+
         return dateEntry;
       }) : existingSubEvent.event_dates,
-      
+
       // File uploads with fallback to existing
       event_banner: processedFiles.event_banner || existingSubEvent.event_banner,
       event_logo: processedFiles.event_logo || existingSubEvent.event_logo,
-event_portrait: (processedFiles.event_portrait?.path || processedFiles.event_portrait) || 
-                       updateData.existing_event_portrait || 
-                       existingSubEvent.event_portrait,
+      event_portrait: (processedFiles.event_portrait?.path || processedFiles.event_portrait) ||
+        updateData.existing_event_portrait ||
+        existingSubEvent.event_portrait,
       event_portrait_public_id: processedFiles.event_portrait?.public_id || existingSubEvent.event_portrait_public_id,
       event_images: [
         ...(parseJSONSafely(updateData.existing_event_images, []).map(item => {
@@ -732,7 +818,7 @@ event_portrait: (processedFiles.event_portrait?.path || processedFiles.event_por
         })),
         ...(Array.isArray(processedFiles.event_images) ? processedFiles.event_images : (processedFiles.event_images ? [processedFiles.event_images] : []))
       ],
-event_videos: [
+      event_videos: [
         ...(parseJSONSafely(updateData.existing_event_videos, []).map(item => {
           if (typeof item === 'string') {
             return {
@@ -748,7 +834,7 @@ event_videos: [
         })),
         ...(Array.isArray(processedFiles.event_videos) ? processedFiles.event_videos : (processedFiles.event_videos ? [processedFiles.event_videos] : []))
       ],
-    
+
     };
 
     // Handle event_rules
@@ -757,7 +843,7 @@ event_videos: [
     } else if (updateData.event_rules_text) {
       updatedSubEvent.event_rules = {
         type: 'text',
-        content: String(updateData.event_rules_text).trim(),
+        content: sanitizeDescriptionHtml(updateData.event_rules_text),
         uploadedAt: new Date()
       };
     } else {
@@ -775,24 +861,24 @@ event_videos: [
       updatedSubEvent.seating_arrangement = updateData.seating_arrangement || existingSubEvent.seating_arrangement;
       updatedSubEvent.location = updateData.location || existingSubEvent.location;
       updatedSubEvent.venue = updateData.venue || existingSubEvent.venue;
-      
+
       let exactMapLocation = existingSubEvent.exact_map_location || {};
       if (updateData.exact_map_location) {
         try {
-          exactMapLocation = typeof updateData.exact_map_location === 'string' 
+          exactMapLocation = typeof updateData.exact_map_location === 'string'
             ? JSON.parse(updateData.exact_map_location)
             : updateData.exact_map_location;
         } catch (error) {
           console.warn('Error parsing exact_map_location:', error);
         }
       }
-      
+
       updatedSubEvent.exact_map_location = {
         latitude: exactMapLocation.latitude ? Number(exactMapLocation.latitude) : existingSubEvent.exact_map_location?.latitude,
         longitude: exactMapLocation.longitude ? Number(exactMapLocation.longitude) : existingSubEvent.exact_map_location?.longitude,
         address: exactMapLocation.address || existingSubEvent.exact_map_location?.address || ''
       };
-      
+
       updatedSubEvent.gate_open_time = updateData.gate_open_time || existingSubEvent.gate_open_time;
       updatedSubEvent.prohibited_items = updateData.prohibited_items ? parseJSONSafely(updateData.prohibited_items, []) : existingSubEvent.prohibited_items || [];
       updatedSubEvent.ticket_types = processedTicketTypes.length > 0 ? processedTicketTypes : [];
@@ -810,24 +896,24 @@ event_videos: [
       } else if (existingSubEvent.seating_layout) {
         updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
       }
-      
+
       // Clear online/recorded fields
       updatedSubEvent.event_link = undefined;
       updatedSubEvent.verification_event_code = undefined;
-      
+
     } else if (locationType === 'online' || locationType === 'recorded') {
       updatedSubEvent.event_link = updateData.event_link || existingSubEvent.event_link;
       updatedSubEvent.verification_event_code = updateData.verification_event_code || existingSubEvent.verification_event_code;
-      
+
       // Preserve prohibited_items and ticket_types for online/recorded events
-      updatedSubEvent.prohibited_items = updateData.prohibited_items 
-        ? parseJSONSafely(updateData.prohibited_items, []) 
+      updatedSubEvent.prohibited_items = updateData.prohibited_items
+        ? parseJSONSafely(updateData.prohibited_items, [])
         : (existingSubEvent.prohibited_items || []);
-      
+
       updatedSubEvent.ticket_types = processedTicketTypes.length > 0
         ? processedTicketTypes
         : [];
-      
+
       // Clear offline-specific fields
       updatedSubEvent.seating_arrangement = undefined;
       updatedSubEvent.location = undefined;
@@ -849,10 +935,10 @@ event_videos: [
       const seatsWithPrice = assignedSeats.filter(s => s.price > 0);
 
       // ✅ BLOCKING VALIDATION
-      const incompleteSeats = assignedSeats.filter(s => 
+      const incompleteSeats = assignedSeats.filter(s =>
         !s.ticketTypeName || s.ticketTypeName === '' || s.price === 0
       );
-      
+
       if (incompleteSeats.length > 0) {
         console.error('❌ BLOCKING SAVE: Found seats with incomplete data:', incompleteSeats.length);
         return res.status(400).json({
@@ -878,7 +964,7 @@ event_videos: [
     const savedTicket = await Ticket.findById(ticketId);
     const savedSubEvent = savedTicket.sub_events[subEventIndex];
     if (savedSubEvent.seating_layout && savedSubEvent.seating_layout.seats) {
-      
+
       const savedAssignedSeats = savedSubEvent.seating_layout.seats.filter(s => s.ticketTypeId);
       const savedSeatsWithTypeName = savedAssignedSeats.filter(s => s.ticketTypeName);
       const savedSeatsWithPrice = savedAssignedSeats.filter(s => s.price > 0);
@@ -920,10 +1006,10 @@ event_videos: [
         ticket_photos_uploaded: Object.keys(ticketPhotoFiles).length
       }
     });
-    
+
   } catch (error) {
     console.error('Error updating sub-event:', error);
-    
+
     if (error.name === 'ValidationError') {
       const validationErrors = Object.keys(error.errors).map(key => ({
         field: key,
@@ -934,7 +1020,7 @@ event_videos: [
         errors: validationErrors
       });
     }
-    
+
     // Cleanup uploaded files on error
     try {
       const filesToDelete = [];
@@ -943,40 +1029,48 @@ event_videos: [
       if (processedFiles.event_portrait_public_id) filesToDelete.push(processedFiles.event_portrait_public_id);
       if (processedFiles.ticket_layout_public_id) filesToDelete.push(processedFiles.ticket_layout_public_id);
       if (processedFiles.event_videos && Array.isArray(processedFiles.event_videos)) {
-      processedFiles.event_videos.forEach(vid => {
-        if (vid.public_id) filesToDelete.push(vid.public_id);
-      });
-    }
+        processedFiles.event_videos.forEach(vid => {
+          if (vid.public_id) filesToDelete.push(vid.public_id);
+        });
+      }
       if (processedFiles.event_images && Array.isArray(processedFiles.event_images)) {
-    processedFiles.event_images.forEach(img => {
-      if (img.public_id) filesToDelete.push(img.public_id);
+        processedFiles.event_images.forEach(img => {
+          if (img.public_id) filesToDelete.push(img.public_id);
 
 
+        });
+      }
+      if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
+        filesToDelete.push(processedFiles.event_rules.public_id);
+      }
+      Object.values(guestProfileFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      Object.values(foodPictureFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      Object.values(accommodationPictureFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      Object.values(ticketPhotoFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+
+      for (const publicId of filesToDelete) {
+        await deleteFromCloudinary(publicId);
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
+    }
+    res.status(500).json({
+      message: 'Failed to update sub-event',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
-  if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
-    filesToDelete.push(processedFiles.event_rules.public_id);
-  }
-  Object.values(guestProfileFiles).forEach(file => {
-    if (file.public_id) filesToDelete.push(file.public_id);
-  });
-  
-  Object.values(ticketPhotoFiles).forEach(file => {
-    if (file.public_id) filesToDelete.push(file.public_id);
-  });
-  
-  for (const publicId of filesToDelete) {
-    await deleteFromCloudinary(publicId);
-  }
-} catch (cleanupError) {
-  console.error("Error cleaning up Cloudinary files:", cleanupError);
-}
-res.status(500).json({
-  message: 'Failed to update sub-event',
-  error: error.message,
-  stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-});
-}
 };
 export const getGroupView = async (req, res) => {
   try {
@@ -1009,7 +1103,7 @@ export const getGroupView = async (req, res) => {
 
     return res.status(200).json({
       message: "Group retrieved successfully",
-      group:   group,
+      group: group,
     });
 
   } catch (error) {
@@ -1049,236 +1143,236 @@ export const getGroupById = async (req, res) => {
   }
 };
 export const getOtherGroupView = async (req, res) => {
-    try {
-        const ticketId = req.params.ticketId;
-        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).json({
-                message: "Invalid ticket ID format"
-            });
-        }
-        const ticket = await Ticket.findOne({ _id: ticketId });
-        if (!ticket) {
-            return res.status(404).json({
-                message: "Ticket not found"
-            });
-        }
-        const groupId = ticket.groupId;
-        const group = await Group.findOne({ _id: groupId });
-        if (!group) {
-            return res.status(404).json({
-                message: "Group not found"
-            });
-        }
-        res.status(200).json({
-            message: "Groups retrieved successfully",
-            group: group
-        });
+  try {
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
     }
-    catch (error) {
-        console.error("Error fetching group:", error);
-        res.status(500).json({  
-            message: "Internal server error",
-            error: error.message
-        });
+    const ticket = await Ticket.findOne({ _id: ticketId });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
     }
+    const groupId = ticket.groupId;
+    const group = await Group.findOne({ _id: groupId });
+    if (!group) {
+      return res.status(404).json({
+        message: "Group not found"
+      });
+    }
+    res.status(200).json({
+      message: "Groups retrieved successfully",
+      group: group
+    });
+  }
+  catch (error) {
+    console.error("Error fetching group:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyEvents = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ userId: userId,event_status: { $in: ['pending', 'confirmed', 'live', 'completed','cancelled'] } })
-        .sort({ updatedAt: -1 }) 
-        .exec();
-        res.status(200).json({
-            message: "My All Tickets retrieved successfully",
-            tickets: tickets
-        });
-    } catch (error) {
-        console.error("Error fetching tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
-};  
+  try {
+    const userId = req.user._id || req.user.id;
+    const tickets = await Ticket.find({ userId: userId, event_status: { $in: ['pending', 'confirmed', 'live', 'completed', 'cancelled'] } })
+      .sort({ updatedAt: -1 })
+      .exec();
+    res.status(200).json({
+      message: "My All Tickets retrieved successfully",
+      tickets: tickets
+    });
+  } catch (error) {
+    console.error("Error fetching tickets:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
 export const getMyEventById = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const ticketId = req.params.ticketId;
-        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).json({
-                message: "Invalid ticket ID format"
-            });
-        }
-        const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
-        if (!ticket) {
-            return res.status(404).json({
-                message: "Ticket not found"
-            });
-        }
-        res.status(200).json({
-            message: "My Ticket retrieved successfully",
-            ticket: ticket
-        });
-    } catch (error) {
-        console.error("Error fetching ticket:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
     }
+    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+    res.status(200).json({
+      message: "My Ticket retrieved successfully",
+      ticket: ticket
+    });
+  } catch (error) {
+    console.error("Error fetching ticket:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyLiveEvents = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const currentDate = new Date();
-        const tickets = await Ticket.find({ 
-            userId: userId, 
-            event_status: 'live',
-        }).sort({ updatedAt: -1 }) .exec();
-        res.status(200).json({
-            message: "My Live Tickets retrieved successfully",
-            tickets: tickets
-        });
-    }
-    catch (error) {
-        console.error("Error fetching live tickets:", error);
-        res.status(500).json({  
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const userId = req.user._id || req.user.id;
+    const currentDate = new Date();
+    const tickets = await Ticket.find({
+      userId: userId,
+      event_status: 'live',
+    }).sort({ updatedAt: -1 }).exec();
+    res.status(200).json({
+      message: "My Live Tickets retrieved successfully",
+      tickets: tickets
+    });
+  }
+  catch (error) {
+    console.error("Error fetching live tickets:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyLiveEventView = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const ticketId = req.params.ticketId;
-        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).json({
-                message: "Invalid ticket ID format"
-            });
-        }
-        const ticket = await Ticket.findOne({ 
-            _id: ticketId,
-            userId: userId,
-            event_status: 'live'
-        });
-        if (!ticket) {
-            return res.status(404).json({
-                message: "Live Ticket not found"
-            });
-        }
-        res.status(200).json({
-            message: "My Live Ticket View retrieved successfully",
-            ticket: ticket
-        });
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
     }
-    catch (error) {
-        console.error("Error fetching live ticket:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    const ticket = await Ticket.findOne({
+      _id: ticketId,
+      userId: userId,
+      event_status: 'live'
+    });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Live Ticket not found"
+      });
     }
+    res.status(200).json({
+      message: "My Live Ticket View retrieved successfully",
+      ticket: ticket
+    });
+  }
+  catch (error) {
+    console.error("Error fetching live ticket:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyPastEvents = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ 
-            userId: userId,
-            event_status: 'completed',
-        }).sort({ updatedAt: -1 }) .exec();
-        res.status(200).json({
-            message: "My Past Tickets retrieved successfully",
-            tickets: tickets
-        });
-    }
-    catch (error) {
-        console.error("Error fetching past tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const userId = req.user._id || req.user.id;
+    const tickets = await Ticket.find({
+      userId: userId,
+      event_status: 'completed',
+    }).sort({ updatedAt: -1 }).exec();
+    res.status(200).json({
+      message: "My Past Tickets retrieved successfully",
+      tickets: tickets
+    });
+  }
+  catch (error) {
+    console.error("Error fetching past tickets:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyPreviousEventView = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const ticketId = req.params.ticketId;
-        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).json({
-                message: "Invalid ticket ID format"
-            });
-        }
-        const ticket = await Ticket.findOne({ 
-            _id: ticketId,
-            userId: userId,
-            event_status: 'completed',
-        });
-        if (!ticket) {
-            return res.status(404).json({
-                message: "Past Ticket not found"
-            });
-        }
-        res.status(200).json({
-            message: "My Past Ticket View retrieved successfully",
-            ticket: ticket
-        });
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
     }
-    catch (error) {
-        console.error("Error fetching past ticket:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    const ticket = await Ticket.findOne({
+      _id: ticketId,
+      userId: userId,
+      event_status: 'completed',
+    });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Past Ticket not found"
+      });
     }
+    res.status(200).json({
+      message: "My Past Ticket View retrieved successfully",
+      ticket: ticket
+    });
+  }
+  catch (error) {
+    console.error("Error fetching past ticket:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getMyUpcomingEvents = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        
-        // Get current date (start of today)
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0);
-        
-        // Get all confirmed tickets for the user
-        const tickets = await Ticket.find({ 
-            userId: userId,
-            event_status: 'confirmed'
-        }).lean().sort({ updatedAt: -1 }) .exec(); // Use .lean() for better performance
-        
-        // Filter tickets where the event hasn't ended yet
-        const upcomingTickets = tickets.filter(ticket => {
-            if (ticket.event_dates && ticket.event_dates.length > 0) {
-                // Check the last date in event_dates array (end date of the event)
-                const lastEventDate = ticket.event_dates[ticket.event_dates.length - 1];
-                
-                // Use end_date if available, otherwise use start_date
-                const endDateString = lastEventDate.end_date || lastEventDate.start_date;
-                
-                if (endDateString) {
-                    const eventEndDate = new Date(endDateString);
-                    eventEndDate.setHours(23, 59, 59, 999); // Set to end of day
-                    
-                    // Include event if it hasn't ended yet (end date is today or in future)
-                    return eventEndDate >= currentDate;
-                }
-            }
-            return false;
-        });
-        
-        res.status(200).json({
-            message: "My upcoming events retrieved successfully",
-            tickets: upcomingTickets,
-            totalCount: upcomingTickets.length,
-            currentDate: currentDate.toISOString()
-        });
-    } catch (error) {
-        console.error("Error fetching upcoming events:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const userId = req.user._id || req.user.id;
+
+    // Get current date (start of today)
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+
+    // Get all confirmed tickets for the user
+    const tickets = await Ticket.find({
+      userId: userId,
+      event_status: 'confirmed'
+    }).lean().sort({ updatedAt: -1 }).exec(); // Use .lean() for better performance
+
+    // Filter tickets where the event hasn't ended yet
+    const upcomingTickets = tickets.filter(ticket => {
+      if (ticket.event_dates && ticket.event_dates.length > 0) {
+        // Check the last date in event_dates array (end date of the event)
+        const lastEventDate = ticket.event_dates[ticket.event_dates.length - 1];
+
+        // Use end_date if available, otherwise use start_date
+        const endDateString = lastEventDate.end_date || lastEventDate.start_date;
+
+        if (endDateString) {
+          const eventEndDate = new Date(endDateString);
+          eventEndDate.setHours(23, 59, 59, 999); // Set to end of day
+
+          // Include event if it hasn't ended yet (end date is today or in future)
+          return eventEndDate >= currentDate;
+        }
+      }
+      return false;
+    });
+
+    res.status(200).json({
+      message: "My upcoming events retrieved successfully",
+      tickets: upcomingTickets,
+      totalCount: upcomingTickets.length,
+      currentDate: currentDate.toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getOthersEvents = async (req, res) => {
   try {
@@ -1295,7 +1389,7 @@ export const getOthersEvents = async (req, res) => {
       const bLastEnd = bDates.length > 0 ? bDates[bDates.length - 1].end_date : null;
       const aDate = aLastEnd ? new Date(aLastEnd) : new Date(0);
       const bDate = bLastEnd ? new Date(bLastEnd) : new Date(0);
-      return bDate - aDate; 
+      return bDate - aDate;
     });
     res.status(200).json({
       message: "Other User Tickets retrieved successfully",
@@ -1310,87 +1404,87 @@ export const getOthersEvents = async (req, res) => {
     });
   }
 };
-export const getOthersEventsById = async(req, res)=>{
-  try{
-      const other = req.params.otherId;
-      const ticketId = req.params.ticketId;
-      if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-        return res.status(400).json({
-            message: "Invalid ticket ID format"
-        });
-      }
-      const tickets = await Ticket.findOne({ 
-                _id: ticketId,
-                userId: other,
-            });
-      if (!tickets) {
-        return res.status(404).json({
-            message: "Ticket not found"
-        });
-      }
-      res.status(200).json({
-        message: "Other user Ticket is fetched successfully",
-        tickets: tickets
+export const getOthersEventsById = async (req, res) => {
+  try {
+    const other = req.params.otherId;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
       });
-  }catch (error) {
+    }
+    const tickets = await Ticket.findOne({
+      _id: ticketId,
+      userId: other,
+    });
+    if (!tickets) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+    res.status(200).json({
+      message: "Other user Ticket is fetched successfully",
+      tickets: tickets
+    });
+  } catch (error) {
     console.error("Error fetching Other user Ticket", error);
     res.status(500).json({
-        message: "Internal server error",
-        error: error.message
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
-export const getOtherLiveEvents = async(req, res)=>{
+export const getOtherLiveEvents = async (req, res) => {
   try {
-      const other = req.params.otherId;
-      const currentDate = new Date();
-      const tickets = await Ticket.find({ 
-                userId: other,
-                event_status: 'live',
-                start_date: { $lte: currentDate },
-                end_date: { $gte: currentDate }
-            }).sort({ updatedAt: -1 }).exec();
-      res.status(200).json({
-            message: "Other User Live Tickets retrieved successfully",
-            tickets: tickets
-        });
+    const other = req.params.otherId;
+    const currentDate = new Date();
+    const tickets = await Ticket.find({
+      userId: other,
+      event_status: 'live',
+      start_date: { $lte: currentDate },
+      end_date: { $gte: currentDate }
+    }).sort({ updatedAt: -1 }).exec();
+    res.status(200).json({
+      message: "Other User Live Tickets retrieved successfully",
+      tickets: tickets
+    });
   } catch (error) {
     console.error("Error fetching Others Live tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
   }
 };
 export const getOthersPastEvents = async (req, res) => {
-    try {
-        const other = req.params.otherId;
-        const currentDate = new Date();
-        const tickets = await Ticket.find({ 
-            userId: other,
-            event_status: 'completed',
-            end_date: { $lt: currentDate }
-        });
-        res.status(200).json({
-            message: "other user Past Tickets retrieved successfully",
-            tickets: tickets
-        });
-    }
-    catch (error) {
-        console.error("Error fetching past tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const other = req.params.otherId;
+    const currentDate = new Date();
+    const tickets = await Ticket.find({
+      userId: other,
+      event_status: 'completed',
+      end_date: { $lt: currentDate }
+    });
+    res.status(200).json({
+      message: "other user Past Tickets retrieved successfully",
+      tickets: tickets
+    });
+  }
+  catch (error) {
+    console.error("Error fetching past tickets:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const getGroupTicketPercentages = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    
+
     // Fetch all groups for the user
     const groups = await Group.find({ userId: userId }).sort({ createdAt: -1 });
-    
+
     if (groups.length === 0) {
       return res.status(200).json({
         message: "No groups found for this user",
@@ -1398,11 +1492,11 @@ export const getGroupTicketPercentages = async (req, res) => {
       });
     }
     // Ensure groupIds are ObjectIds
-    const groupIds = groups.map(g => new mongoose.Types.ObjectId(g._id));    
+    const groupIds = groups.map(g => new mongoose.Types.ObjectId(g._id));
     // First, let's check if there are any tickets at all
     const totalTicketsCheck = await Ticket.countDocuments({
       groupId: { $in: groupIds }
-    });    
+    });
     // Single aggregation query to get ticket counts per group
     const ticketStats = await Ticket.aggregate([
       {
@@ -1417,10 +1511,10 @@ export const getGroupTicketPercentages = async (req, res) => {
           ticketCount: { $sum: 1 }
         }
       }
-    ]);    
+    ]);
     // Calculate total tickets
     const totalTickets = ticketStats.reduce((sum, stat) => sum + stat.ticketCount, 0);
-    
+
     if (totalTickets === 0) {
       return res.status(200).json({
         message: "No tickets found for any group",
@@ -1432,28 +1526,28 @@ export const getGroupTicketPercentages = async (req, res) => {
         }
       });
     }
-    
+
     // Create a map for ticket counts
     const ticketCountMap = {};
     ticketStats.forEach(stat => {
       ticketCountMap[stat._id.toString()] = stat.ticketCount;
     });
-    
+
     // Calculate percentages for each group
     const groupPercentages = {};
-    
+
     groups.forEach(group => {
       const groupTicketCount = ticketCountMap[group._id.toString()] || 0;
       const percentage = parseFloat(((groupTicketCount / totalTickets) * 100).toFixed(2));
       groupPercentages[group.name] = `${percentage}%`;
     });
-    
+
     res.status(200).json({
       message: "Group ticket percentages retrieved successfully",
       totalTickets: totalTickets,
       groupPercentages: groupPercentages
     });
-    
+
   } catch (error) {
     console.error("Error fetching group ticket percentages:", error);
     res.status(500).json({
@@ -1527,7 +1621,7 @@ export const confirmEvent = async (req, res) => {
     }
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId, userId: userId },
-      { 
+      {
         event_status: 'confirmed',
         updated_at: new Date()
       },
@@ -1535,8 +1629,8 @@ export const confirmEvent = async (req, res) => {
     );
 
     if (!updatedTicket) {
-      return res.status(404).json({ 
-        message: "Ticket not found or unauthorized" 
+      return res.status(404).json({
+        message: "Ticket not found or unauthorized"
       });
     }
     await updatedTicket.populate('groupId');
@@ -1546,13 +1640,13 @@ export const confirmEvent = async (req, res) => {
     });
   } catch (error) {
     console.error("Error confirming event:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
-export const goLiveEvent = async(req, res) => {
+export const goLiveEvent = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const ticketId = req.params.ticketId;
@@ -1562,11 +1656,11 @@ export const goLiveEvent = async(req, res) => {
       });
     }
     // Find ticket without populate first
-    const ticket = await Ticket.findOne({ 
-      _id: ticketId, 
-      userId: userId 
+    const ticket = await Ticket.findOne({
+      _id: ticketId,
+      userId: userId
     });
-    
+
     if (!ticket) {
       return res.status(404).json({
         message: "Ticket not found"
@@ -1576,7 +1670,7 @@ export const goLiveEvent = async(req, res) => {
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
     const expiredDates = [];
-    
+
     // Check event_dates array for start_date and end_date
     if (ticket.event_dates && ticket.event_dates.length > 0) {
       ticket.event_dates.forEach((dateObj, index) => {
@@ -1604,7 +1698,7 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Booking start date (${bookingStartDate.toLocaleDateString()})`);
       }
     }
-    
+
     // Check booking_end_date
     if (ticket.booking_end_date) {
       const bookingEndDate = new Date(ticket.booking_end_date);
@@ -1613,7 +1707,7 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Booking end date (${bookingEndDate.toLocaleDateString()})`);
       }
     }
-    
+
     // Check event start_date (fallback if not in event_dates array)
     if (ticket.start_date) {
       const eventStartDate = new Date(ticket.start_date);
@@ -1630,7 +1724,7 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Event end date (${eventEndDate.toLocaleDateString()})`);
       }
     }
-    
+
     // If any dates are expired, prevent going live
     if (expiredDates.length > 0) {
       return res.status(400).json({
@@ -1684,7 +1778,7 @@ export const goLiveEvent = async(req, res) => {
     });
   }
 };
-export const makeEventCompleted = async(req, res) => {
+export const makeEventCompleted = async (req, res) => {
   try {
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
@@ -1728,32 +1822,32 @@ export const makeEventCompleted = async(req, res) => {
   }
 };
 export const getPreviousEvents = async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ userId: userId, event_status: 'completed'})
-        .sort({ createdAt: -1 })
-        .exec();
-        res.status(200).json({
-            message: "My All Completed Tickets successfully",
-            tickets: tickets
-        });
-    } catch (error) {
-        console.error("Error fetching tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
+  try {
+    const userId = req.user._id || req.user.id;
+    const tickets = await Ticket.find({ userId: userId, event_status: 'completed' })
+      .sort({ createdAt: -1 })
+      .exec();
+    res.status(200).json({
+      message: "My All Completed Tickets successfully",
+      tickets: tickets
+    });
+  } catch (error) {
+    console.error("Error fetching tickets:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
 export const showEventBankDetails = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const tickets = await Ticket.find({ 
-      userId: userId, 
-      event_status: { $in: ['confirmed','live'] }
+    const tickets = await Ticket.find({
+      userId: userId,
+      event_status: { $in: ['confirmed', 'live'] }
     })
-    .sort({ createdAt: -1 })
-    .exec();
+      .sort({ createdAt: -1 })
+      .exec();
     const allBankDetails = [];
     tickets.forEach(ticket => {
       const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
@@ -1787,7 +1881,7 @@ export const showEventBankDetails = async (req, res) => {
                 bank_detail_id: bank._id
               });
             });
-          } 
+          }
         });
       }
     });
@@ -1808,7 +1902,7 @@ export const showEventBankDetails = async (req, res) => {
 export const showAllBankDetails = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    
+
     // Fetch all tickets and groups for the user
     const tickets = await Ticket.find({ userId: userId })
       .sort({ createdAt: -1 })
@@ -1860,9 +1954,9 @@ export const showAllBankDetails = async (req, res) => {
     });
     // Process Groups - Bank details are stored as individual fields
     groups.forEach(group => {
-      
+
       // Check if group has primary bank account details
-      if (group.primary_bank_acc_no && group.primary_bank_acc_no.trim() !== '') {        
+      if (group.primary_bank_acc_no && group.primary_bank_acc_no.trim() !== '') {
         allBankDetails.push({
           source_type: "Group",
           source_category: "Group",
@@ -1900,9 +1994,10 @@ export const showAllBankDetails = async (req, res) => {
 export const LiveEventBankDetails = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const tickets = await Ticket.find({ 
-      userId: userId, 
-      event_status: 'live' }).sort({ createdAt: -1 }).exec();
+    const tickets = await Ticket.find({
+      userId: userId,
+      event_status: 'live'
+    }).sort({ createdAt: -1 }).exec();
     const allBankDetails = [];
     tickets.forEach(ticket => {
       const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
@@ -2093,7 +2188,7 @@ export const groupEventCount = async (req, res) => {
         };
       })
     );
-    
+
     res.status(200).json({
       message: "Group event count retrieved successfully",
       groups: groupsWithEventCount,
@@ -2171,88 +2266,88 @@ export const totalEventsCreatedCount = async (req, res) => {
     });
   }
 };
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI'; 
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI';
 export const getPostalDetailsFromCoords = async (req, res) => {
-    const { lat, lng } = req.query; 
+  const { lat, lng } = req.query;
 
-    if (!lat || !lng) {
-        return res.status(400).json({ 
-            message: "Missing latitude or longitude parameters" 
-        });
+  if (!lat || !lng) {
+    return res.status(400).json({
+      message: "Missing latitude or longitude parameters"
+    });
+  }
+
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+
+  if (isNaN(latitude) || isNaN(longitude)) {
+    return res.status(400).json({
+      message: "Invalid latitude or longitude format"
+    });
+  }
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+
+  try {
+    // 2. Make external API request
+    const response = await axios.get(url);
+    const data = response.data;
+
+    // 3. Handle API failure states
+    if (data.status !== 'OK' || data.results.length === 0) {
+      return res.status(404).json({
+        message: "Location details not found for these coordinates",
+        status: data.status
+      });
     }
 
-    const latitude = parseFloat(lat);
-    const longitude = parseFloat(lng);
+    // 4. Extract required fields (Postal Code, State, Country)
+    const addressComponents = data.results[0].address_components;
 
-    if (isNaN(latitude) || isNaN(longitude)) {
-        return res.status(400).json({ 
-            message: "Invalid latitude or longitude format" 
-        });
+    let postalCode = null;
+    let state = null;
+    let country = null;
+    let locality = null;
+
+    for (const component of addressComponents) {
+      if (component.types.includes('postal_code')) {
+        postalCode = component.long_name;
+      }
+      if (component.types.includes('administrative_area_level_1')) {
+        state = component.long_name; // E.g., "Kerala"
+      }
+      if (component.types.includes('country')) {
+        country = component.long_name; // E.g., "India"
+      }
+      if (component.types.includes('locality') && !locality) {
+        locality = component.long_name;
+      }
+      // Often, the city/town is administrative_area_level_2 if 'locality' is missing
+      if (component.types.includes('administrative_area_level_2') && !locality) {
+        locality = component.long_name;
+      }
     }
 
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+    // 5. Respond with structured data
+    res.status(200).json({
+      message: "Location details retrieved successfully",
+      data: {
+        postalCode: postalCode || 'N/A',
+        state: state || 'N/A',
+        country: country || 'N/A',
+        locality: locality || 'N/A',
+        formattedAddress: data.results[0].formatted_address
+      }
+    });
 
-    try {
-        // 2. Make external API request
-        const response = await axios.get(url);
-        const data = response.data;
+  } catch (error) {
+    console.error("Error performing reverse geocoding:", error.message);
 
-        // 3. Handle API failure states
-        if (data.status !== 'OK' || data.results.length === 0) {
-            return res.status(404).json({ 
-                message: "Location details not found for these coordinates",
-                status: data.status 
-            });
-        }
 
-        // 4. Extract required fields (Postal Code, State, Country)
-        const addressComponents = data.results[0].address_components;
-
-        let postalCode = null;
-        let state = null;
-        let country = null;
-        let locality = null;
-
-        for (const component of addressComponents) {
-            if (component.types.includes('postal_code')) {
-                postalCode = component.long_name;
-            }
-            if (component.types.includes('administrative_area_level_1')) {
-                state = component.long_name; // E.g., "Kerala"
-            }
-            if (component.types.includes('country')) {
-                country = component.long_name; // E.g., "India"
-            }
-            if (component.types.includes('locality') && !locality) {
-                locality = component.long_name;
-            }
-            // Often, the city/town is administrative_area_level_2 if 'locality' is missing
-            if (component.types.includes('administrative_area_level_2') && !locality) {
-                locality = component.long_name;
-            }
-        }
-        
-        // 5. Respond with structured data
-        res.status(200).json({
-            message: "Location details retrieved successfully",
-            data: {
-                postalCode: postalCode || 'N/A',
-                state: state || 'N/A',
-                country: country || 'N/A',
-                locality: locality || 'N/A',
-                formattedAddress: data.results[0].formatted_address
-            }
-        });
-
-    } catch (error) {
-        console.error("Error performing reverse geocoding:", error.message);
-        
-        
-        res.status(500).json({
-            message: "Failed to retrieve postal details from external API",
-            error: error.message
-        });
-    }
+    res.status(500).json({
+      message: "Failed to retrieve postal details from external API",
+      error: error.message
+    });
+  }
 };
 export const getAddOnEventLiveView = async (req, res) => {
   try {
@@ -2356,9 +2451,9 @@ export const getPreviousEventStatistics = async (req, res) => {
     ];
 
     const quarterStats = [
-      { 
-        period: 'January - August', 
-        bookings: 0, 
+      {
+        period: 'January - August',
+        bookings: 0,
         earnings: 0,
         percentage: 0
       },
@@ -2412,8 +2507,8 @@ export const getPreviousEventView = async (req, res) => {
 
     // Calculate total capacity percentage
     const totalCapacity = parseInt(ticket.total_capacity) || 0;
-    const totalCapacityPercentage = totalCapacity > 0 
-      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100) 
+    const totalCapacityPercentage = totalCapacity > 0
+      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100)
       : 0;
 
     // Format sub-events with essential info only
@@ -2502,8 +2597,8 @@ export const getPreviousSubEventView = async (req, res) => {
     // Calculate total capacity percentage
     const totalCapacity = parseInt(subEvent.total_capacity) || 0;
     const totalTicketsSold = subEvent.totalTicketsSold || 0;
-    const totalCapacityPercentage = totalCapacity > 0 
-      ? Math.round((totalTicketsSold / totalCapacity) * 100) 
+    const totalCapacityPercentage = totalCapacity > 0
+      ? Math.round((totalTicketsSold / totalCapacity) * 100)
       : 0;
 
     res.status(200).json({
@@ -2549,7 +2644,7 @@ function generateQuarterlyStats(monthlyStats, startDate, endDate) {
   }
   const start = new Date(startDate);
   const end = new Date(endDate);
-  
+
   // Group months into quarters based on event duration
   const quarters = [];
   let currentQuarter = {
@@ -2567,11 +2662,11 @@ function generateQuarterlyStats(monthlyStats, startDate, endDate) {
     // Create quarter every 3 months or at the end
     if ((index + 1) % 3 === 0 || index === monthlyStats.length - 1) {
       currentQuarter.period = `${currentQuarter.months[0]} - ${currentQuarter.months[currentQuarter.months.length - 1]}`;
-      
+
       // Calculate percentage based on total tickets
       const totalBookings = monthlyStats.reduce((sum, m) => sum + m.bookings, 0);
-      currentQuarter.percentage = totalBookings > 0 
-        ? Math.round((currentQuarter.bookings / totalBookings) * 100) 
+      currentQuarter.percentage = totalBookings > 0
+        ? Math.round((currentQuarter.bookings / totalBookings) * 100)
         : 0;
 
       quarters.push({
@@ -2681,7 +2776,7 @@ export const getPreviousSubEventMonthlyStats = async (req, res) => {
 
     // Fetch monthly stats from transaction service for sub-event
     const monthlyStats = await fetchBookingStats(
-      subEventId, 
+      subEventId,
       `monthly?startDate=${startDate}&endDate=${endDate}`
     );
 
@@ -2739,8 +2834,8 @@ export const getPreviousEventCapacityStats = async (req, res) => {
 
     // Calculate overall capacity
     const totalCapacity = parseInt(ticket.total_capacity) || 0;
-    const totalCapacityPercentage = totalCapacity > 0 
-      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100) 
+    const totalCapacityPercentage = totalCapacity > 0
+      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100)
       : 0;
 
     // Process sub-events if they exist
@@ -2748,7 +2843,7 @@ export const getPreviousEventCapacityStats = async (req, res) => {
     if (ticket.sub_events && ticket.sub_events.length > 0) {
       for (const subEvent of ticket.sub_events) {
         const subTypeStats = await fetchBookingStats(subEvent._id, 'ticket-types');
-        
+
         const subTicketTypes = subEvent.ticket_types?.map(type => {
           const soldData = subTypeStats?.find(s => s.ticketType === type.ticket_type) || { soldCount: 0, revenue: 0 };
           const maxCapacity = type.max_capacity || 0;
@@ -2765,8 +2860,8 @@ export const getPreviousEventCapacityStats = async (req, res) => {
 
         const subTotalCapacity = parseInt(subEvent.total_capacity) || 0;
         const subTotalSold = subEvent.totalTicketsSold || 0;
-        const subPercentage = subTotalCapacity > 0 
-          ? Math.round((subTotalSold / subTotalCapacity) * 100) 
+        const subPercentage = subTotalCapacity > 0
+          ? Math.round((subTotalSold / subTotalCapacity) * 100)
           : 0;
 
         subEventStats.push({
@@ -2834,13 +2929,13 @@ export const getPreviousSubEventCapacityStats = async (req, res) => {
 
     // Calculate ticket type statistics with capacity for sub-event
     const ticketTypeStats = (subEvent.ticket_types || []).map(type => {
-      const soldData = typeStats?.find(s => s.ticketType === type.ticket_type) || { 
-        soldCount: 0, 
-        revenue: 0 
+      const soldData = typeStats?.find(s => s.ticketType === type.ticket_type) || {
+        soldCount: 0,
+        revenue: 0
       };
       const maxCapacity = type.max_capacity || 0;
-      const percentage = maxCapacity > 0 
-        ? Math.round((soldData.soldCount / maxCapacity) * 100) 
+      const percentage = maxCapacity > 0
+        ? Math.round((soldData.soldCount / maxCapacity) * 100)
         : 0;
 
       return {
@@ -2855,8 +2950,8 @@ export const getPreviousSubEventCapacityStats = async (req, res) => {
     // Calculate overall capacity for sub-event
     const totalCapacity = parseInt(subEvent.total_capacity) || 0;
     const totalSold = subEvent.totalTicketsSold || 0;
-    const totalCapacityPercentage = totalCapacity > 0 
-      ? Math.round((totalSold / totalCapacity) * 100) 
+    const totalCapacityPercentage = totalCapacity > 0
+      ? Math.round((totalSold / totalCapacity) * 100)
       : 0;
 
     res.status(200).json({
@@ -2892,21 +2987,21 @@ export const getEventMetrics = async (req, res) => {
     }
 
     let metrics = {};
-    let found   = false;
-    let paymentType = 'paid'; 
+    let found = false;
+    let paymentType = 'paid';
 
     let ticket = await Ticket.findOne({ _id: ticketId, userId });
 
     if (ticket) {
       paymentType = ticket.payment_type || 'paid';
       metrics = {
-        totalRevenue:       ticket.revenue          || 0,
-        totalBookings:      ticket.totalBookings     || 0,  
-        totalTicketsSold:   ticket.totalTicketsSold  || 0,  
-        totalLikes:         ticket.like              || 0,
-        totalShare:         ticket.share             || 0,
-        total_cancellation: ticket.total_cancellation|| 0,
-        paymentType,                                         
+        totalRevenue: ticket.revenue || 0,
+        totalBookings: ticket.totalBookings || 0,
+        totalTicketsSold: ticket.totalTicketsSold || 0,
+        totalLikes: ticket.like || 0,
+        totalShare: ticket.share || 0,
+        total_cancellation: ticket.total_cancellation || 0,
+        paymentType,
       };
       found = true;
     } else {
@@ -2920,11 +3015,11 @@ export const getEventMetrics = async (req, res) => {
         if (subEvent) {
           paymentType = subEvent.payment_type || ticket.payment_type || 'paid';
           metrics = {
-            totalRevenue:       subEvent.revenue           || 0,
-            totalBookings:      subEvent.totalBookings      || 0,
-            totalTicketsSold:   subEvent.totalTicketsSold   || 0,
-            totalLikes:         subEvent.like               || 0,
-            totalShare:         subEvent.share              || 0,
+            totalRevenue: subEvent.revenue || 0,
+            totalBookings: subEvent.totalBookings || 0,
+            totalTicketsSold: subEvent.totalTicketsSold || 0,
+            totalLikes: subEvent.like || 0,
+            totalShare: subEvent.share || 0,
             total_cancellation: subEvent.total_cancellation || 0,
             paymentType,
           };
@@ -2939,14 +3034,14 @@ export const getEventMetrics = async (req, res) => {
 
     res.status(200).json({
       message: 'Event metrics retrieved successfully',
-      data:    metrics,
+      data: metrics,
     });
 
   } catch (error) {
     console.error('Error fetching event metrics:', error);
     res.status(500).json({
       message: 'An error occurred while fetching event metrics',
-      error:   error.message,
+      error: error.message,
     });
   }
 };
@@ -2979,7 +3074,7 @@ export const getEventStatsByDate = async (req, res) => {
     }
 
     // Check if selected date is within event dates
-    const eventDates = isSubEvent 
+    const eventDates = isSubEvent
       ? ticket.sub_events.find(sub => sub._id.toString() === ticketId)?.event_dates
       : ticket.event_dates;
 
@@ -2992,7 +3087,7 @@ export const getEventStatsByDate = async (req, res) => {
     const endDate = new Date(eventDates[eventDates.length - 1].end_date || eventDates[0].end_date);
 
     if (selectedDateObj < startDate || selectedDateObj > endDate) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Your event is not present on the selected date",
         eventStartDate: startDate,
         eventEndDate: endDate
@@ -3052,7 +3147,7 @@ export const getEventGrowthStats = async (req, res) => {
 
     // Determine comparison type based on event dates
     let finalComparisonType = comparisonType || 'daily';
-    
+
     const eventDates = ticket.event_dates || [];
     if (eventDates.length > 0) {
       const startDate = new Date(eventDates[0].start_date);
@@ -3140,9 +3235,9 @@ export const getCancellationReport = async (req, res) => {
     const { ticketId, subEventId } = req.params;
     const userId = req.user?.id || req.user?._id;
 
-    let ticket     = null;
+    let ticket = null;
     let targetEvent = null;
-    let reportId   = ticketId; // ID used for booking lookup + filename
+    let reportId = ticketId; // ID used for booking lookup + filename
 
     if (subEventId) {
       // ── Sub-event report: ticketId = parentTicketId, subEventId = sub-event _id
@@ -3160,7 +3255,7 @@ export const getCancellationReport = async (req, res) => {
         return res.status(404).json({ success: false, message: 'Sub-event not found' });
       }
       targetEvent = subEvent;
-      reportId    = subEventId; // bookings are stored under sub-event ID
+      reportId = subEventId; // bookings are stored under sub-event ID
 
     } else {
       // ── Main event report
@@ -3179,7 +3274,7 @@ export const getCancellationReport = async (req, res) => {
 
     // Batch fetch user details
     const userIds = [...new Set(bookings.map(b => b.userId).filter(Boolean))];
-    const users   = userIds.length > 0 ? await getWieUsersByIds(userIds) : [];
+    const users = userIds.length > 0 ? await getWieUsersByIds(userIds) : [];
     const userMap = {};
     users.forEach(u => { userMap[u.id] = u; });
 
@@ -3189,21 +3284,21 @@ export const getCancellationReport = async (req, res) => {
       return sum + parseFloat(b.subtotal || '0');
     }, 0);
 
-    //  Build Excel 
-    const workbook   = new ExcelJS.Workbook();
+    //  Build Excel
+    const workbook = new ExcelJS.Workbook();
     workbook.creator = 'WIE Platform';
     workbook.created = new Date();
 
-    //  Sheet 1: Summary 
+    //  Sheet 1: Summary
     const summarySheet = workbook.addWorksheet('Cancellation Summary');
     summarySheet.columns = [{ width: 35 }, { width: 30 }];
 
     summarySheet.mergeCells('A1:B1');
-    const titleCell      = summarySheet.getCell('A1');
-    titleCell.value      = subEventId ? 'SUB-EVENT CANCELLATION REPORT' : 'EVENT CANCELLATION REPORT';
-    titleCell.font       = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
-    titleCell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
-    titleCell.alignment  = { horizontal: 'center', vertical: 'middle' };
+    const titleCell = summarySheet.getCell('A1');
+    titleCell.value = subEventId ? 'SUB-EVENT CANCELLATION REPORT' : 'EVENT CANCELLATION REPORT';
+    titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     summarySheet.getRow(1).height = 36;
 
     const addSummaryRow = (label, value, isHighlight = false) => {
@@ -3215,18 +3310,18 @@ export const getCancellationReport = async (req, res) => {
       row.height = 22;
     };
 
-    summarySheet.addRow([]); 
+    summarySheet.addRow([]);
 
-    //  Event info rows 
-    addSummaryRow('Event Name',    targetEvent.event_name || ticket.event_name || 'N/A');
-    addSummaryRow('Event ID',      reportId);
+    //  Event info rows
+    addSummaryRow('Event Name', targetEvent.event_name || ticket.event_name || 'N/A');
+    addSummaryRow('Event ID', reportId);
 
     if (subEventId) {
-      addSummaryRow('Parent Event Name', ticket.event_name  || 'N/A');
-      addSummaryRow('Parent Event ID',   ticketId);
+      addSummaryRow('Parent Event Name', ticket.event_name || 'N/A');
+      addSummaryRow('Parent Event ID', ticketId);
     }
 
-    addSummaryRow('Event Type',    isPaid ? 'Paid' : 'Free');
+    addSummaryRow('Event Type', isPaid ? 'Paid' : 'Free');
     addSummaryRow(
       'Event Date',
       targetEvent.event_dates?.[0]?.start_date
@@ -3239,32 +3334,32 @@ export const getCancellationReport = async (req, res) => {
       targetEvent.cancelled_at
         ? new Date(targetEvent.cancelled_at).toLocaleString('en-IN')
         : (ticket.cancelled_at
-            ? new Date(ticket.cancelled_at).toLocaleString('en-IN')
-            : 'N/A')
+          ? new Date(ticket.cancelled_at).toLocaleString('en-IN')
+          : 'N/A')
     );
     addSummaryRow(
       'Cancellation Reason',
       targetEvent.cancellation_reason
-        || ticket.cancellation_reason
-        || 'Not specified'
+      || ticket.cancellation_reason
+      || 'Not specified'
     );
 
     summarySheet.addRow([]);
 
-    const totalTicketsAffected  = bookings.reduce(
+    const totalTicketsAffected = bookings.reduce(
       (s, b) => s + (parseInt(b.quantity) || 1), 0
     );
     const modelTotalBookings = (subEventId ? targetEvent.totalBookings : ticket.totalBookings) ?? bookings.length;
     const modelTotalTicketsSold = (subEventId ? targetEvent.totalTicketsSold : ticket.totalTicketsSold) ?? 0;
-    const likesCount            = (subEventId ? targetEvent.like               : ticket.like)              ?? 0;
-    const sharesCount           = (subEventId ? targetEvent.share              : ticket.share)             ?? 0;
-    const cancellationCount     = (subEventId ? targetEvent.total_cancellation : ticket.total_cancellation) ?? 0;
+    const likesCount = (subEventId ? targetEvent.like : ticket.like) ?? 0;
+    const sharesCount = (subEventId ? targetEvent.share : ticket.share) ?? 0;
+    const cancellationCount = (subEventId ? targetEvent.total_cancellation : ticket.total_cancellation) ?? 0;
 
-    addSummaryRow('Total users Bookings',   modelTotalBookings);
-    addSummaryRow('Total Tickets Sold',    modelTotalTicketsSold);
-    addSummaryRow('Total Tickets in Report',   totalTicketsAffected);
-    addSummaryRow('Total Likes',               likesCount);
-    addSummaryRow('Total Shares',              sharesCount);
+    addSummaryRow('Total users Bookings', modelTotalBookings);
+    addSummaryRow('Total Tickets Sold', modelTotalTicketsSold);
+    addSummaryRow('Total Tickets in Report', totalTicketsAffected);
+    addSummaryRow('Total Likes', likesCount);
+    addSummaryRow('Total Shares', sharesCount);
     addSummaryRow('Total Tickets Cancellations', cancellationCount);
 
     summarySheet.addRow([]);
@@ -3293,82 +3388,84 @@ export const getCancellationReport = async (req, res) => {
     const detailSheet = workbook.addWorksheet('Booking Details');
     const headers = isPaid
       ? ['#', 'Booking ID', 'User Name', 'Email', 'Phone', 'Tickets Qty',
-         'Ticket Price (₹)', 'Subtotal (₹)', 'Platform Fee (₹)',
-         'Total Paid (₹)', 'Refund Amount (₹)', 'Refund Status', 'Booked At']
+        'Ticket Price (₹)', 'Subtotal (₹)', 'Platform Fee (₹)',
+        'Total Paid (₹)', 'Refund Amount (₹)', 'Refund Status', 'Booked At']
       : ['#', 'Booking ID', 'User Name', 'Email', 'Phone', 'Tickets Qty', 'Booked At', 'Status'];
 
     const headerRow = detailSheet.addRow(headers);
     headerRow.height = 28;
     headerRow.eachCell((cell) => {
-      cell.font      = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
-      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.border    = {
-        top:    { style: 'thin', color: { argb: 'FF6366F1' } },
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF6366F1' } },
         bottom: { style: 'thin', color: { argb: 'FF6366F1' } },
-        left:   { style: 'thin', color: { argb: 'FF6366F1' } },
-        right:  { style: 'thin', color: { argb: 'FF6366F1' } },
+        left: { style: 'thin', color: { argb: 'FF6366F1' } },
+        right: { style: 'thin', color: { argb: 'FF6366F1' } },
       };
     });
 
     detailSheet.columns = isPaid
       ? [
-          { width: 5  }, { width: 28 }, { width: 22 }, { width: 28 },
-          { width: 16 }, { width: 12 }, { width: 18 }, { width: 16 },
-          { width: 18 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 22 },
-        ]
+        { width: 5 }, { width: 28 }, { width: 22 }, { width: 28 },
+        { width: 16 }, { width: 12 }, { width: 18 }, { width: 16 },
+        { width: 18 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 22 },
+      ]
       : [
-          { width: 5  }, { width: 28 }, { width: 22 }, { width: 28 },
-          { width: 16 }, { width: 12 }, { width: 22 }, { width: 14 },
-        ];
+        { width: 5 }, { width: 28 }, { width: 22 }, { width: 28 },
+        { width: 16 }, { width: 12 }, { width: 22 }, { width: 14 },
+      ];
 
     bookings.forEach((booking, idx) => {
-      const user        = userMap[booking.userId] || {};
-      const subtotal    = parseFloat(booking.subtotal    || '0');
+      const user = userMap[booking.userId] || {};
+      const subtotal = parseFloat(booking.subtotal || '0');
       const platformFee = parseFloat(booking.platformFee || booking.platform_fee || '0');
-      const totalPaid   = subtotal + platformFee;
-      const bookedAt    = booking.createdAt
+      const totalPaid = subtotal + platformFee;
+      const bookedAt = booking.createdAt
         ? new Date(booking.createdAt).toLocaleString('en-IN') : 'N/A';
 
       const rowData = isPaid
         ? [
-            idx + 1,
-            booking.bookingId  || booking.id || 'N/A',
-            user.name          || user.username || 'N/A',
-            user.email         || 'N/A',
-            user.contact_no    || 'N/A',
-            booking.quantity   || 1,
-            parseFloat(booking.pricePerTicket || subtotal),
-            subtotal,
-            platformFee,
-            totalPaid,
-            subtotal, // refund = subtotal (100% of ticket value)
-            booking.refundStatus || 'PENDING',
-            bookedAt,
-          ]
+          idx + 1,
+          booking.bookingId || booking.id || 'N/A',
+          user.name || user.username || 'N/A',
+          user.email || 'N/A',
+          user.contact_no || 'N/A',
+          booking.quantity || 1,
+          parseFloat(booking.pricePerTicket || subtotal),
+          subtotal,
+          platformFee,
+          totalPaid,
+          subtotal, // refund = subtotal (100% of ticket value)
+          booking.refundStatus || 'PENDING',
+          bookedAt,
+        ]
         : [
-            idx + 1,
-            booking.bookingId  || booking.id || 'N/A',
-            user.name          || user.username || 'N/A',
-            user.email         || 'N/A',
-            user.contact_no    || 'N/A',
-            booking.quantity   || 1,
-            bookedAt,
-            booking.status     || 'CANCELLED',
-          ];
+          idx + 1,
+          booking.bookingId || booking.id || 'N/A',
+          user.name || user.username || 'N/A',
+          user.email || 'N/A',
+          user.contact_no || 'N/A',
+          booking.quantity || 1,
+          bookedAt,
+          booking.status || 'CANCELLED',
+        ];
 
       const dataRow = detailSheet.addRow(rowData);
       dataRow.height = 20;
-      const isEven   = idx % 2 === 0;
+      const isEven = idx % 2 === 0;
 
       dataRow.eachCell((cell, colNum) => {
-        cell.fill      = { type: 'pattern', pattern: 'solid',
-                           fgColor: { argb: isEven ? 'FFF5F3FF' : 'FFFFFFFF' } };
-        cell.border    = {
-          top:    { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        cell.fill = {
+          type: 'pattern', pattern: 'solid',
+          fgColor: { argb: isEven ? 'FFF5F3FF' : 'FFFFFFFF' }
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
           bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-          left:   { style: 'thin', color: { argb: 'FFE5E7EB' } },
-          right:  { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
         };
         cell.alignment = { horizontal: colNum <= 2 ? 'center' : 'left', vertical: 'middle' };
         if (isPaid && (colNum === 11 || colNum === 10)) {
@@ -3383,11 +3480,11 @@ export const getCancellationReport = async (req, res) => {
       finSheet.columns = [{ width: 35 }, { width: 20 }, { width: 20 }];
 
       finSheet.mergeCells('A1:C1');
-      const finTitleCell      = finSheet.getCell('A1');
-      finTitleCell.value      = 'FINANCIAL IMPACT SUMMARY';
-      finTitleCell.font       = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
-      finTitleCell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
-      finTitleCell.alignment  = { horizontal: 'center', vertical: 'middle' };
+      const finTitleCell = finSheet.getCell('A1');
+      finTitleCell.value = 'FINANCIAL IMPACT SUMMARY';
+      finTitleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      finTitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
+      finTitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
       finSheet.getRow(1).height = 32;
 
       finSheet.addRow([]);
@@ -3397,18 +3494,18 @@ export const getCancellationReport = async (req, res) => {
         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
       });
 
-      const totalTickets     = bookings.reduce((s, b) => s + (parseInt(b.quantity) || 1), 0);
+      const totalTickets = bookings.reduce((s, b) => s + (parseInt(b.quantity) || 1), 0);
       const totalPlatformFee = bookings.reduce(
         (s, b) => s + parseFloat(b.platformFee || b.platform_fee || '0'), 0
       );
 
       const finRows = [
-        ['Total Ticket Revenue (Host Share)',  totalRefunded.toFixed(2),                      'Amount to be refunded to users'],
-        ['Total Platform Fees Collected',      totalPlatformFee.toFixed(2),                   'Retained by WIE platform'],
-        ['Total Amount Collected',             (totalRefunded + totalPlatformFee).toFixed(2), 'Total from users'],
-        ['Net Host Loss',                      totalRefunded.toFixed(2),                      'Host loses this amount'],
-        ['Total Tickets to Refund',            totalTickets,                                  'Number of tickets'],
-        ['Total Bookings to Cancel',           bookings.length,                               'Number of booking records'],
+        ['Total Ticket Revenue (Host Share)', totalRefunded.toFixed(2), 'Amount to be refunded to users'],
+        ['Total Platform Fees Collected', totalPlatformFee.toFixed(2), 'Retained by WIE platform'],
+        ['Total Amount Collected', (totalRefunded + totalPlatformFee).toFixed(2), 'Total from users'],
+        ['Net Host Loss', totalRefunded.toFixed(2), 'Host loses this amount'],
+        ['Total Tickets to Refund', totalTickets, 'Number of tickets'],
+        ['Total Bookings to Cancel', bookings.length, 'Number of booking records'],
       ];
 
       finRows.forEach((row, i) => {
@@ -3417,8 +3514,10 @@ export const getCancellationReport = async (req, res) => {
         r.getCell(1).font = { bold: true };
         r.getCell(2).font = { color: { argb: i <= 3 ? 'FFDC2626' : 'FF111827' }, bold: i === 3 };
         r.eachCell(c => {
-          c.fill      = { type: 'pattern', pattern: 'solid',
-                          fgColor: { argb: i % 2 === 0 ? 'FFFFF5F5' : 'FFFFFFFF' } };
+          c.fill = {
+            type: 'pattern', pattern: 'solid',
+            fgColor: { argb: i % 2 === 0 ? 'FFFFF5F5' : 'FFFFFFFF' }
+          };
           c.alignment = { vertical: 'middle' };
         });
       });
@@ -3453,8 +3552,8 @@ export const cancelEvent = async (req, res) => {
     }
 
     const now = new Date();
-    let targetEvent   = null;
-    let isSubEvent    = false;
+    let targetEvent = null;
+    let isSubEvent = false;
     let subEventIndex = -1;
 
     if (subEventId) {
@@ -3465,12 +3564,12 @@ export const cancelEvent = async (req, res) => {
         return res.status(404).json({ message: "Sub-event not found" });
       }
       targetEvent = ticket.sub_events[subEventIndex];
-      isSubEvent  = true;
+      isSubEvent = true;
     } else {
       targetEvent = ticket;
     }
 
-    // Guard: already cancelled / completed / deleted 
+    // Guard: already cancelled / completed / deleted
     const nonCancellableStatuses = ["cancelled", "completed", "deleted"];
     if (nonCancellableStatuses.includes(targetEvent.event_status)) {
       return res.status(400).json({
@@ -3478,24 +3577,24 @@ export const cancelEvent = async (req, res) => {
       });
     }
 
-    // ── Refund tier calculation 
+    // ── Refund tier calculation
     const eventStartDate = targetEvent.event_dates?.[0]?.start_date;
     let refundPercentage = 100;
     let cancellationTier = "full_refund";
 
     if (eventStartDate) {
       const eventStart = new Date(eventStartDate);
-      const startTime  = targetEvent.event_dates?.[0]?.start_time;
+      const startTime = targetEvent.event_dates?.[0]?.start_time;
       if (startTime) {
         const [h, m, s] = startTime.split(":");
         eventStart.setHours(parseInt(h), parseInt(m), parseInt(s || 0));
       }
       const hoursUntilEvent = (eventStart - now) / (1000 * 60 * 60);
 
-      if      (hoursUntilEvent <= 0)  { refundPercentage = 0;   cancellationTier = "no_refund";   }
-      else if (hoursUntilEvent <= 24) { refundPercentage = 80;  cancellationTier = "event_day";   }
-      else if (hoursUntilEvent <= 48) { refundPercentage = 90;  cancellationTier = "last_day";    }
-      else                            { refundPercentage = 100; cancellationTier = "full_refund"; }
+      if (hoursUntilEvent <= 0) { refundPercentage = 0; cancellationTier = "no_refund"; }
+      else if (hoursUntilEvent <= 24) { refundPercentage = 80; cancellationTier = "event_day"; }
+      else if (hoursUntilEvent <= 48) { refundPercentage = 90; cancellationTier = "last_day"; }
+      else { refundPercentage = 100; cancellationTier = "full_refund"; }
     }
 
     // ── promotionResult declared here so the response block can always read it ─
@@ -3505,14 +3604,14 @@ export const cancelEvent = async (req, res) => {
     if (isSubEvent) {
 
       // Step 1: Snapshot metrics BEFORE status change (values are still valid now)
-      const se         = ticket.sub_events[subEventIndex];
-      const seMetrics  = se.lifecycle_metrics ?? {};
+      const se = ticket.sub_events[subEventIndex];
+      const seMetrics = se.lifecycle_metrics ?? {};
       const seSnapshot = {
-        like:               seMetrics.like               ?? se.like               ?? 0,
-        share:              seMetrics.share              ?? se.share              ?? 0,
-        totalBookings:      seMetrics.totalBookings      ?? se.totalBookings      ?? 0,
-        totalTicketsSold:   seMetrics.totalTicketsSold   ?? se.totalTicketsSold   ?? 0,
-        revenue:            seMetrics.revenue            ?? se.revenue            ?? 0,
+        like: seMetrics.like ?? se.like ?? 0,
+        share: seMetrics.share ?? se.share ?? 0,
+        totalBookings: seMetrics.totalBookings ?? se.totalBookings ?? 0,
+        totalTicketsSold: seMetrics.totalTicketsSold ?? se.totalTicketsSold ?? 0,
+        revenue: seMetrics.revenue ?? se.revenue ?? 0,
         total_cancellation: seMetrics.total_cancellation ?? se.total_cancellation ?? 0,
         total_refund_amount: 0, // calculated below if paid
       };
@@ -3525,7 +3624,7 @@ export const cancelEvent = async (req, res) => {
             const subtotal = parseFloat(b.subtotal || 0);
             return sum + parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
           }, 0);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // Step 2: Push to inline audit_history (immutable record inside sub-event)
@@ -3533,27 +3632,27 @@ export const cancelEvent = async (req, res) => {
         ticket.sub_events[subEventIndex].audit_history = [];
       }
       ticket.sub_events[subEventIndex].audit_history.push({
-        version:             se.version ?? 1,
-        cancelled_at:        now,
+        version: se.version ?? 1,
+        cancelled_at: now,
         cancellation_reason: cancellation_reason || "",
-        metrics_snapshot:    seSnapshot,
+        metrics_snapshot: seSnapshot,
       });
 
       // Step 3: Apply cancelled status
-      ticket.sub_events[subEventIndex].event_status        = "cancelled";
+      ticket.sub_events[subEventIndex].event_status = "cancelled";
       ticket.sub_events[subEventIndex].cancellation_reason = cancellation_reason || "";
-      ticket.sub_events[subEventIndex].cancelled_at        = now;
-      ticket.sub_events[subEventIndex].cancelled_by        = userId;
+      ticket.sub_events[subEventIndex].cancelled_at = now;
+      ticket.sub_events[subEventIndex].cancelled_by = userId;
 
       // Single markModified call covers the entire sub-event object
       ticket.markModified(`sub_events.${subEventIndex}`);
       await ticket.save();
       // Step 4: Save sub-event audit to TicketAudit table
       await snapshotAndLockSubEvent(ticket, se, {
-        cancelled_by:        userId,
+        cancelled_by: userId,
         cancellation_reason: cancellation_reason || '',
-        refund_percentage:   refundPercentage,
-        cancellation_tier:   cancellationTier,
+        refund_percentage: refundPercentage,
+        cancellation_tier: cancellationTier,
         total_refund_amount: seSnapshot.total_refund_amount ?? 0,
       });
       // Step 5: Cancel all CONFIRMED/PENDING bookings for this sub-event via transaction-service
@@ -3567,7 +3666,7 @@ export const cancelEvent = async (req, res) => {
       } catch (bookingCancelErr) {
         console.error('⚠️ Failed to cancel bookings for sub-event (non-blocking):', bookingCancelErr.message);
       }
-    // BRANCH B — MAIN EVENT CANCELLATION
+      // BRANCH B — MAIN EVENT CANCELLATION
     } else {
 
       // Step 1: Fetch bookings NOW (single fetch — used for both audit + refund map)
@@ -3580,11 +3679,11 @@ export const cancelEvent = async (req, res) => {
 
       // Step 2: Build refund map from the single fetch
       const bookingRefundMapTemp = {};
-      let   totalRefundAmount    = 0;
+      let totalRefundAmount = 0;
 
       if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
         bookingsForEvent.forEach((b) => {
-          const subtotal  = parseFloat(b.subtotal || 0);
+          const subtotal = parseFloat(b.subtotal || 0);
           const refundAmt = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
           bookingRefundMapTemp[b.userId] = refundAmt;
           totalRefundAmount += refundAmt;
@@ -3605,19 +3704,19 @@ export const cancelEvent = async (req, res) => {
       // Step 4: Re-fetch ticket after promotion (sub_events may have changed)
       const ticketToCancel = await Ticket.findById(ticketId);
       if (ticketToCancel) {
-        ticketToCancel.event_status        = "cancelled";
+        ticketToCancel.event_status = "cancelled";
         ticketToCancel.cancellation_reason = cancellation_reason || "";
-        ticketToCancel.cancelled_at        = now;
-        ticketToCancel.cancelled_by        = userId;
-        ticketToCancel.isMain              = false;
+        ticketToCancel.cancelled_at = now;
+        ticketToCancel.cancelled_by = userId;
+        ticketToCancel.isMain = false;
         await ticketToCancel.save();
 
         // Step 5: Snapshot & lock (uses already-saved cancelled ticket + pre-fetched refund total)
         await snapshotAndLockTicket(ticketToCancel, {
-          cancelled_by:        userId,
+          cancelled_by: userId,
           cancellation_reason: cancellation_reason || "",
-          refund_percentage:   refundPercentage,
-          cancellation_tier:   cancellationTier,
+          refund_percentage: refundPercentage,
+          cancellation_tier: cancellationTier,
           total_refund_amount: totalRefundAmount,
         });
       }
@@ -3633,13 +3732,13 @@ export const cancelEvent = async (req, res) => {
         console.error('⚠️ Failed to cancel bookings for main event (non-blocking):', bookingCancelErr.message);
       }
       // Assign to outer scope for publish block below
-      var _mainBookings        = bookingsForEvent;
+      var _mainBookings = bookingsForEvent;
       var _mainBookingRefundMap = bookingRefundMapTemp;
     }
 
     // For sub-event: fetch now (not fetched above in sub-event path except for refund calc)
     // For main event: reuse already-fetched data
-    let bookedUserIds    = [];
+    let bookedUserIds = [];
     let bookingRefundMap = {};
 
     if (isSubEvent) {
@@ -3648,7 +3747,7 @@ export const cancelEvent = async (req, res) => {
         bookedUserIds = subBookings.map((b) => b.userId);
         if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
           subBookings.forEach((b) => {
-            const subtotal  = parseFloat(b.subtotal || 0);
+            const subtotal = parseFloat(b.subtotal || 0);
             const refundAmt = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
             bookingRefundMap[b.userId] = refundAmt;
           });
@@ -3658,23 +3757,23 @@ export const cancelEvent = async (req, res) => {
       }
     } else {
       // Reuse what we already fetched in Branch B — no second DB call
-      bookedUserIds    = (_mainBookings        ?? []).map((b) => b.userId);
+      bookedUserIds = (_mainBookings ?? []).map((b) => b.userId);
       bookingRefundMap = (_mainBookingRefundMap ?? {});
     }
 
     try {
       await publishEventCancellation({
-        eventId:             isSubEvent ? subEventId : ticketId,
-        parentEventId:       isSubEvent ? ticketId   : null,
+        eventId: isSubEvent ? subEventId : ticketId,
+        parentEventId: isSubEvent ? ticketId : null,
         isSubEvent,
-        hostId:              userId.toString(),
-        groupId:             ticket.groupId?.toString(),
-        eventName:           targetEvent.event_name,
-        paymentType:         targetEvent.payment_type || ticket.payment_type,
+        hostId: userId.toString(),
+        groupId: ticket.groupId?.toString(),
+        eventName: targetEvent.event_name,
+        paymentType: targetEvent.payment_type || ticket.payment_type,
         refundPercentage,
         cancellationTier,
         cancellation_reason: cancellation_reason || "",
-        cancelledAt:         now.toISOString(),
+        cancelledAt: now.toISOString(),
         bookedUserIds,
         bookingRefundMap,
       });
@@ -3684,12 +3783,12 @@ export const cancelEvent = async (req, res) => {
 
     try {
       await createNotification({
-        userId:    userId.toString(),
-        type:      "event_cancelled",
-        title:     "Event Cancelled Successfully",
-        message:   `Your event "${targetEvent.event_name}" has been cancelled. Refund policy: ${cancellationTier} (${refundPercentage}% refund to attendees).`,
+        userId: userId.toString(),
+        type: "event_cancelled",
+        title: "Event Cancelled Successfully",
+        message: `Your event "${targetEvent.event_name}" has been cancelled. Refund policy: ${cancellationTier} (${refundPercentage}% refund to attendees).`,
         ticketId,
-        groupId:   ticket.groupId?.toString(),
+        groupId: ticket.groupId?.toString(),
         eventName: targetEvent.event_name,
       });
     } catch (notifErr) {
@@ -3701,8 +3800,8 @@ export const cancelEvent = async (req, res) => {
       message: `${isSubEvent ? "Sub-event" : "Event"} cancelled successfully`,
       data: {
         ticketId,
-        subEventId:   isSubEvent ? subEventId : null,
-        event_name:   targetEvent.event_name,
+        subEventId: isSubEvent ? subEventId : null,
+        event_name: targetEvent.event_name,
         event_status: "cancelled",
         cancelled_at: now,
         refundPolicy: {
@@ -3712,7 +3811,7 @@ export const cancelEvent = async (req, res) => {
         },
         ...(!isSubEvent && {
           promotion: {
-            promoted:        promotionResult?.promoted        || false,
+            promoted: promotionResult?.promoted || false,
             newMainTicketId: promotionResult?.newMainTicketId || null,
           },
         }),
@@ -3726,14 +3825,14 @@ export const cancelEvent = async (req, res) => {
     }
     return res.status(500).json({
       message: "Internal server error",
-      error:   error.message,
+      error: error.message,
     });
   }
 };
 
 export const rehostEvent = async (req, res) => {
   try {
-    const userId      = req.user._id || req.user.id;
+    const userId = req.user._id || req.user.id;
     const { ticketId } = req.params;
 
     const cancelledTicket = await Ticket.findOne({ _id: ticketId, userId });
@@ -3744,10 +3843,10 @@ export const rehostEvent = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only cancelled events can be re-hosted' });
     }
 
-    // ── Create a brand-new V2 ticket with fresh zero metrics 
+    // ── Create a brand-new V2 ticket with fresh zero metrics
     const newTicket = await rehostMainEventV2(cancelledTicket, userId);
 
-    //    demote it back as a sub-event under the new V2 ticket 
+    //    demote it back as a sub-event under the new V2 ticket
     const currentPromotedMain = await Ticket.findOne({
       original_main_event_id: cancelledTicket._id,
       userId,
@@ -3757,44 +3856,44 @@ export const rehostEvent = async (req, res) => {
     if (currentPromotedMain) {
       // Build sub-event object from promoted main (demote it)
       const demotedSubEvent = {
-        event_name:          currentPromotedMain.event_name,
-        event_category:      currentPromotedMain.event_category,
-        event_subcategory:   currentPromotedMain.event_subcategory,
-        event_type:          currentPromotedMain.event_type,
-        event_language:      currentPromotedMain.event_language     || [],
-        event_description:   currentPromotedMain.event_description,
-        event_banner:        currentPromotedMain.event_banner,
-        event_logo:          currentPromotedMain.event_logo,
-        event_images:        currentPromotedMain.event_images       || [],
-        event_portrait:      currentPromotedMain.event_portrait,
-        event_videos:        currentPromotedMain.event_videos       || [],
-        event_dates:         currentPromotedMain.event_dates,
-        event_date_type:     currentPromotedMain.event_date_type,
-        gate_open_time:      currentPromotedMain.gate_open_time,
-        location:            currentPromotedMain.location,
-        location_type:       currentPromotedMain.location_type,
-        venue:               currentPromotedMain.venue,
-        exact_map_location:  currentPromotedMain.exact_map_location,
+        event_name: currentPromotedMain.event_name,
+        event_category: currentPromotedMain.event_category,
+        event_subcategory: currentPromotedMain.event_subcategory,
+        event_type: currentPromotedMain.event_type,
+        event_language: currentPromotedMain.event_language || [],
+        event_description: currentPromotedMain.event_description,
+        event_banner: currentPromotedMain.event_banner,
+        event_logo: currentPromotedMain.event_logo,
+        event_images: currentPromotedMain.event_images || [],
+        event_portrait: currentPromotedMain.event_portrait,
+        event_videos: currentPromotedMain.event_videos || [],
+        event_dates: currentPromotedMain.event_dates,
+        event_date_type: currentPromotedMain.event_date_type,
+        gate_open_time: currentPromotedMain.gate_open_time,
+        location: currentPromotedMain.location,
+        location_type: currentPromotedMain.location_type,
+        venue: currentPromotedMain.venue,
+        exact_map_location: currentPromotedMain.exact_map_location,
         seating_arrangement: currentPromotedMain.seating_arrangement || 'none',
-        min_age_allowed:     currentPromotedMain.min_age_allowed     ?? 0,
-        max_age_allowed:     currentPromotedMain.max_age_allowed,
-        kids_friendly:       currentPromotedMain.kids_friendly       ?? false,
-        pet_friendly:        currentPromotedMain.pet_friendly        ?? false,
-        attendance_count:    currentPromotedMain.attendance_count    ?? false,
-        payment_type:        currentPromotedMain.payment_type,
-        ticket_types:        currentPromotedMain.ticket_types        || [],
-        banking_details:     currentPromotedMain.banking_details     || [],
-        guests:              currentPromotedMain.guests              || [],
-        POCS:                currentPromotedMain.POCS                || [],
-        hashtag:             currentPromotedMain.hashtag             || [],
-        prohibited_items:    currentPromotedMain.prohibited_items    || [],
-        total_capacity:      currentPromotedMain.total_capacity,
-        booking_start_date:  currentPromotedMain.booking_start_date,
-        booking_end_date:    currentPromotedMain.booking_end_date,
-        event_rules:         currentPromotedMain.event_rules,
-        event_status:        'confirmed',
-        main_ticket_id:      newTicket._id,
-        subevent:            '1',
+        min_age_allowed: currentPromotedMain.min_age_allowed ?? 0,
+        max_age_allowed: currentPromotedMain.max_age_allowed,
+        kids_friendly: currentPromotedMain.kids_friendly ?? false,
+        pet_friendly: currentPromotedMain.pet_friendly ?? false,
+        attendance_count: currentPromotedMain.attendance_count ?? false,
+        payment_type: currentPromotedMain.payment_type,
+        ticket_types: currentPromotedMain.ticket_types || [],
+        banking_details: currentPromotedMain.banking_details || [],
+        guests: currentPromotedMain.guests || [],
+        POCS: currentPromotedMain.POCS || [],
+        hashtag: currentPromotedMain.hashtag || [],
+        prohibited_items: currentPromotedMain.prohibited_items || [],
+        total_capacity: currentPromotedMain.total_capacity,
+        booking_start_date: currentPromotedMain.booking_start_date,
+        booking_end_date: currentPromotedMain.booking_end_date,
+        event_rules: currentPromotedMain.event_rules,
+        event_status: 'confirmed',
+        main_ticket_id: newTicket._id,
+        subevent: '1',
         // Reset metrics for this demoted sub-event under V2
         like: 0, share: 0, totalBookings: 0,
         totalTicketsSold: 0, revenue: 0, total_cancellation: 0,
@@ -3836,12 +3935,12 @@ export const rehostEvent = async (req, res) => {
     // Notify host
     try {
       await createNotification({
-        userId:    userId.toString(),
-        type:      'event_rehosted',
-        title:     'Event Re-hosted Successfully',
-        message:   `"${cancelledTicket.event_name}" has been re-hosted as V${newTicket.version}. All metrics reset to zero. Previous version is preserved for audit.`,
-        ticketId:  newTicket._id.toString(),
-        groupId:   newTicket.groupId?.toString(),
+        userId: userId.toString(),
+        type: 'event_rehosted',
+        title: 'Event Re-hosted Successfully',
+        message: `"${cancelledTicket.event_name}" has been re-hosted as V${newTicket.version}. All metrics reset to zero. Previous version is preserved for audit.`,
+        ticketId: newTicket._id.toString(),
+        groupId: newTicket.groupId?.toString(),
         eventName: newTicket.event_name,
       });
     } catch (notifErr) {
@@ -3852,14 +3951,14 @@ export const rehostEvent = async (req, res) => {
       success: true,
       message: 'Event re-hosted successfully as new version',
       data: {
-        newTicketId:        newTicket._id.toString(),
-        cancelledTicketId:  ticketId,
-        event_name:         newTicket.event_name,
-        event_status:       'confirmed',
-        version:            newTicket.version,
-        sub_events_count:   newTicket.sub_events?.length ?? 0,
-        metrics_reset:      true,
-        audit_preserved:    true,
+        newTicketId: newTicket._id.toString(),
+        cancelledTicketId: ticketId,
+        event_name: newTicket.event_name,
+        event_status: 'confirmed',
+        version: newTicket.version,
+        sub_events_count: newTicket.sub_events?.length ?? 0,
+        metrics_reset: true,
+        audit_preserved: true,
       },
     });
   } catch (error) {
@@ -3900,60 +3999,60 @@ export const rehostSubEvent = async (req, res) => {
     const oldObj = oldSubEvent.toObject ? oldSubEvent.toObject() : { ...oldSubEvent };
     const newSubEvent = {
       // Structure copied
-      event_name:          oldObj.event_name,
-      event_category:      oldObj.event_category,
-      event_subcategory:   oldObj.event_subcategory,
-      event_type:          oldObj.event_type,
-      event_language:      oldObj.event_language     || [],
-      event_description:   oldObj.event_description,
-      event_banner:        oldObj.event_banner,
-      event_logo:          oldObj.event_logo,
-      event_images:        oldObj.event_images       || [],
-      event_portrait:      oldObj.event_portrait,
-      event_videos:        oldObj.event_videos       || [],
-      event_dates:         oldObj.event_dates,
-      event_date_type:     oldObj.event_date_type,
-      gate_open_time:      oldObj.gate_open_time,
-      location:            oldObj.location,
-      location_type:       oldObj.location_type,
-      venue:               oldObj.venue,
-      exact_map_location:  oldObj.exact_map_location,
+      event_name: oldObj.event_name,
+      event_category: oldObj.event_category,
+      event_subcategory: oldObj.event_subcategory,
+      event_type: oldObj.event_type,
+      event_language: oldObj.event_language || [],
+      event_description: oldObj.event_description,
+      event_banner: oldObj.event_banner,
+      event_logo: oldObj.event_logo,
+      event_images: oldObj.event_images || [],
+      event_portrait: oldObj.event_portrait,
+      event_videos: oldObj.event_videos || [],
+      event_dates: oldObj.event_dates,
+      event_date_type: oldObj.event_date_type,
+      gate_open_time: oldObj.gate_open_time,
+      location: oldObj.location,
+      location_type: oldObj.location_type,
+      venue: oldObj.venue,
+      exact_map_location: oldObj.exact_map_location,
       seating_arrangement: oldObj.seating_arrangement || 'none',
-      min_age_allowed:     oldObj.min_age_allowed     ?? 0,
-      max_age_allowed:     oldObj.max_age_allowed,
-      kids_friendly:       oldObj.kids_friendly       ?? false,
-      pet_friendly:        oldObj.pet_friendly        ?? false,
-      attendance_count:    oldObj.attendance_count    ?? false,
-      payment_type:        oldObj.payment_type,
-      ticket_types:        oldObj.ticket_types        || [],
-      banking_details:     oldObj.banking_details     || [],
-      guests:              oldObj.guests              || [],
-      POCS:                oldObj.POCS                || [],
-      hashtag:             oldObj.hashtag             || [],
-      prohibited_items:    oldObj.prohibited_items    || [],
-      total_capacity:      oldObj.total_capacity,
-      booking_start_date:  oldObj.booking_start_date,
-      booking_end_date:    oldObj.booking_end_date,
-      event_rules:         oldObj.event_rules,
+      min_age_allowed: oldObj.min_age_allowed ?? 0,
+      max_age_allowed: oldObj.max_age_allowed,
+      kids_friendly: oldObj.kids_friendly ?? false,
+      pet_friendly: oldObj.pet_friendly ?? false,
+      attendance_count: oldObj.attendance_count ?? false,
+      payment_type: oldObj.payment_type,
+      ticket_types: oldObj.ticket_types || [],
+      banking_details: oldObj.banking_details || [],
+      guests: oldObj.guests || [],
+      POCS: oldObj.POCS || [],
+      hashtag: oldObj.hashtag || [],
+      prohibited_items: oldObj.prohibited_items || [],
+      total_capacity: oldObj.total_capacity,
+      booking_start_date: oldObj.booking_start_date,
+      booking_end_date: oldObj.booking_end_date,
+      event_rules: oldObj.event_rules,
       event_instagram_link: oldObj.event_instagram_link,
-      event_youtube_link:  oldObj.event_youtube_link,
-      subevent:            oldObj.subevent            || '1',
-      main_ticket_id:      parentTicket._id,
+      event_youtube_link: oldObj.event_youtube_link,
+      subevent: oldObj.subevent || '1',
+      main_ticket_id: parentTicket._id,
 
       // ── Fresh status ──
-      event_status:        'confirmed',
-      _id:                 new mongoose.Types.ObjectId(), // new _id
+      event_status: 'confirmed',
+      _id: new mongoose.Types.ObjectId(), // new _id
 
       // ── Versioning ──
-      version:             (oldObj.version ?? 1) + 1,
-      rehosted_from:       oldObj._id, // audit trail back to cancelled version
+      version: (oldObj.version ?? 1) + 1,
+      rehosted_from: oldObj._id, // audit trail back to cancelled version
 
       // ── RESET metrics (all zero) ──
-      like:               0,
-      share:              0,
-      totalBookings:      0,
-      totalTicketsSold:   0,
-      revenue:            0,
+      like: 0,
+      share: 0,
+      totalBookings: 0,
+      totalTicketsSold: 0,
+      revenue: 0,
       total_cancellation: 0,
       lifecycle_metrics: {
         like: 0, share: 0, totalBookings: 0,
@@ -3966,25 +4065,25 @@ export const rehostSubEvent = async (req, res) => {
 
       // ── Clear cancellation fields ──
       cancellation_reason: '',
-      cancelled_at:        undefined,
-      cancelled_by:        undefined,
-      rehosted_at:         new Date(),
+      cancelled_at: undefined,
+      cancelled_by: undefined,
+      rehosted_at: new Date(),
     };
 
-    // ── Step 3: Remove old cancelled sub-event, push new one 
+    // ── Step 3: Remove old cancelled sub-event, push new one
     parentTicket.sub_events.splice(subIdx, 1);
     parentTicket.sub_events.push(newSubEvent);
     parentTicket.markModified('sub_events');
     await parentTicket.save();
 
-    //  Step 4: Publish rehost event for notifications 
+    //  Step 4: Publish rehost event for notifications
     try {
-        await publishToExchange('wie.events', 'event.rehosted', {
-        eventId:       newSubEvent._id.toString(),
+      await publishToExchange('wie.events', 'event.rehosted', {
+        eventId: newSubEvent._id.toString(),
         parentEventId: parentTicketId,
-        isSubEvent:    true,
-        eventName:     newSubEvent.event_name,
-        rehostedAt:    new Date().toISOString(),
+        isSubEvent: true,
+        eventName: newSubEvent.event_name,
+        rehostedAt: new Date().toISOString(),
         bookedUserIds: [],
       });
     } catch (publishErr) {
@@ -3995,13 +4094,13 @@ export const rehostSubEvent = async (req, res) => {
       success: true,
       message: 'Sub-event re-hosted successfully as new version',
       data: {
-        newSubEventId:  newSubEvent._id.toString(),
-        oldSubEventId:  subEventId,
+        newSubEventId: newSubEvent._id.toString(),
+        oldSubEventId: subEventId,
         parentTicketId,
-        event_name:     newSubEvent.event_name,
-        event_status:   'confirmed',
-        version:        newSubEvent.version,
-        metrics_reset:  true,
+        event_name: newSubEvent.event_name,
+        event_status: 'confirmed',
+        version: newSubEvent.version,
+        metrics_reset: true,
         audit_preserved: true,
       },
     });
@@ -4061,9 +4160,9 @@ export const goLiveSubEvent = async (req, res) => {
       data: {
         subEventId,
         parentTicketId,
-        event_name:   subEvent.event_name,
+        event_name: subEvent.event_name,
         event_status: "live",
-        rehosted_at:  subEvent.rehosted_at || null,
+        rehosted_at: subEvent.rehosted_at || null,
       },
     });
   } catch (error) {
@@ -4101,9 +4200,9 @@ export const getEventVersions = async (req, res) => {
         { parent_event_id: originalEventId },
       ],
     })
-    .select('event_name event_status version lifecycle_metrics totalBookings revenue cancelled_at rehosted_at createdAt')
-    .sort({ version: 1 })
-    .lean();
+      .select('event_name event_status version lifecycle_metrics totalBookings revenue cancelled_at rehosted_at createdAt')
+      .sort({ version: 1 })
+      .lean();
 
     // Also get audit snapshots for cancelled versions
     const audits = await TicketAudit.find({
@@ -4132,8 +4231,8 @@ export const getSubEventAudit = async (req, res) => {
     const { parentEventId, subEventId } = req.params;
     const audit = await TicketAudit.findOne({
       original_ticket_id: parentEventId,
-      sub_event_id:       subEventId,
-      is_sub_event:       true,
+      sub_event_id: subEventId,
+      is_sub_event: true,
     }).lean();
 
     if (!audit) {
@@ -4171,12 +4270,12 @@ export const getEventFinancialSummaryHandler = async (req, res) => {
     }
 
     // Determine the event name for the response
-    const isSubEvent    = ticket._id.toString() !== ticketId;
-    const subEvent      = isSubEvent
+    const isSubEvent = ticket._id.toString() !== ticketId;
+    const subEvent = isSubEvent
       ? ticket.sub_events.find(se => se._id.toString() === ticketId)
       : null;
-    const eventName     = subEvent?.event_name || ticket.event_name || 'Event';
-    const paymentType   = subEvent?.payment_type || ticket.payment_type || 'paid';
+    const eventName = subEvent?.event_name || ticket.event_name || 'Event';
+    const paymentType = subEvent?.payment_type || ticket.payment_type || 'paid';
 
     return res.status(200).json({
       success: true,
@@ -4186,21 +4285,21 @@ export const getEventFinancialSummaryHandler = async (req, res) => {
         ticketId,
         // Host-visible revenue breakdown
         revenue: {
-          totalRevenue:       summary.totalRevenue,       // host's ticket income
-          totalRefunded:      summary.totalRefunded,      // money returned to users
-          netHostPayout:      summary.netHostPayout,      // what host receives after refunds
-          totalTax:           summary.totalTax,           // GST collected from users
+          totalRevenue: summary.totalRevenue,       // host's ticket income
+          totalRefunded: summary.totalRefunded,      // money returned to users
+          netHostPayout: summary.netHostPayout,      // what host receives after refunds
+          totalTax: summary.totalTax,           // GST collected from users
           // WIE internal — shown for transparency
-          totalPlatformFee:   summary.totalPlatformFee,
+          totalPlatformFee: summary.totalPlatformFee,
           totalConvenienceFee: summary.totalConvenienceFee,
         },
         bookings: {
-          totalConfirmed:    summary.totalConfirmedBookings,
-          totalCancelled:    summary.totalCancelledBookings,
-          totalTicketsSold:  summary.totalTicketsSold,
+          totalConfirmed: summary.totalConfirmedBookings,
+          totalCancelled: summary.totalCancelledBookings,
+          totalTicketsSold: summary.totalTicketsSold,
         },
-        byTicketType:        summary.byTicketType,
-        recentTransactions:  summary.recentTransactions,
+        byTicketType: summary.byTicketType,
+        recentTransactions: summary.recentTransactions,
       },
     });
   } catch (error) {
@@ -4212,7 +4311,7 @@ export const getEventFinancialSummaryHandler = async (req, res) => {
 export const getEventTransactionListHandler = async (req, res) => {
   try {
     const { ticketId } = req.params;
-    const userId       = req.user._id || req.user.id;
+    const userId = req.user._id || req.user.id;
     const { limit = 50, offset = 0, status = 'all' } = req.query;
 
     if (!ticketId?.match(/^[0-9a-fA-F]{24}$/)) {
@@ -4226,7 +4325,7 @@ export const getEventTransactionListHandler = async (req, res) => {
     }
 
     const result = await getEventTransactionList(ticketId, {
-      limit:  parseInt(limit),
+      limit: parseInt(limit),
       offset: parseInt(offset),
       status,
     });
@@ -4235,9 +4334,9 @@ export const getEventTransactionListHandler = async (req, res) => {
       success: true,
       data: {
         transactions: result.transactions || [],
-        total:        result.total        || 0,
-        limit:        parseInt(limit),
-        offset:       parseInt(offset),
+        total: result.total || 0,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
       },
     });
   } catch (error) {

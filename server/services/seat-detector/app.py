@@ -11,9 +11,6 @@ import os
 import json
 import math
 import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
 
 def sanitize_for_json(obj):
     if isinstance(obj, dict):

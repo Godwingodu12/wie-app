@@ -1,5 +1,5 @@
-import "dotenv/config";
 import express from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
 import http from 'http';
 import mongoose from 'mongoose';
@@ -9,6 +9,8 @@ import { initializeSocket, getIO } from './socket/socket.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { startEventCancellationConsumer,startBookingCancellationUpdateConsumer } from './consumers/eventCancellationConsumer.js';
 import { startEventRehostConsumer, startRefundSuccessConsumer } from './consumers/eventRehostConsumer.js';
+// Load environment variables
+dotenv.config();
 
 // Validate required environment variables
 const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'RABBITMQ_URL'];
@@ -185,7 +187,7 @@ const startServer = async () => {
     initializeSocket(server, JWT_SECRET);
     
     // Start Express server
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Notification Service running on port ${PORT}`);
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
     });

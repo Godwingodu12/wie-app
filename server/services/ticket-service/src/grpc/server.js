@@ -147,7 +147,47 @@ const mapSubEvents = (subEvents) => {
     revenue: sub.revenue || 0,
     createdAt: sub.createdAt?.toISOString() || '',
     updatedAt: sub.updatedAt?.toISOString() || '',
-    event_portrait: sub.event_portrait || ''
+    event_portrait: sub.event_portrait || '',
+    food_accoum: sub.food_accoum || false,
+    food_accoum_type: sub.food_accoum_type || 'none',
+    food_details: (sub.food_details || []).map(item => ({
+      food_quantity: item.food_quantity || 0,
+      food_menu: item.food_menu || [],
+      food_catering_name: item.food_catering_name || '',
+      food_price: item.food_price || 0,
+      food_picture: item.food_picture || ''
+    })),
+    accommodation_details: (sub.accommodation_details || []).map(item => ({
+      accommodation_quantity: item.accommodation_quantity || 0,
+      accommodation_type: item.accommodation_type || [],
+      accommodation_price: item.accommodation_price || 0,
+      accommodation_catering_name: item.accommodation_catering_name || '',
+      accommodation_picture: item.accommodation_picture || ''
+    })),
+    question_data: sub.question_data === true || sub.question_data === 1,
+    question_details: (() => {
+      const qd = sub.question_details || {};
+      // Support both old boolean-only format and new custom questions array
+      if (Array.isArray(qd)) return { custom_questions: qd };
+      return {
+        name: qd.name || false,
+        email: qd.email || false,
+        phone_number: qd.phone_number || false,
+        position: qd.position || false,
+        custom_questions: (qd.custom_questions || []).map(q => ({
+          question_id: q.question_id || q.id || q._id?.toString() || '',
+          question_text: q.question_text || q.question || q.label || '',
+          answer_type: q.answer_type || q.type || 'string',
+          is_required: q.is_required !== undefined ? q.is_required : (q.required !== undefined ? q.required : false),
+          options: q.options || q.choices || [],
+        })),
+      };
+    })(),
+    recurring_type: sub.recurring_type || 'none',
+    gst_applicable: sub.gst_applicable || false,
+    gst_percentage: sub.gst_percentage || 0,
+    attend_count: sub.attendance_count || false,
+    restrict_booking: sub.restrict_booking || false,
   }));
 };
 
@@ -280,7 +320,43 @@ const mapTicketToProto = (ticket) => {
     razorpayEnabled: false,
     razorpayKeyId: '',
     razorpayKeySecret: '',
-    event_portrait: ticket.event_portrait || ''
+    event_portrait: ticket.event_portrait || '',
+    restrict_booking: ticket.restrict_booking || false,
+    recurring_type: ticket.recurring_type || 'none',
+    food_accoum: ticket.food_accoum || false,
+    food_accoum_type: ticket.food_accoum_type || 'none',
+    food_details: (ticket.food_details || []).map(item => ({
+      food_quantity: item.food_quantity || 0,
+      food_menu: item.food_menu || [],
+      food_catering_name: item.food_catering_name || '',
+      food_price: item.food_price || 0,
+      food_picture: item.food_picture || ''
+    })),
+    accommodation_details: (ticket.accommodation_details || []).map(item => ({
+      accommodation_quantity: item.accommodation_quantity || 0,
+      accommodation_type: item.accommodation_type || [],
+      accommodation_price: item.accommodation_price || 0,
+      accommodation_catering_name: item.accommodation_catering_name || '',
+      accommodation_picture: item.accommodation_picture || ''
+    })),
+    question_data: ticket.question_data === true || ticket.question_data === 1,
+    question_details: (() => {
+      const qd = ticket.question_details || {};
+      if (Array.isArray(qd)) return { custom_questions: qd };
+      return {
+        name: qd.name || false,
+        email: qd.email || false,
+        phone_number: qd.phone_number || false,
+        position: qd.position || false,
+        custom_questions: (qd.custom_questions || []).map(q => ({
+          question_id: q.question_id || q.id || q._id?.toString() || '',
+          question_text: q.question_text || q.question || q.label || '',
+          answer_type: q.answer_type || q.type || 'string',
+          is_required: q.is_required !== undefined ? q.is_required : (q.required !== undefined ? q.required : false),
+          options: q.options || q.choices || [],
+        })),
+      };
+    })(),
   };
 };
 
@@ -317,10 +393,10 @@ const mapGroupToProto = (group) => {
 };
 const flattenEventsWithSubEvents = (tickets) => {
   const flattenedEvents = [];
-  
+
   tickets.forEach(ticket => {
     const ticketObj = ticket.toObject ? ticket.toObject() : ticket;
-    
+
     // Add main event
     flattenedEvents.push({
       ...ticketObj,
@@ -328,12 +404,12 @@ const flattenEventsWithSubEvents = (tickets) => {
       parentEventId: null,
       parentEventName: null
     });
-    
+
     // Add all sub-events if they exist
     if (ticketObj.sub_events && Array.isArray(ticketObj.sub_events) && ticketObj.sub_events.length > 0) {
       ticketObj.sub_events.forEach(subEvent => {
         const subEventObj = subEvent.toObject ? subEvent.toObject() : subEvent;
-        
+
         flattenedEvents.push({
           ...subEventObj,
           groupId: ticketObj.groupId,
@@ -357,7 +433,7 @@ const getAllLiveEvents = async (call, callback) => {
   try {
     const tickets = await Ticket.find({ event_status: 'live' }).sort({ createdAt: -1 });
     const flattenedEvents = flattenEventsWithSubEvents(tickets);
-    
+
     callback(null, {
       count: flattenedEvents.length,
       tickets: flattenedEvents.map(mapTicketToProto),
@@ -383,7 +459,7 @@ const getAllGroups = async (call, callback) => {
 const getTicketById = async (call, callback) => {
   try {
     const { ticketId } = call.request;
-    
+
     if (!ticketId || ticketId === 'undefined' || ticketId === 'null') {
       return callback(null, { ticket: null, error: 'Ticket ID is required' });
     }
@@ -395,19 +471,19 @@ const getTicketById = async (call, callback) => {
 
     // Try to find as main ticket
     let ticket = await Ticket.findById(ticketId);
-    
+
     if (ticket) {
       return callback(null, { ticket: mapTicketToProto(ticket), error: '' });
     }
 
     // Try to find as sub-event (silently, no logs)
     const parentTicket = await Ticket.findOne({ 'sub_events._id': ticketId });
-    
+
     if (parentTicket) {
       const subEvent = parentTicket.sub_events.find(
         se => se._id.toString() === ticketId
       );
-      
+
       if (subEvent) {
         const subEventData = {
           ...subEvent.toObject(),
@@ -427,7 +503,7 @@ const getTicketById = async (call, callback) => {
     }
     // Not found - return silently without warning
     return callback(null, { ticket: null, error: 'Ticket not found' });
-    
+
   } catch (error) {
     console.error('❌ [gRPC Server] Error in getTicketById:', error);
     return callback(null, { ticket: null, error: error.message });
@@ -478,13 +554,13 @@ const updateTicketStats = async (call, callback) => {
       ).lean();
 
       return callback(null, {
-        success:        true,
+        success: true,
         ticketId,
         parentTicketId: '',
-        isSubEvent:     false,
+        isSubEvent: false,
         statType,
-        newValue:       updated?.[statType] ?? 0,
-        error:          '',
+        newValue: updated?.[statType] ?? 0,
+        error: '',
       });
     }
 
@@ -511,13 +587,13 @@ const updateTicketStats = async (call, callback) => {
     const updatedSub = updatedParent?.sub_events?.[subIndex];
 
     return callback(null, {
-      success:        true,
+      success: true,
       ticketId,
       parentTicketId: parent._id.toString(),
-      isSubEvent:     true,
+      isSubEvent: true,
       statType,
-      newValue:       updatedSub?.[statType] ?? 0,
-      error:          '',
+      newValue: updatedSub?.[statType] ?? 0,
+      error: '',
     });
 
   } catch (error) {
@@ -557,10 +633,10 @@ const getTicketBookingStats = async (call, callback) => {
       !/^[a-f\d]{24}$/i.test(ticketId)
     ) {
       return callback(null, {
-        totalBookings:    0,
-        totalRevenue:     0,
+        totalBookings: 0,
+        totalRevenue: 0,
         totalTicketsSold: 0,
-        error:            '', 
+        error: '',
       });
     }
 
@@ -570,10 +646,10 @@ const getTicketBookingStats = async (call, callback) => {
 
     if (ticket) {
       return callback(null, {
-        totalBookings:    ticket.totalBookings    || 0,
-        totalRevenue:     ticket.revenue          || 0,
+        totalBookings: ticket.totalBookings || 0,
+        totalRevenue: ticket.revenue || 0,
         totalTicketsSold: ticket.totalTicketsSold || 0,
-        error:            '',
+        error: '',
       });
     }
 
@@ -586,28 +662,28 @@ const getTicketBookingStats = async (call, callback) => {
       const sub = parent.sub_events?.[0];
       if (sub) {
         return callback(null, {
-          totalBookings:    sub.totalBookings    || 0,
-          totalRevenue:     sub.revenue          || 0,
+          totalBookings: sub.totalBookings || 0,
+          totalRevenue: sub.revenue || 0,
           totalTicketsSold: sub.totalTicketsSold || 0,
-          error:            '',
+          error: '',
         });
       }
     }
 
     return callback(null, {
-      totalBookings:    0,
-      totalRevenue:     0,
+      totalBookings: 0,
+      totalRevenue: 0,
       totalTicketsSold: 0,
-      error:            '',
+      error: '',
     });
 
   } catch (error) {
     console.error('❌ [gRPC Server] Error in GetTicketBookingStats:', error);
     callback(null, {
-      totalBookings:    0,
-      totalRevenue:     0,
+      totalBookings: 0,
+      totalRevenue: 0,
       totalTicketsSold: 0,
-      error:            error.message,
+      error: error.message,
     });
   }
 };
@@ -653,7 +729,7 @@ const updateTicketCancellation = async (call, callback) => {
       const subEvent = ticket.sub_events[subEventIndex];
       const currentCancellations = subEvent.total_cancellation || 0;
       const newCancellations = currentCancellations + increment;
-      
+
       subEvent.total_cancellation = newCancellations;
       ticket.markModified('sub_events');
       await ticket.save();
@@ -905,18 +981,18 @@ const getCancelledEvents = async (call, callback) => {
     // Root cancelled tickets
     cancelledRootTickets.forEach((ticket) => {
       events.push({
-        eventId:             ticket._id.toString(),
-        parentEventId:       "",
-        isSubEvent:          false,
-        event_name:          ticket.event_name || "",
-        event_status:        ticket.event_status || "cancelled",
-        event_banner:        ticket.event_banner || "",
-        event_category:      ticket.event_category || "",
-        cancelled_at:        ticket.cancelled_at ? ticket.cancelled_at.toISOString() : "",
+        eventId: ticket._id.toString(),
+        parentEventId: "",
+        isSubEvent: false,
+        event_name: ticket.event_name || "",
+        event_status: ticket.event_status || "cancelled",
+        event_banner: ticket.event_banner || "",
+        event_category: ticket.event_category || "",
+        cancelled_at: ticket.cancelled_at ? ticket.cancelled_at.toISOString() : "",
         cancellation_reason: ticket.cancellation_reason || "",
-        event_dates:         ticket.event_dates || [],
-        location:            ticket.location || "",
-        venue:               ticket.venue || "",
+        event_dates: ticket.event_dates || [],
+        location: ticket.location || "",
+        venue: ticket.venue || "",
       });
     });
 
@@ -931,18 +1007,18 @@ const getCancelledEvents = async (call, callback) => {
       (ticket.sub_events || []).forEach((se) => {
         if (se.event_status === "cancelled") {
           events.push({
-            eventId:             se._id.toString(),
-            parentEventId:       ticket._id.toString(),
-            isSubEvent:          true,
-            event_name:          se.event_name || "",
-            event_status:        se.event_status || "cancelled",
-            event_banner:        se.event_banner || ticket.event_banner || "",
-            event_category:      se.event_category || ticket.event_category || "",
-            cancelled_at:        se.cancelled_at ? new Date(se.cancelled_at).toISOString() : "",
+            eventId: se._id.toString(),
+            parentEventId: ticket._id.toString(),
+            isSubEvent: true,
+            event_name: se.event_name || "",
+            event_status: se.event_status || "cancelled",
+            event_banner: se.event_banner || ticket.event_banner || "",
+            event_category: se.event_category || ticket.event_category || "",
+            cancelled_at: se.cancelled_at ? new Date(se.cancelled_at).toISOString() : "",
             cancellation_reason: se.cancellation_reason || ticket.cancellation_reason || "",
-            event_dates:         se.event_dates || [],
-            location:            se.location || ticket.location || "",
-            venue:               se.venue || ticket.venue || "",
+            event_dates: se.event_dates || [],
+            location: se.location || ticket.location || "",
+            venue: se.venue || ticket.venue || "",
           });
         }
       });
@@ -971,17 +1047,17 @@ const getRehostedEvents = async (call, callback) => {
 
     rehostedRootTickets.forEach((ticket) => {
       events.push({
-        eventId:       ticket._id.toString(),
+        eventId: ticket._id.toString(),
         parentEventId: "",
-        isSubEvent:    false,
-        event_name:    ticket.event_name || "",
-        event_status:  ticket.event_status || "",
-        event_banner:  ticket.event_banner || "",
+        isSubEvent: false,
+        event_name: ticket.event_name || "",
+        event_status: ticket.event_status || "",
+        event_banner: ticket.event_banner || "",
         event_category: ticket.event_category || "",
-        rehosted_at:   ticket.rehosted_at ? ticket.rehosted_at.toISOString() : "",
-        event_dates:   ticket.event_dates || [],
-        location:      ticket.location || "",
-        venue:         ticket.venue || "",
+        rehosted_at: ticket.rehosted_at ? ticket.rehosted_at.toISOString() : "",
+        event_dates: ticket.event_dates || [],
+        location: ticket.location || "",
+        venue: ticket.venue || "",
       });
     });
 
@@ -996,17 +1072,17 @@ const getRehostedEvents = async (call, callback) => {
       (ticket.sub_events || []).forEach((se) => {
         if (se.rehosted_at && ["confirmed", "live"].includes(se.event_status)) {
           events.push({
-            eventId:       se._id.toString(),
+            eventId: se._id.toString(),
             parentEventId: ticket._id.toString(),
-            isSubEvent:    true,
-            event_name:    se.event_name || "",
-            event_status:  se.event_status || "",
-            event_banner:  se.event_banner || ticket.event_banner || "",
+            isSubEvent: true,
+            event_name: se.event_name || "",
+            event_status: se.event_status || "",
+            event_banner: se.event_banner || ticket.event_banner || "",
             event_category: se.event_category || ticket.event_category || "",
-            rehosted_at:   se.rehosted_at ? new Date(se.rehosted_at).toISOString() : "",
-            event_dates:   se.event_dates || [],
-            location:      se.location || ticket.location || "",
-            venue:         se.venue || ticket.venue || "",
+            rehosted_at: se.rehosted_at ? new Date(se.rehosted_at).toISOString() : "",
+            event_dates: se.event_dates || [],
+            location: se.location || ticket.location || "",
+            venue: se.venue || ticket.venue || "",
           });
         }
       });
@@ -1040,10 +1116,9 @@ export const startGrpcServer = (port = 50052) => {
     grpc.ServerCredentials.createInsecure(),
     (error, boundPort) => {
       if (error) {
-        console.error("❌ gRPC server failed to bind:", error);
+        console.error("gRPC server failed to bind:", error);
         return;
       }
-      console.log(`✅ gRPC server running on port ${boundPort}`);
     }
   );
   return server;

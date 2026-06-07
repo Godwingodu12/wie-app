@@ -1,17 +1,13 @@
 import mongoose from 'mongoose';
-import dns from 'dns';
 
 class Database {
   private isConnectedFlag = false;
 
   async connect(): Promise<void> {
     try {
-      dns.setServers(["8.8.8.8", "8.8.4.4"]);
       const mongoUri = process.env.MONGO_URI || 'mongodb+srv://gokulgopalan51_db_user:CygJ0mw43gL01T0l@cluster0.a6jitjg.mongodb.net/follow-service?retryWrites=true&w=majority&appName=Cluster0';
       
-      await mongoose.connect(mongoUri, {
-        family: 4
-      });
+      await mongoose.connect(mongoUri);
       
       this.isConnectedFlag = true;
       console.log('✅ MongoDB connected successfully');

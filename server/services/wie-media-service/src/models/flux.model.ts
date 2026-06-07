@@ -15,16 +15,16 @@ export interface IFluxComment {
   userId: string;
   text: string;
   likes: string[]; // userIds who liked this comment
-  replies: {
-    userId: string;
-    text: string;
-    createdAt: Date;
-  }[];
   createdAt: Date;
 }
 export interface IFluxLike {
   userId: string;
   emoji: string; // "❤️" default, or any reaction emoji
+  createdAt: Date;
+}
+export interface IFluxReply {
+  senderId: string;
+  message: string;
   createdAt: Date;
 }
 export interface mentionFlux {
@@ -39,13 +39,6 @@ export type FluxVisibility =
   | "only_me";
 export type FluxMediaType = "image" | "video";
 
-export interface IFluxTag {
-  userId: string;
-  x: number;
-  y: number;
-  mediaIndex: number;
-}
-
 export interface IFlux extends Document {
   userId: string;
   mediaUrl: string;
@@ -59,13 +52,6 @@ export interface IFlux extends Document {
   height?: number;
   format?: string;
   bytes?: number;
-  // Documentation Fields
-  taggedUsers: IFluxTag[];
-  mentions: string[]; // Standardized to flat string array per docs
-  shareCount: number;
-  saveCount: number;
-  savedBy: string[]; // userIds who saved this post
-  
   // Location sticker (stored as a structured object, not just caption)
   locationLabel?: string;
   locationPlaceId?: string;
@@ -93,6 +79,8 @@ export interface IFlux extends Document {
   hiddenFrom: string[];
   views: IFluxView[];
   reactions: IFluxReaction[];
+  mentions: mentionFlux[];
+  replies: IFluxReply[];
   reMentions: { userId: string; comment: string; createdAt: Date }[];
   comments: IFluxComment[];
   likes: IFluxLike[];
@@ -101,18 +89,14 @@ export interface IFlux extends Document {
   isArchived: boolean;
   isDeleted: boolean;
   commentsDisabled: boolean;
-  isAiGenerated: boolean;
   isPersistent: boolean;
   createdAt: Date;
   updatedAt: Date;
 
   // virtuals
   viewCount: number;
-  likeCount: number;
-  commentCount: number;
   reactionCount: number;
   isExpired: boolean;
-  isStory: boolean;
 }
 
 const FluxSchema = new Schema<IFlux>(
@@ -137,33 +121,7 @@ const FluxSchema = new Schema<IFlux>(
     height: { type: Number },
     format: { type: String },
     bytes: { type: Number },
-    
-    // Documentation Compliance Fields
-    taggedUsers: {
-      type: [
-        {
-          userId: { type: String, required: true },
-          x: { type: Number, required: true },
-          y: { type: Number, required: true },
-          mediaIndex: { type: Number, default: 0 },
-        },
-      ],
-      default: [],
-    },
-    mentions: { type: [String], default: [] },
-    shareCount: { type: Number, default: 0 },
-    saveCount: { type: Number, default: 0 },
-    savedBy: { type: [String], default: [], index: true },
 
-    mediaItems: [
-      {
-        url: { type: String, required: true },
-        mediaType: { type: String, enum: ["image", "video"], default: "image" },
-        cloudinaryPublicId: { type: String },
-        cloudinaryResourceType: { type: String },
-        thumbnailUrl: { type: String },
-      },
-    ],
     musicId: { type: String },
     musicTitle: { type: String },
     musicArtist: { type: String },
@@ -206,6 +164,16 @@ const FluxSchema = new Schema<IFlux>(
         viewedAt: { type: Date, default: Date.now },
       },
     ],
+    mentions: {
+      type: [
+        {
+          userId: { type: String, required: true },
+          hasRemoved: { type: Boolean, default: false },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     reMentions: {
       type: [
         {
@@ -222,16 +190,6 @@ const FluxSchema = new Schema<IFlux>(
           userId: { type: String, required: true },
           text: { type: String, required: true, maxlength: 300 },
           likes: { type: [String], default: [] },
-          replies: {
-            type: [
-              {
-                userId: { type: String, required: true },
-                text: { type: String, required: true },
-                createdAt: { type: Date, default: Date.now },
-              },
-            ],
-            default: [],
-          },
           createdAt: { type: Date, default: Date.now },
         },
       ],
@@ -254,6 +212,13 @@ const FluxSchema = new Schema<IFlux>(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    replies: [
+      {
+        senderId: { type: String, required: true },
+        message: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
 
     expiresAt: {
       type: Date,
@@ -268,9 +233,6 @@ const FluxSchema = new Schema<IFlux>(
     isArchived: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     commentsDisabled: { type: Boolean, default: false },
-    likesHidden: { type: Boolean, default: false },
-    isPinned: { type: Boolean, default: false },
-    isAiGenerated: { type: Boolean, default: false },
     isPersistent: { type: Boolean, default: false },
   },
   {
@@ -301,46 +263,16 @@ FluxSchema.index(
 );
 // ── Virtuals
 // viewCount = unique viewers via the flat `viewers` array (O(1) .length)
-FluxSchema.virtual("thumbnailUrl").get(function (this: IFlux) {
-  if (this.mediaType === "video" && this.cloudinaryPublicId) {
-    // Cloudinary video thumbnail URL
-    const cloudName = process.env.CLOUDINARY_NAME;
-    return `https://res.cloudinary.com/${cloudName}/video/upload/so_0/${this.cloudinaryPublicId}.jpg`;
-  }
-  return this.mediaUrl;
-});
-
 FluxSchema.virtual("viewCount").get(function (this: IFlux) {
-  return (this.viewers || []).length;
-});
-
-FluxSchema.virtual("likeCount").get(function (this: IFlux) {
-  return (this.likes || []).length;
-});
-
-FluxSchema.virtual("commentCount").get(function (this: IFlux) {
-  return (this.comments || []).length;
+  return this.viewers.length;
 });
 
 FluxSchema.virtual("reactionCount").get(function (this: IFlux) {
-  return (this.reactions || []).length;
+  return this.reactions.length;
 });
 
 FluxSchema.virtual("isExpired").get(function (this: IFlux) {
   return new Date() > this.expiresAt;
-});
-
-FluxSchema.virtual("isStory").get(function (this: IFlux) {
-  // If explicitly set, respect that first
-  if (this.isPersistent === true) return false;
-  if (this.isPersistent === false) return true;
-  
-  // If isPersistent is missing (legacy data):
-  // Stories expire in 24-72 hours. If it's still "active" but old, it's likely a post.
-  const ageInMs = Date.now() - (this.createdAt ? this.createdAt.getTime() : Date.now());
-  const maxStoryAge = 72 * 60 * 60 * 1000; // 72 hours
-  
-  return ageInMs <= maxStoryAge;
 });
 
 // Auto-compute status based on fields

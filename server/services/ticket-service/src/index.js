@@ -1,6 +1,6 @@
-import "dotenv/config";
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import ticketRoutes from './routes/ticket.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
@@ -10,6 +10,7 @@ import { startEventStatusScheduler, checkExpiredConfirmedEvents } from './jobs/e
 import { startAutoDeleteCron } from "./services/ticket.service.js";
 import attendanceRoutes from './routes/attendance.routes.js';
 
+dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -38,8 +39,8 @@ const startServer = async () => {
     startEventStatusScheduler();
     checkExpiredConfirmedEvents();
     startAutoDeleteCron();
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ Ticket service HTTP server running on port ${PORT}`);
+    app.listen(PORT, () => {
+      //
     });
   } catch (err) {
     process.exit(1);

@@ -1,20 +1,7 @@
 import Follow from '../models/follow.model';
-import CloseFriend from '../models/close-friend.model';
 import * as userClient from '../grpc/userClient';
 import { createNotification, emitFollowEvent } from '../utils/notificationHelper';
 import { canSendNotification, setNotificationCooldown } from '../utils/notificationCooldown';
-
-export const isCloseFriend = async (userId: string, closeFriendId: string): Promise<boolean> => {
-  const isCF = await CloseFriend.findOne({
-    userId: String(userId),
-    closeFriendId: String(closeFriendId),
-  })
-    .select("_id")
-    .lean()
-    .catch(() => null);
-  return !!isCF;
-};
-
 export const followUser = async (
   followerId: string, 
   followingId: string
@@ -370,14 +357,11 @@ export const getFollowStatus = async (
   requestStatus: 'pending' | 'active' | 'blocked' | 'none';
   status: string;
 }> => {
-  const fId = String(followerId).trim();
-  const tId = String(followingId).trim();
-
-  if (!fId || !tId) {
+  if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
   }
 
-  const follow = await Follow.findOne({ followerId: fId, followingId: tId });
+  const follow = await Follow.findOne({ followerId, followingId });
   
   if (!follow) {
     return {
@@ -397,20 +381,17 @@ export const getFollowStatus = async (
 };
 
 export const unfollowUser = async (followerId: string, followingId: string): Promise<any> => {
-  const fId = String(followerId).trim();
-  const tId = String(followingId).trim();
-
-  if (!fId || !tId) {
+  if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
   }
 
-  if (fId === tId) {
+  if (followerId === followingId) {
     throw new Error('Invalid operation');
   }
 
   const follow = await Follow.findOneAndDelete({ 
-    followerId: fId, 
-    followingId: tId,
+    followerId, 
+    followingId,
     status: 'active'
   });
   
@@ -419,8 +400,8 @@ export const unfollowUser = async (followerId: string, followingId: string): Pro
   }
 
   Promise.all([
-    userClient.decrementFollowing(fId),
-    userClient.decrementFollowers(tId)
+    userClient.decrementFollowing(followerId),
+    userClient.decrementFollowers(followingId)
   ]).catch(err => {
     console.error('Failed to update user counts:', err);
   });
@@ -428,24 +409,21 @@ export const unfollowUser = async (followerId: string, followingId: string): Pro
   return {
     success: true,
     message: 'User unfollowed successfully',
-    followerId: fId,
-    followingId: tId
+    followerId,
+    followingId
   };
 };
-
-export const getFollowers = async (userId: string, page: number = 1, limit: number = 20, viewerId?: string): Promise<any> => {
+export const getFollowers = async (userId: string, page: number = 1, limit: number = 20): Promise<any> => {
   const skip = (page - 1) * limit;
-  const targetId = String(userId).trim();
-  const currentViewerId = viewerId ? String(viewerId).trim() : null;
 
   const [followers, total] = await Promise.all([
-    Follow.find({ followingId: targetId, status: 'active' })
+    Follow.find({ followingId: userId, status: 'active' })
       .select('followerId createdAt')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    Follow.countDocuments({ followingId: targetId, status: 'active' })
+    Follow.countDocuments({ followingId: userId, status: 'active' })
   ]);
 
   const followerIds = followers.map(f => f.followerId);
@@ -457,35 +435,18 @@ export const getFollowers = async (userId: string, page: number = 1, limit: numb
     console.error('Failed to fetch user details:', error);
   }
   
-  const formattedFollowers = await Promise.all(followers.map(async f => {
-    const userDetail = userDetails.find(u => String(u.id) === String(f.followerId));
-    
-    // Check relationship from viewer's perspective if viewerId is provided
-    let isFollowing = false;
-    let isRequested = false;
-
-    if (currentViewerId) {
-      if (currentViewerId === String(f.followerId)) {
-        isFollowing = false; // Self
-      } else {
-        const rel = await getFollowStatus(currentViewerId, f.followerId);
-        isFollowing = rel.isFollowing;
-        isRequested = rel.isPending;
-      }
-    }
-
+  const formattedFollowers = followers.map(f => {
+    const userDetail = userDetails.find(u => u.id === f.followerId);
     return {
-      id: f.followerId,
+      id: f.followerId, 
       followedAt: f.createdAt.toISOString(),
       name: userDetail?.name || null,
       username: userDetail?.username || null,
       profile_picture: userDetail?.profile_picture || null,
       bio: userDetail?.bio || null,
       is_verified: userDetail?.is_verified || false,
-      isFollowing,
-      isRequested
     };
-  }));
+  });
 
   return {
     followers: formattedFollowers,
@@ -493,21 +454,19 @@ export const getFollowers = async (userId: string, page: number = 1, limit: numb
     page,
     totalPages: Math.ceil(total / limit)
   };
-  };
+};
 
-export const getFollowing = async (userId: string, page: number = 1, limit: number = 20, viewerId?: string): Promise<any> => {
+export const getFollowing = async (userId: string, page: number = 1, limit: number = 20): Promise<any> => {
   const skip = (page - 1) * limit;
-  const targetId = String(userId).trim();
-  const currentViewerId = viewerId ? String(viewerId).trim() : null;
 
   const [following, total] = await Promise.all([
-    Follow.find({ followerId: targetId, status: 'active' })
+    Follow.find({ followerId: userId, status: 'active' })
       .select('followingId createdAt')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    Follow.countDocuments({ followerId: targetId, status: 'active' })
+    Follow.countDocuments({ followerId: userId, status: 'active' })
   ]);
 
   const followingIds = following.map(f => f.followingId);
@@ -519,25 +478,8 @@ export const getFollowing = async (userId: string, page: number = 1, limit: numb
     console.error('Failed to fetch user details:', error);
   }
   
-  const formattedFollowing = await Promise.all(following.map(async f => {
-    const userDetail = userDetails.find(u => String(u.id) === String(f.followingId));
-    
-    let isFollowing = false;
-    let isRequested = false;
-
-    if (currentViewerId) {
-      if (currentViewerId === String(f.followingId)) {
-        isFollowing = false;
-      } else {
-        const rel = await getFollowStatus(currentViewerId, f.followingId);
-        isFollowing = rel.isFollowing;
-        isRequested = rel.isPending;
-      }
-    } else {
-      // If no viewer provided, and we are looking at someone's following, they ARE following these people
-      isFollowing = true;
-    }
-
+  const formattedFollowing = following.map(f => {
+    const userDetail = userDetails.find(u => u.id === f.followingId);
     return {
       id: f.followingId, 
       followedAt: f.createdAt.toISOString(),
@@ -546,10 +488,8 @@ export const getFollowing = async (userId: string, page: number = 1, limit: numb
       profile_picture: userDetail?.profile_picture || null,
       bio: userDetail?.bio || null,
       is_verified: userDetail?.is_verified || false,
-      isFollowing,
-      isRequested
     };
-  }));
+  });
   
   return {
     following: formattedFollowing,
@@ -708,8 +648,8 @@ export const getFollowStats = async (userId: string): Promise<any> => {
 
   return {
     userId,
-    followersCount: followersCount,
-    followingCount: followingCount
+    followers: followersCount,
+    following: followingCount
   };
 };
 export const checkFollowRequestStatus = async (

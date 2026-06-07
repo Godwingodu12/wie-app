@@ -21,12 +21,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 6.19.3
- * Query Engine version: c2990dca591cba766e3b7ef5d9e8a84796e47ab7
+ * Prisma Client JS version: 6.19.0
+ * Query Engine version: 2ba551f319ab1df4bc874a89965d8b3641056773
  */
 Prisma.prismaVersion = {
-  client: "6.19.3",
-  engine: "c2990dca591cba766e3b7ef5d9e8a84796e47ab7"
+  client: "6.19.0",
+  engine: "2ba551f319ab1df4bc874a89965d8b3641056773"
 }
 
 Prisma.PrismaClientKnownRequestError = () => {
@@ -121,72 +121,38 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
+exports.Prisma.CountryScalarFieldEnum = {
+  id: 'id',
+  countryCode: 'countryCode',
+  countryName: 'countryName',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.WieUserScalarFieldEnum = {
   id: 'id',
   email: 'email',
   contactNo: 'contactNo',
   password: 'password',
   name: 'name',
+  username: 'username',
   profilePicture: 'profilePicture',
+  countryId: 'countryId',
   role: 'role',
+  status: 'status',
+  bio: 'bio',
   isBlocked: 'isBlocked',
   isVerified: 'isVerified',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt',
-  username: 'username',
-  bio: 'bio',
-  countryId: 'countryId',
-  status: 'status',
-  authProvider: 'authProvider',
-  googleId: 'googleId',
-  isOnline: 'isOnline',
-  latitude: 'latitude',
-  location: 'location',
-  longitude: 'longitude',
-  followersCount: 'followersCount',
-  followingCount: 'followingCount',
-  postsCount: 'postsCount',
-  tokenVersion: 'tokenVersion',
-  allowMessageRequests: 'allowMessageRequests',
-  allowMessagesFrom: 'allowMessagesFrom',
-  lastSeenAt: 'lastSeenAt',
-  accountPrivacy: 'accountPrivacy',
-  dob: 'dob',
-  gender: 'gender',
-  locationSource: 'locationSource',
-  showBadge: 'showBadge',
-  showSuggestion: 'showSuggestion',
-  website: 'website',
-  appleId: 'appleId',
-  microsoftId: 'microsoftId'
-};
-
-exports.Prisma.CountryScalarFieldEnum = {
-  id: 'id',
-  countryCode: 'countryCode',
-  countryName: 'countryName',
-  createdAt: 'createdAt',
-  phoneCode: 'phoneCode'
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.OtpScalarFieldEnum = {
   id: 'id',
-  otpValue: 'otpValue',
-  expiresAt: 'expiresAt',
-  createdAt: 'createdAt',
-  otpType: 'otpType',
+  userId: 'userId',
   tempId: 'tempId',
-  userId: 'userId'
-};
-
-exports.Prisma.UserMuteScalarFieldEnum = {
-  id: 'id',
-  muterId: 'muterId',
-  mutedId: 'mutedId',
-  mutePosts: 'mutePosts',
-  muteStories: 'muteStories',
-  muteReels: 'muteReels',
-  muteNotes: 'muteNotes',
+  otpValue: 'otpValue',
+  otpType: 'otpType',
+  expiresAt: 'expiresAt',
   createdAt: 'createdAt'
 };
 
@@ -207,10 +173,9 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  WieUser: 'WieUser',
   Country: 'Country',
-  Otp: 'Otp',
-  UserMute: 'UserMute'
+  WieUser: 'WieUser',
+  Otp: 'Otp'
 };
 
 /**

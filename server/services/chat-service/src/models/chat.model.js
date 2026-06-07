@@ -18,14 +18,6 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  replyTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Chat.messages'
-  },
-  replyContent: {
-    type: String,
-    trim: true
-  },
   timestamp: {
     type: Date,
     default: Date.now

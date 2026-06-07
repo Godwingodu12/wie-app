@@ -1,103 +1,9 @@
 import FluxModel, { IFlux, FluxVisibility } from "../models/flux.model";
 import * as followClient from "../grpc/clients/followClient";
+import CloseFriendModel from "../models/close-friend.model";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
 import { uploadFluxMedia, deleteFluxMedia } from "../utils/cloudinaryHelper";
-
-// Categorization logic constants
-const STORY_FILTER = {
-  isPersistent: false,
-  expiresAt: { $gt: new Date() },
-  status: "active"
-};
-
-const POST_FILTER = {
-  $or: [
-    { isPersistent: true },
-    { 
-      isPersistent: { $ne: false }, 
-      $or: [
-        { expiresAt: { $exists: false } },
-        { expiresAt: null },
-        { expiresAt: { $gt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } } // far future
-      ]
-    }
-  ]
-};
-
-const IS_STORY = (f: any) => {
-  if (f.isPersistent === true) return false;
-  if (f.isPersistent === false) return true;
-  
-  // Legacy logic: if it has no flag, it's a story ONLY if it has a near expiry date.
-  // Otherwise it's a Post.
-  const createdAt = new Date(f.createdAt).getTime();
-  const expiresAt = f.expiresAt ? new Date(f.expiresAt).getTime() : 0;
-  if (expiresAt === 0) return false; 
-
-  const duration = expiresAt - createdAt;
-  return duration < (30 * 24 * 60 * 60 * 1000); // Less than 30 days = Story
-};
-
-export const formatPostResponse = (f: any, viewerId: string, user: any = null, followingSet?: Set<string>) => {
-  const cloudName = process.env.CLOUDINARY_NAME || "";
-  const isSelf = String(f.userId) === String(viewerId);
-  const isFollowing = followingSet ? followingSet.has(String(f.userId)) : isSelf;
-
-  const hasLiked = (f.likes || []).some((l: any) => String(l.userId) === String(viewerId));
-  const hasSaved = (f.savedBy || []).some((id: string) => String(id) === String(viewerId));
-
-  const isStory = IS_STORY(f);
-  const isPersistent = !isStory;
-  const isExpired = f.expiresAt ? Date.now() > new Date(f.expiresAt).getTime() : false;
-
-  const thumbnailUrl = f.mediaType === "video" && f.cloudinaryPublicId 
-    ? `https://res.cloudinary.com/${cloudName}/video/upload/so_0/${f.cloudinaryPublicId}.jpg`
-    : f.mediaUrl;
-
-  return {
-    _id: f._id,
-    userId: f.userId,
-    owner: user ? {
-      id: user.id || user._id,
-      username: user.username,
-      name: user.name || user.displayName || user.username,
-      profile_picture: user.profile_picture || user.profilePicture || null,
-      is_verified: user.is_verified || false
-    } : null,
-    mediaItems: f.mediaItems && f.mediaItems.length > 0 ? f.mediaItems : [{
-      url: f.mediaUrl,
-      type: f.mediaType || "image",
-      thumbnailUrl
-    }],
-    caption: f.caption || null,
-    visibility: f.visibility || "public",
-    locationLabel: f.locationLabel || null,
-    locationPlaceId: f.locationPlaceId || null,
-    locationLat: f.locationLat || null,
-    locationLng: f.locationLng || null,
-    taggedUsers: f.taggedUsers || [],
-    mentions: f.mentions || [],
-    likeCount: (f.likes || []).length,
-    commentCount: (f.comments || []).length,
-    shareCount: f.shareCount || 0,
-    saveCount: f.saveCount || 0,
-    hasLiked,
-    hasSaved,
-    commentsDisabled: f.commentsDisabled || false,
-    likesHidden: f.likesHidden || false,
-    isPinned: f.isPinned || false,
-    isDeleted: f.isDeleted || false,
-    createdAt: f.createdAt,
-    updatedAt: f.updatedAt,
-    // Extra fields for backwards compatibility/internal logic
-    isSelf,
-    isFollowing,
-    isPersistent,
-    isStory,
-    viewCount: (f.viewers || []).length,
-  };
-};
 
 const FEED_CACHE_TTL = 60;// 1 min
 const FEED_CACHE_KEY = (userId: string) => `flux:feed:${userId}`;
@@ -142,74 +48,55 @@ export const canViewFlux = async (
   ownerId: string,
   visibility: FluxVisibility,
 ): Promise<boolean> => {
-  if (String(viewerId) === String(ownerId)) return true;
+  if (viewerId === ownerId) return true;
   // Explicitly hidden
   if (visibility === "only_me") return false;
-  
-  try {
-    const blockCheck = await wieUserClient.checkIfBlocked(viewerId, ownerId);
-    if (blockCheck?.isBlocked) {
-      console.log(`[canViewFlux] BLOCKED: ${viewerId} is blocked by ${ownerId}`);
-      return false;
-    }
-  } catch (err) {
-    console.error(`[canViewFlux] Block check failed for ${viewerId} -> ${ownerId}:`, err);
-  }
-
-  // Account privacy — if gRPC fails, DEFAULT to public
+  const blockCheck = await wieUserClient
+    .checkIfBlocked(viewerId, ownerId)
+    .catch(() => ({ isBlocked: false }));
+  if (blockCheck?.isBlocked) return false;
+  // Account privacy — if gRPC fails, DEFAULT to public (don't block)
   let accountPrivacy = "public";
   try {
     const privacyResp = await wieUserClient.getAccountPrivacy(ownerId);
     accountPrivacy = privacyResp?.accountPrivacy ?? "public";
-    console.log(`[canViewFlux] Account Privacy for ${ownerId}: ${accountPrivacy}`);
-  } catch (err) {
-    console.error(`[canViewFlux] Privacy check failed for ${ownerId}:`, err);
+  } catch {
     accountPrivacy = "public";
   }
-
   // Private account → must follow
   if (accountPrivacy === "private") {
-    try {
-      const follow = await followClient.isFollowing(viewerId, ownerId);
-      console.log(`[canViewFlux] PRIVATE account check: ${viewerId} following ${ownerId}? ${follow.isFollowing}`);
-      return follow.isFollowing;
-    } catch (err) {
-      console.error(`[canViewFlux] Follow check failed for private account ${viewerId} -> ${ownerId}:`, err);
-      return false; 
-    }
+    const follow = await followClient
+      .isFollowing(viewerId, ownerId)
+      .catch(() => ({ isFollowing: false }));
+    return follow.isFollowing;
   }
-
   // Public account:
+  // - flux visibility 'public'    → anyone can view
+  // - flux visibility 'followers' → only followers
+  // - flux visibility 'close_friends' → only close friends (treat as followers for now)
   if (visibility === "followers") {
-    try {
-      const follow = await followClient.isFollowing(viewerId, ownerId);
-      console.log(`[canViewFlux] PUBLIC account (followers only post) check: ${viewerId} following ${ownerId}? ${follow.isFollowing}`);
-      return follow.isFollowing;
-    } catch (err) {
-      console.error(`[canViewFlux] Follow check failed for followers visibility ${viewerId} -> ${ownerId}:`, err);
-      return true; // Fail-safe: show it anyway if it's a public account and gRPC is down
-    }
+    const follow = await followClient
+      .isFollowing(viewerId, ownerId)
+      .catch(() => ({ isFollowing: false }));
+    return follow.isFollowing;
   }
-  
   if (visibility === "close_friends") {
-    try {
-      const cf = await followClient.checkCloseFriend(ownerId, viewerId);
-      console.log(`[canViewFlux] CF check: ${viewerId} in ${ownerId}'s CF? ${cf.isCloseFriend}`);
-      return cf.isCloseFriend;
-    } catch (err) {
-      console.error(`[canViewFlux] Close friend check failed for ${ownerId} -> ${viewerId}:`, err);
-      return false;
-    }
+    const isCF = await CloseFriendModel.findOne({
+      userId: String(ownerId),
+      closeFriendId: String(viewerId),
+    })
+      .select("_id")
+      .lean()
+      .catch(() => null);
+    return !!isCF;
   }
-
-  console.log(`[canViewFlux] ALLOWED: ${visibility} post for public account ${ownerId}`);
   return true;
 };
 
 // Create Flux
 export const createFlux = async (
   userId: string,
-  files: Express.Multer.File[] | null,
+  file: Express.Multer.File | null,
   body: {
     caption?: string;
     visibility?: FluxVisibility;
@@ -234,55 +121,53 @@ export const createFlux = async (
     filterName?: string;
     filterValue?: string;
     mediaUrl?: string; // pre-existing URL (re-mention flow)
-    commentsDisabled?: string | boolean;
-    isAiGenerated?: string | boolean;
-    isPersistent?: string | boolean;
-    taggedUsers?: string | string[];
-    mentions?: string | string[];
-    type?: string;
   },
 ): Promise<IFlux> => {
-  // ── Determine media sources (Multi-upload support)
-  const mediaItems: any[] = [];
-  
-  if (files && files.length > 0) {
-    for (const file of files) {
-      const uploaded = await uploadFluxMedia(file.buffer, file.mimetype);
-      mediaItems.push({
-        url: uploaded.url,
-        mediaType: uploaded.mediaType === "video" ? "video" : "image",
-        cloudinaryPublicId: uploaded.publicId,
-        cloudinaryResourceType: uploaded.mediaType,
-        thumbnailUrl: uploaded.mediaType === "video" 
-          ? `https://res.cloudinary.com/${process.env.CLOUDINARY_NAME}/video/upload/so_0/${uploaded.publicId}.jpg`
-          : uploaded.url
-      });
-    }
+  // ── Determine media source
+  let mediaUrl: string | undefined;
+  let mediaType: "image" | "video" = "image";
+  let cloudinaryPublicId = "text_flux";
+  let cloudinaryResourceType = "raw";
+  let duration: number | undefined;
+  let width: number | undefined;
+  let height: number | undefined;
+  let format: string | undefined;
+  let bytes: number | undefined;
+
+  if (file) {
+    // Real upload
+    const uploaded = await uploadFluxMedia(file.buffer, file.mimetype);
+    mediaUrl = uploaded.url;
+    mediaType = uploaded.mediaType === "video" ? "video" : "image";
+    cloudinaryPublicId = uploaded.publicId;
+    cloudinaryResourceType = uploaded.mediaType;
+    duration = uploaded.duration;
+    width = uploaded.width;
+    height = uploaded.height;
+    format = uploaded.format;
+    bytes = uploaded.bytes;
   } else if (body.mediaUrl) {
-    mediaItems.push({
-      url: body.mediaUrl,
-      mediaType: body.mediaUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) ? "video" : "image",
-      cloudinaryPublicId: "repost_" + Date.now(),
-      cloudinaryResourceType: "image"
-    });
+    // Re-mention / pre-existing URL passed from frontend
+    mediaUrl = body.mediaUrl;
+    mediaType = body.mediaUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i)
+      ? "video"
+      : "image";
+    cloudinaryPublicId = "repost_" + Date.now();
+    cloudinaryResourceType = mediaType;
+  } else {
+    // Text-only flux — no media needed
+    // Use a placeholder so mediaUrl is never undefined (schema requires it)
+    mediaUrl = "";
+    mediaType = "image";
+    cloudinaryPublicId = "text_flux_" + Date.now();
+    cloudinaryResourceType = "raw";
   }
 
-  // Fallbacks for backward compatibility (first item)
-  const firstItem = mediaItems[0] || {};
-  const mediaUrl = firstItem.url || "";
-  const mediaType = (firstItem.mediaType as any) || "image";
-  const cloudinaryPublicId = firstItem.cloudinaryPublicId || "";
-  const cloudinaryResourceType = firstItem.cloudinaryResourceType || "image";
-
-  let textLayers: Record<string, any>[] = [];
-  if (body.textLayers) {
-    try {
-      textLayers = JSON.parse(body.textLayers);
-    } catch {
-      /* ignore */
-    }
+  // Validate: must have EITHER media OR text layers
+  const textLayers = body.textLayers ? JSON.parse(body.textLayers) : [];
+  if (!mediaUrl && (!textLayers || textLayers.length === 0) && !body.textBg) {
+    throw new Error("Flux must have media or text content");
   }
-
   // Respect the owner's duration setting (24 | 48 | 72 hours)
   let durationHours = 24;
   try {
@@ -299,48 +184,20 @@ export const createFlux = async (
 
   const DURATION_MS = durationHours * 60 * 60 * 1000;
   const now = new Date();
-  
-  // Robust detection of persistent posts
-  const isPersistent = 
-    body.isPersistent === "true" || 
-    body.isPersistent === true || 
-    body.type === "post" || 
-    body.type === "reel";
-
-  // If persistent (a post), set expiry to 100 years
-  const expiresAt = isPersistent 
-    ? new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000)
-    : new Date(now.getTime() + DURATION_MS);
-
-  // Parse arrays
-  const parseArray = (val: any) => {
-    if (!val) return [];
-    if (Array.isArray(val)) return val;
-    try { return JSON.parse(val); } catch { return [val]; }
-  };
-
+  const expiresAt = new Date(now.getTime() + DURATION_MS);
   const flux = await FluxModel.create({
     userId,
     mediaUrl,
     mediaType,
     cloudinaryPublicId,
     cloudinaryResourceType,
-    mediaItems,
     caption: body.caption,
     visibility: body.visibility || "public",
     status: "active",
     isDeleted: false,
     isArchived: false,
-    isPersistent,
     createdAt: now,
     expiresAt,
-    taggedUsers: parseArray(body.taggedUsers),
-    mentions: parseArray(body.mentions),
-    // AI Label & Comments Toggle
-    commentsDisabled:
-      body.commentsDisabled === "true" || body.commentsDisabled === true,
-    isAiGenerated:
-      body.isAiGenerated === "true" || body.isAiGenerated === true,
     // Music
     musicId: body.musicId,
     musicTitle: body.musicTitle,
@@ -373,11 +230,19 @@ export const createFlux = async (
     textBg: body.textBg || null,
     filterName: body.filterName || "Normal",
     filterValue: body.filterValue || "none",
+
+    duration,
+    width,
+    height,
+    format,
+    bytes,
   });
 
   // ── Invalidate caches ──
+  // Owner's own caches
   await redisClient.del(USER_FLUXES_KEY(userId)).catch(() => {});
   await redisClient.del(FEED_CACHE_KEY(userId)).catch(() => {});
+  // All followers' feed caches — so they see the new flux immediately
   await invalidateFollowerFeedCaches(userId).catch(() => {});
 
   return flux;
@@ -386,18 +251,11 @@ export const createFlux = async (
 export const getUserFluxes = async (
   viewerId: string,
   ownerId: string,
-  page: number = 1,
-  limit: number = 20,
-): Promise<{ data: any[]; total: number; hasMore: boolean }> => {
-  console.log(`[getUserFluxes] Request from viewer ${viewerId} for owner ${ownerId}`);
-  const skip = (page - 1) * limit;
-  const cloudName = process.env.CLOUDINARY_NAME || "";
-
-  // Mark expired fluxes - BUT NEVER persistent ones
+): Promise<IFlux[]> => {
+  // Mark expired fluxes
   await FluxModel.updateMany(
     {
       userId: ownerId,
-      isPersistent: { $ne: true },
       expiresAt: { $lt: new Date() },
       isDeleted: false,
       status: "active",
@@ -405,276 +263,148 @@ export const getUserFluxes = async (
     { $set: { status: "expired", isArchived: true } },
   ).catch(() => {});
 
-  const allFluxesQuery = {
+  // Always fetch fresh — never cache raw list (CF fluxes would leak across viewers)
+  const allFluxes = await FluxModel.find({
     userId: ownerId,
-    isDeleted: false
-  };
+    isDeleted: false,
+    status: "active",
+    expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: 1 })
+    .exec();
 
-  const total = await FluxModel.countDocuments(allFluxesQuery);
-  const allFluxes = await FluxModel.find(allFluxesQuery)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  console.log(`[getUserFluxes] Found ${allFluxes.length} raw fluxes for owner ${ownerId}`);
-
-  // Fetch owner info once
-  const usersResp = await wieUserClient
-    .getUsersByIds([ownerId])
-    .catch(() => ({ users: [] }));
-  const ownerUser = (usersResp.users || [])[0] || null;
-
-  const visibilityChecks = allFluxes.map(async (f: any) => {
-    try {
-      const hiddenFrom: string[] = f.hiddenFrom ?? [];
-      if (hiddenFrom.map(String).includes(String(viewerId))) {
-        return null;
-      }
-      
-      const canView = await canViewFlux(String(viewerId), String(ownerId), f.visibility);
-      if (!canView) return null;
-
-      return formatPostResponse(f, viewerId, ownerUser, new Set());
-    } catch (err) {
-      console.error(`[getUserFluxes] Error checking visibility for flux ${f._id}:`, err);
-      return null;
-    }
-  });
-
-  const results = await Promise.all(visibilityChecks);
-  const final = results.filter(f => f !== null);
-  
-  // AUTO-SYNC POST COUNT - Only count persistent items for the profile stat
-  const persistentCount = final.filter(f => f.isPersistent).length;
-  wieUserClient.setPostsCount(ownerId, persistentCount).catch(err => {
-    console.error(`[getUserFluxes] Failed to auto-sync post count for ${ownerId}:`, err.message);
-  });
-
-  console.log(`[getUserFluxes] Returning ${final.length} visible fluxes (${persistentCount} persistent) for owner ${ownerId}`);
-  return {
-    data: final,
-    total: persistentCount, // Return persistent count as total for pagination logic
-    hasMore: skip + allFluxes.length < total
-  };
-};
-
-//  Get Stories Feed — Active transient fluxes from followed users
-export const getStoriesFeed = async (viewerId: string): Promise<{ data: any[] }> => {
-  try {
-    const { followingIds } = await followClient
-      .getFollowingIds(viewerId)
-      .catch(() => ({ followingIds: [] as string[] }));
-
-    const targetUserIds = [...new Set([...followingIds, viewerId])];
-
-    const matchQuery = {
-      userId: { $in: targetUserIds },
-      isDeleted: false,
-      isArchived: false,
-      ...STORY_FILTER
-    };
-
-    const rawStories = await FluxModel.find(matchQuery)
-      .sort({ createdAt: -1 })
-      .lean();
-
-    if (rawStories.length === 0) return { data: [] };
-
-    const ownerIds = [...new Set(rawStories.map((f: any) => f.userId.toString()))];
-    const usersResp = await wieUserClient.getUsersByIds(ownerIds).catch(() => ({ users: [] }));
-    const userMap: Record<string, any> = {};
-    (usersResp.users || []).forEach((u: any) => {
-      const uid = String(u.id || u._id || "");
-      if (uid) userMap[uid] = u;
-    });
-
-    const data = rawStories.map((f: any) => {
-      const user = userMap[f.userId.toString()];
-      return formatPostResponse(f, viewerId, user, new Set(followingIds));
-    });
-
-    return { data };
-  } catch (err) {
-    console.error(`[getStoriesFeed] Error:`, err);
-    return { data: [] };
+  const visible: IFlux[] = [];
+  for (const f of allFluxes) {
+    const hiddenFrom: string[] = (f as any).hiddenFrom ?? [];
+    if (hiddenFrom.map(String).includes(String(viewerId))) continue;
+    const canView = await canViewFlux(viewerId, ownerId, f.visibility);
+    if (canView) visible.push(f);
   }
+  return visible;
 };
 
-// Feed — Following users with persistent posts
-export const getFluxFeed = async (viewerId: string, page: number = 1, limit: number = 20): Promise<{ data: any[]; total: number; hasMore: boolean }> => {
-  const cacheKey = `${FEED_CACHE_KEY(viewerId)}:posts:p:${page}:l:${limit}`;
-  const skip = (page - 1) * limit;
+// Feed — Following users with active fluxes
+export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
+  const cacheKey = FEED_CACHE_KEY(viewerId);
 
   const cached = await redisClient.get(cacheKey).catch(() => null);
   if (cached) return JSON.parse(cached);
 
+  //Get the list of users the viewer is FOLLOWING (not followers)
+  // We call GetFollowing to get who viewerId follows.
   const { followingIds } = await followClient
     .getFollowingIds(viewerId)
     .catch(() => ({ followingIds: [] as string[] }));
 
+  // Always include the viewer's own fluxes
   const targetUserIds = [...new Set([...followingIds, viewerId])];
 
-  const matchQuery: any = {
-    userId: { $in: targetUserIds },
-    isDeleted: false,
-    ...POST_FILTER,
-    visibility: { $ne: "only_me" },
-    $expr: {
-      $not: { $in: [String(viewerId), { $ifNull: ["$hiddenFrom", []] }] },
+  if (targetUserIds.length === 0) return [];
+  // Show ALL non-expired fluxes regardless of when follow relationship started
+  const allFluxes = await FluxModel.aggregate([
+    {
+      $match: {
+        $or: [
+          { userId: { $in: targetUserIds } },
+          { userId: { $in: targetUserIds.map((id: string) => {
+            try {
+              const { Types } = require("mongoose");
+              return new Types.ObjectId(id);
+            } catch { return id; }
+          }) } },
+        ],
+        expiresAt: { $gt: new Date() },
+        isDeleted: false,
+        isArchived: false,
+        status: "active",
+        visibility: { $ne: "only_me" },
+        $expr: {
+          $not: { $in: [String(viewerId), { $ifNull: ["$hiddenFrom", []] }] },
+        },
+      },
     },
-  };
-
-  const total = await FluxModel.countDocuments(matchQuery);
-  const rawFluxes = await FluxModel.find(matchQuery)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  if (rawFluxes.length === 0) return { data: [], total, hasMore: false };
-
-  // Filter by visibility (close friends gate)
-  const visibilityChecks = rawFluxes.map(async (f: any) => {
-    if (f.visibility === "close_friends") {
-      if (f.userId.toString() === viewerId) return f;
-      const { isCloseFriend } = await followClient.checkCloseFriend(f.userId.toString(), viewerId).catch(() => ({ isCloseFriend: false }));
-      return isCloseFriend ? f : null;
-    }
-    return f;
-  });
-
-  const filteredFluxes = (await Promise.all(visibilityChecks)).filter(f => f !== null);
-  if (filteredFluxes.length === 0) return { data: [], total, hasMore: false };
-
-  const ownerIds = [...new Set(filteredFluxes.map((f: any) => f.userId.toString()))];
-  const [usersResp, followingResp] = await Promise.all([
-    wieUserClient.getUsersByIds(ownerIds).catch(() => ({ users: [] })),
-    followClient.getFollowingIds(viewerId).catch(() => ({ followingIds: [] }))
+    {
+      $group: {
+        _id: "$userId",
+        fluxes: {
+          $push: {
+            _id: "$_id",
+            mediaUrl: "$mediaUrl",
+            mediaType: "$mediaType",
+            caption: "$caption",
+            visibility: "$visibility",
+            viewCount: { $size: "$views" },
+            createdAt: "$createdAt",
+            expiresAt: "$expiresAt",
+            musicTitle: "$musicTitle",
+            musicArtist: "$musicArtist",
+          },
+        },
+        latestAt: { $max: "$createdAt" },
+      },
+    },
+    { $sort: { latestAt: -1 } },
   ]);
+
+  if (allFluxes.length === 0) return [];
+  // ── Step A: Collect owners who have at least one close_friends flux ──
+  const ownersWithCFFlux: string[] = allFluxes
+    .filter((g: any) =>
+      g.fluxes.some((f: any) => f.visibility === "close_friends"),
+    )
+    .map((g: any) => String(g._id));
+
+  // ── Step B: Build cfAllowed — owners whose CF fluxes THIS viewer may see ──
+  const cfAllowed = new Set<string>([viewerId]); // viewer always sees their own
+
+  if (ownersWithCFFlux.length > 0) {
+    const cfDocs = await CloseFriendModel.find({
+      userId: { $in: ownersWithCFFlux },
+      closeFriendId: String(viewerId),
+    })
+      .select("userId")
+      .lean();
+    cfDocs.forEach((doc: any) => cfAllowed.add(String(doc.userId)));
+  }
+
+  // ── Step C: Strip close_friends fluxes the viewer is NOT allowed to see ──
+  const filteredGroups = allFluxes
+    .map((group: any) => {
+      const ownerId = String(group._id);
+      const isViewerSelf = ownerId === viewerId;
+      const canSeeCF = isViewerSelf || cfAllowed.has(ownerId);
+
+      const visibleFluxes = group.fluxes.filter((f: any) => {
+        if (f.visibility === "close_friends") {
+          // STRICT: viewer must be in THIS owner's CF list, or viewer IS the owner
+          return isViewerSelf || cfAllowed.has(ownerId);
+        }
+        return true;
+      });
+      return { ...group, fluxes: visibleFluxes };
+    })
+    .filter((group: any) => group.fluxes.length > 0);
+  if (filteredGroups.length === 0) return [];
+  // Get user details for all owners in one batch call
+  const ownerIds = filteredGroups.map((f: any) => f._id);
+  const usersResp = await wieUserClient
+    .getUsersByIds(ownerIds)
+    .catch(() => ({ users: [] }));
 
   const userMap: Record<string, any> = {};
   (usersResp.users || []).forEach((u: any) => {
-    const uid = String(u.id || u._id || "");
-    if (uid) userMap[uid] = u;
+    userMap[u.id] = u;
   });
-
-  const followingSet = new Set(followingResp.followingIds || []);
-
-  const data = filteredFluxes.map((f: any) => {
-    const user = userMap[f.userId.toString()];
-    return formatPostResponse(f, viewerId, user, followingSet);
-  });
-
-  const result = {
-    data,
-    total,
-    hasMore: skip + rawFluxes.length < total
-  };
-
+  const feed = filteredGroups.map((group: any) => ({
+    ...group,
+    user: userMap[group._id] || null,
+    isSelf: group._id === viewerId,
+  }));
   await redisClient
-    .set(cacheKey, JSON.stringify(result), FEED_CACHE_TTL)
+    .set(cacheKey, JSON.stringify(feed), FEED_CACHE_TTL)
     .catch(() => {});
 
-  return result;
-};
-
-// Explore Feed — Public persistent posts from everyone else
-export const getExploreFeed = async (viewerId: string, page: number = 1, limit: number = 20): Promise<{ data: any[]; total: number; hasMore: boolean }> => {
-  const skip = (page - 1) * limit;
-  
-  const matchQuery = {
-    userId: { $ne: viewerId }, // Exclude own posts
-    isDeleted: false,
-    isArchived: false,
-    ...POST_FILTER,
-    visibility: "public",
-    $expr: {
-      $not: { $in: [String(viewerId), { $ifNull: ["$hiddenFrom", []] }] },
-    },
-  };
-
-  const total = await FluxModel.countDocuments(matchQuery);
-  const rawFluxes = await FluxModel.find(matchQuery)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  if (rawFluxes.length === 0) return { data: [], total, hasMore: false };
-
-  const ownerIds = [...new Set(rawFluxes.map((f: any) => f.userId.toString()))];
-  const [usersResp, followingResp] = await Promise.all([
-    wieUserClient.getUsersByIds(ownerIds).catch(() => ({ users: [] })),
-    followClient.getFollowingIds(viewerId).catch(() => ({ followingIds: [] }))
-  ]);
-
-  const userMap: Record<string, any> = {};
-  (usersResp.users || []).forEach((u: any) => {
-    const uid = String(u.id || u._id || "");
-    if (uid) userMap[uid] = u;
-  });
-
-  const followingSet = new Set(followingResp.followingIds || []);
-
-  const data = rawFluxes
-    .map((f: any) => {
-      const user = userMap[f.userId.toString()];
-      return formatPostResponse(f, viewerId, user, followingSet);
-    });
-
-  return {
-    data,
-    total,
-    hasMore: skip + rawFluxes.length < total
-  };
-};
-
-// Reels Feed — Global public video persistent fluxes
-export const getReelsFeed = async (viewerId: string, page: number = 1, limit: number = 20): Promise<{ data: any[]; total: number; hasMore: boolean }> => {
-  const skip = (page - 1) * limit;
-  const cloudName = process.env.CLOUDINARY_NAME || "";
-  
-  const query = {
-    mediaType: "video",
-    visibility: "public",
-    isDeleted: false,
-    ...POST_FILTER
-  };
-
-  const total = await FluxModel.countDocuments(query);
-  const reels = await FluxModel.find(query)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  if (reels.length === 0) return { data: [], total, hasMore: false };
-
-  const ownerIds = [...new Set(reels.map((r) => r.userId.toString()))];
-  const [usersResp, followingResp] = await Promise.all([
-    wieUserClient.getUsersByIds(ownerIds).catch(() => ({ users: [] })),
-    followClient.getFollowingIds(viewerId).catch(() => ({ followingIds: [] }))
-  ]);
-
-  const userMap: Record<string, any> = {};
-  (usersResp.users || []).forEach((u: any) => {
-    const uid = String(u.id || u._id || "");
-    if (uid) userMap[uid] = u;
-  });
-
-  const followingSet = new Set(followingResp.followingIds || []);
-
-  const data = reels.map((r: any) => {
-    const user = userMap[String(r.userId)];
-    return formatPostResponse(r, viewerId, user, followingSet);
-  });
-
-  return {
-    data,
-    total,
-    hasMore: skip + reels.length < total
-  };
+  return feed;
 };
 
 export const viewFlux = async (
@@ -691,12 +421,13 @@ export const viewFlux = async (
     flux.visibility === "close_friends" &&
     flux.userId.toString() !== viewerId
   ) {
-    try {
-      const { isCloseFriend } = await followClient.checkCloseFriend(String(flux.userId), viewerId);
-      if (!isCloseFriend) return;
-    } catch {
-      return;
-    }
+    const allowed = await CloseFriendModel.exists({
+      userId: flux.userId,
+      closeFriendId: viewerId,
+    })
+      .then((r) => !!r)
+      .catch(() => false);
+    if (!allowed) return;
   }
 
   // ── Deduplicate using the flat `viewers` array (fast .includes check) ──
@@ -779,11 +510,10 @@ export const deleteFlux = async (
 };
 
 export const getAllMyFluxes = async (userId: string): Promise<IFlux[]> => {
-  // First, mark any expired fluxes that haven't been updated yet - BUT NEVER persistent ones
+  // First, mark any expired fluxes that haven't been updated yet
   await FluxModel.updateMany(
     {
       userId,
-      isPersistent: { $ne: true },
       expiresAt: { $lt: new Date() },
       isDeleted: false,
       status: "active",

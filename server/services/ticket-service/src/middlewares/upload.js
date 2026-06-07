@@ -9,15 +9,23 @@ const storage = multer.memoryStorage();
 
 // File type validation
 const generalFileFilter = (req, file, cb) => {
-  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif','.avif'];
+  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif', '.avif'];
   const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'];
   const docTypes = ['.pdf', '.doc', '.docx'];
   const allowed = [...imageTypes, ...videoTypes, ...docTypes];
   const ext = path.extname(file.originalname).toLowerCase();
-  
+
   if (file.fieldname.startsWith('guest_profile')) {
     if (!imageTypes.includes(ext)) {
       return cb(new Error('Guest profile must be an image file (JPG, JPEG, PNG, GIF, WEBP)'));
+    }
+  } else if (file.fieldname.startsWith('food_picture')) {
+    if (!imageTypes.includes(ext)) {
+      return cb(new Error('Food picture must be an image file (JPG, JPEG, PNG, GIF, WEBP)'));
+    }
+  } else if (file.fieldname.startsWith('accommodation_picture')) {
+    if (!imageTypes.includes(ext)) {
+      return cb(new Error('Accommodation picture must be an image file (JPG, JPEG, PNG, GIF, WEBP)'));
     }
   } else if (file.fieldname === 'event_rules') {
     if (!docTypes.includes(ext)) {
@@ -34,17 +42,17 @@ const generalFileFilter = (req, file, cb) => {
   } else if (!allowed.includes(ext)) {
     return cb(new Error('Only PDF, DOC, DOCX, image, and video files are allowed'));
   }
-  
+
   cb(null, true);
 };
 const ticketMediaFileFilter = (req, file, cb) => {
   try {
-    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif','.avif'];
+    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif', '.avif'];
     const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
     const docTypes = ['.pdf', '.doc', '.docx'];
-    
+
     let ext = path.extname(file.originalname).toLowerCase();
-    
+
     if (!ext && file.mimetype) {
       const mimeTypeMap = {
         'image/jpeg': '.jpg',
@@ -66,11 +74,11 @@ const ticketMediaFileFilter = (req, file, cb) => {
       };
       ext = mimeTypeMap[file.mimetype] || '';
     }
-    
+
     if (!ext) {
       return cb(new Error(`File must have a valid extension or MIME type. Received: ${file.originalname}`), false);
     }
-    
+
     const fieldTypeMap = {
       college_authorisation: {
         allowed: docTypes,
@@ -88,18 +96,18 @@ const ticketMediaFileFilter = (req, file, cb) => {
         allowed: imageTypes,
         errorMsg: 'Event banner must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
       },
-      ticket_layout: {  
-        allowed: [...imageTypes, ...docTypes], 
+      ticket_layout: {
+        allowed: [...imageTypes, ...docTypes],
         errorMsg: 'Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP) or PDF'
       },
       event_portrait: {
-    allowed: imageTypes,
-    errorMsg: 'Portrait image must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
-  },
-  event_videos: {
-    allowed: videoTypes,
-    errorMsg: 'Event videos must be valid video files (MP4, AVI, MOV, etc.)'
-  },
+        allowed: imageTypes,
+        errorMsg: 'Portrait image must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
+      },
+      event_videos: {
+        allowed: videoTypes,
+        errorMsg: 'Event videos must be valid video files (MP4, AVI, MOV, etc.)'
+      },
       event_images: {
         allowed: imageTypes,
         errorMsg: 'Event images must be image or video files'
@@ -113,7 +121,7 @@ const ticketMediaFileFilter = (req, file, cb) => {
         errorMsg: 'Video preview image must be a valid image file'
       }
     };
-    
+
     // ✅ Handle guest_profile fields
     if (file.fieldname.startsWith('guest_profile')) {
       if (imageTypes.includes(ext)) {
@@ -122,7 +130,7 @@ const ticketMediaFileFilter = (req, file, cb) => {
         return cb(new Error('Guest profile must be an image file'), false);
       }
     }
-    
+
     // ✅ Handle ticket_photo fields
     if (file.fieldname.startsWith('ticket_photo')) {
       if (imageTypes.includes(ext)) {
@@ -131,7 +139,25 @@ const ticketMediaFileFilter = (req, file, cb) => {
         return cb(new Error('Ticket photo must be an image file'), false);
       }
     }
-    
+
+    // ✅ Handle food_picture fields
+    if (file.fieldname.startsWith('food_picture')) {
+      if (imageTypes.includes(ext)) {
+        return cb(null, true);
+      } else {
+        return cb(new Error('Food picture must be an image file'), false);
+      }
+    }
+
+    // ✅ Handle accommodation_picture fields
+    if (file.fieldname.startsWith('accommodation_picture')) {
+      if (imageTypes.includes(ext)) {
+        return cb(null, true);
+      } else {
+        return cb(new Error('Accommodation picture must be an image file'), false);
+      }
+    }
+
     // ✅ Handle video_file fields
     if (file.fieldname.startsWith('video_file')) {
       if (videoTypes.includes(ext)) {
@@ -140,7 +166,7 @@ const ticketMediaFileFilter = (req, file, cb) => {
         return cb(new Error('Video file must be a valid video format'), false);
       }
     }
-    
+
     // ✅ Handle preview_image fields
     if (file.fieldname.startsWith('preview_image')) {
       if (imageTypes.includes(ext)) {
@@ -149,7 +175,7 @@ const ticketMediaFileFilter = (req, file, cb) => {
         return cb(new Error('Preview image must be an image file'), false);
       }
     }
-    
+
     // Check specific field configurations
     const fieldConfig = fieldTypeMap[file.fieldname];
     if (fieldConfig) {
@@ -159,15 +185,15 @@ const ticketMediaFileFilter = (req, file, cb) => {
         return cb(new Error(fieldConfig.errorMsg), false);
       }
     }
-    
+
     // Default: allow all valid types
     const allAllowedTypes = [...imageTypes, ...videoTypes, ...docTypes];
     if (allAllowedTypes.includes(ext)) {
       return cb(null, true);
     }
-    
+
     return cb(new Error(`File type not allowed: ${ext}`), false);
-    
+
   } catch (error) {
     console.error('Error in ticketMediaFileFilter:', error);
     return cb(new Error('File validation error'), false);
@@ -248,7 +274,9 @@ export const getCloudinaryFolder = (fieldname) => {
     video_file: 'WIE_EVENTS/event_videos',
     preview_image: 'WIE_EVENTS/event_previews',
     event_video: 'WIE_EVENTS/event_videos',
-    event_preview: 'WIE_EVENTS/event_previews'
+    event_preview: 'WIE_EVENTS/event_previews',
+    food_picture: 'WIE_EVENTS/food_pictures',
+    accommodation_picture: 'WIE_EVENTS/accommodation_pictures'
   };
 
   // Handle dynamic field names (e.g., guest_profile_0, ticket_photo_1)
@@ -261,13 +289,13 @@ export const getCloudinaryFolder = (fieldname) => {
 };
 export const getResourceType = (fieldname, mimetype) => {
   if (
-    fieldname.startsWith('video_file') || 
+    fieldname.startsWith('video_file') ||
     fieldname === 'event_videos' || // Add this
     mimetype?.startsWith('video/')
   ) {
     return 'video';
   }
-  
+
   // ✅ Handle ticket_layout - can be image or PDF
   if (fieldname === 'ticket_layout' || fieldname.startsWith('ticket_layout')) {
     if (mimetype?.includes('pdf')) {
@@ -275,39 +303,39 @@ export const getResourceType = (fieldname, mimetype) => {
     }
     return 'image';
   }
-  
+
   // Handle group document fields that can be images or PDFs
-  if (fieldname === 'id_proof' || 
-      fieldname === 'bank_check' || 
-      fieldname === 'company_certificate') {
+  if (fieldname === 'id_proof' ||
+    fieldname === 'bank_check' ||
+    fieldname === 'company_certificate') {
     if (mimetype?.startsWith('image/')) {
       return 'image';
     }
-    if (mimetype?.includes('pdf') || 
-        mimetype?.includes('document') || 
-        mimetype?.includes('msword')) {
+    if (mimetype?.includes('pdf') ||
+      mimetype?.includes('document') ||
+      mimetype?.includes('msword')) {
       return 'raw';
     }
     return 'auto';
   }
-  
-  if (fieldname === 'event_rules' || 
-      fieldname === 'college_authorisation' || 
-      mimetype?.includes('pdf') || 
-      mimetype?.includes('document')) {
+
+  if (fieldname === 'event_rules' ||
+    fieldname === 'college_authorisation' ||
+    mimetype?.includes('pdf') ||
+    mimetype?.includes('document')) {
     return 'raw';
   }
-  
+
   if (fieldname === 'company_logo') {
     return 'image';
   }
-  
+
   return 'image';
 };
 // Multer upload instances
 const upload = multer({
   storage,
-  limits: { 
+  limits: {
     fileSize: 200 * 1024 * 1024, // 200MB
     files: 100
   },
@@ -316,7 +344,7 @@ const upload = multer({
 
 const ticketMediaUpload = multer({
   storage,
-  limits: { 
+  limits: {
     fileSize: 250 * 1024 * 1024, // 250MB
     files: 50
   },
@@ -396,7 +424,9 @@ const uploadFields = upload.fields([
   { name: 'preview_image_28', maxCount: 1 },
   { name: 'preview_image_29', maxCount: 1 },
   { name: 'event_rules', maxCount: 1 },
-  { name: 'guest_profile', maxCount: 1 }
+  { name: 'guest_profile', maxCount: 1 },
+  ...Array.from({ length: 20 }, (_, i) => ({ name: `food_picture_${i}`, maxCount: 1 })),
+  ...Array.from({ length: 20 }, (_, i) => ({ name: `accommodation_picture_${i}`, maxCount: 1 }))
 ]);
 
 export default upload;
@@ -410,11 +440,11 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'event_rules', maxCount: 1 },
     { name: 'event_portrait', maxCount: 1 },
     { name: 'college_authorisation', maxCount: 1 },
-    
+
     // Multiple files
     { name: 'event_images', maxCount: 10 },
-  { name: 'event_videos', maxCount: 5 },
-    
+    { name: 'event_videos', maxCount: 5 },
+
     // Guest profiles (0-9)
     { name: 'guest_profile_0', maxCount: 1 },
     { name: 'guest_profile_1', maxCount: 1 },
@@ -426,7 +456,7 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'guest_profile_7', maxCount: 1 },
     { name: 'guest_profile_8', maxCount: 1 },
     { name: 'guest_profile_9', maxCount: 1 },
-    
+
     // Ticket photos (0-19)
     { name: 'ticket_photo_0', maxCount: 1 },
     { name: 'ticket_photo_1', maxCount: 1 },
@@ -448,7 +478,7 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'ticket_photo_17', maxCount: 1 },
     { name: 'ticket_photo_18', maxCount: 1 },
     { name: 'ticket_photo_19', maxCount: 1 },
-    
+
     // Video files (0-29)
     { name: 'video_file_0', maxCount: 1 },
     { name: 'video_file_1', maxCount: 1 },
@@ -480,7 +510,7 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'video_file_27', maxCount: 1 },
     { name: 'video_file_28', maxCount: 1 },
     { name: 'video_file_29', maxCount: 1 },
-    
+
     // Preview images (0-29)
     { name: 'preview_image_0', maxCount: 1 },
     { name: 'preview_image_1', maxCount: 1 },
@@ -511,7 +541,9 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'preview_image_26', maxCount: 1 },
     { name: 'preview_image_27', maxCount: 1 },
     { name: 'preview_image_28', maxCount: 1 },
-    { name: 'preview_image_29', maxCount: 1 }
+    { name: 'preview_image_29', maxCount: 1 },
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `food_picture_${i}`, maxCount: 1 })),
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `accommodation_picture_${i}`, maxCount: 1 }))
   ]);
 
   upload(req, res, (err) => {
@@ -541,7 +573,7 @@ export const uploadTicketMedia = (req, res, next) => {
         error: err.message
       });
     }
-    
+
     if (req.files) {
       Object.entries(req.files).forEach(([fieldname, files]) => {
         files.forEach(file => {
@@ -549,7 +581,7 @@ export const uploadTicketMedia = (req, res, next) => {
         });
       });
     }
-    
+
     next();
   });
 };
@@ -563,6 +595,8 @@ export const createDynamicTicketUpload = (maxTicketTypes = 20) => {
     { name: 'event_images', maxCount: 10 },
     ...Array.from({ length: 10 }, (_, i) => ({ name: `guest_profile_${i}`, maxCount: 1 })),
     ...Array.from({ length: maxTicketTypes }, (_, i) => ({ name: `ticket_photo_${i}`, maxCount: 1 })),
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `food_picture_${i}`, maxCount: 1 })),
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `accommodation_picture_${i}`, maxCount: 1 })),
     { name: 'ticket_layout', maxCount: 1 },
     { name: 'event_rules', maxCount: 1 },
     { name: 'college_authorisation', maxCount: 1 }
@@ -572,7 +606,7 @@ export const createDynamicTicketUpload = (maxTicketTypes = 20) => {
 export const uploadGroupFiles = (req, res, next) => {
   const upload = multer({
     storage,
-    limits: { 
+    limits: {
       fileSize: 10 * 1024 * 1024, // 10MB
       files: 4
     },
@@ -580,9 +614,9 @@ export const uploadGroupFiles = (req, res, next) => {
       const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
       const docTypes = ['.pdf', '.doc', '.docx'];
       const allowedTypes = [...imageTypes, ...docTypes];
-      
+
       let ext = path.extname(file.originalname).toLowerCase();
-      
+
       // Handle missing extension by checking mimetype
       if (!ext && file.mimetype) {
         const mimeTypeMap = {
@@ -597,15 +631,15 @@ export const uploadGroupFiles = (req, res, next) => {
         };
         ext = mimeTypeMap[file.mimetype] || '';
       }
-      
+
       // Validation based on field name
       if (file.fieldname === 'company_logo') {
         if (!imageTypes.includes(ext)) {
           return cb(new Error('Company logo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
         }
-      } else if (file.fieldname === 'id_proof' || 
-                 file.fieldname === 'bank_check' || 
-                 file.fieldname === 'company_certificate') {
+      } else if (file.fieldname === 'id_proof' ||
+        file.fieldname === 'bank_check' ||
+        file.fieldname === 'company_certificate') {
         // These fields accept both images and documents
         if (!allowedTypes.includes(ext)) {
           return cb(new Error(`${file.fieldname} must be an image (JPG, JPEG, PNG, GIF, WEBP) or document (PDF, DOC, DOCX)`), false);
@@ -616,7 +650,7 @@ export const uploadGroupFiles = (req, res, next) => {
           return cb(new Error('Only image (JPG, JPEG, PNG, GIF, WEBP) and document (PDF, DOC, DOCX) files are allowed'), false);
         }
       }
-      
+
       cb(null, true);
     }
   }).fields([

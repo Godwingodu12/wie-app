@@ -1,38 +1,50 @@
-import * as grpc from '@grpc/grpc-js';
-import * as protoLoader from '@grpc/proto-loader';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import * as grpc from "@grpc/grpc-js";
+import * as protoLoader from "@grpc/proto-loader";
+import path from "path";
+import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PROTO_PATH = path.join(
-  __dirname,
-  '../../../../protos/ticket.proto'
-);
+const PROTO_PATH = path.join(__dirname, "../../../../protos/ticket.proto");
 // retries on Mongoose version conflict (VersionError)
-const VERSION_CONFLICT_PATTERN = /No matching document found for id.*modifiedPaths/i;
+const VERSION_CONFLICT_PATTERN =
+  /No matching document found for id.*modifiedPaths/i;
 const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 80; // slight backoff to let the other write settle
 
-const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
   enums: String,
   defaults: true,
-  oneofs: true
+  oneofs: true,
 });
 const ticketProto = grpc.loadPackageDefinition(packageDefinition).ticket as any;
-const TICKET_SERVICE_URL = process.env.TICKET_GRPC_URL || 'localhost:50052';
+const TICKET_SERVICE_URL = process.env.TICKET_GRPC_URL || "localhost:50052";
 let client: any = null;
 const getClient = () => {
   if (!client) {
     client = new ticketProto.TicketService(
       TICKET_SERVICE_URL,
-      grpc.credentials.createInsecure()
+      grpc.credentials.createInsecure(),
     );
   }
   return client;
 };
+
+interface QuestionDetailField {
+  name?: boolean;
+  email?: boolean;
+  phone_number?: boolean;
+  position?: boolean;
+  custom_questions?: Array<{
+    question_id: string;
+    question_text: string;
+    answer_type: 'string' | 'number' | 'boolean' | 'text' | 'select';
+    is_required: boolean;
+    options: string[];
+  }>;
+}
 
 interface TicketData {
   id: string;
@@ -43,6 +55,8 @@ interface TicketData {
     end_date?: string;
     start_time?: string;
     end_time?: string;
+    event_link?: string;
+    verification_event_code?: string;
   }>;
   location?: string;
   venue?: string;
@@ -61,8 +75,32 @@ interface TicketData {
   groupId: string;
   payment_type: 'free' | 'paid';
   seating_layout?: any;
+  restrict_booking?: boolean;
+  // Question fields
+  question_data?: boolean;
+  question_details?: QuestionDetailField;
+  // Food & accommodation
+  food_accoum?: boolean;
+  food_accoum_type?: 'food_accommodation' | 'food_only' | 'accommodation_only' | 'none';
+  food_details?: Array<{
+    food_quantity: number;
+    food_menu: string[];
+    food_catering_name: string;
+    food_price: number;
+    food_picture: string;
+  }>;
+  accommodation_details?: Array<{
+    accommodation_quantity: number;
+    accommodation_type: string[];
+    accommodation_price: number;
+    accommodation_catering_name: string;
+    accommodation_picture: string;
+  }>;
+  event_portrait?: string;
+  event_banner?: string;
   [key: string]: any;
 }
+
 interface GroupData {
   id: string;
   name: string;
@@ -80,32 +118,32 @@ interface BookingStats {
   totalTicketsSold: number;
 }
 export interface CancelledEventInfo {
-  eventId:             string;
-  parentEventId:       string;
-  isSubEvent:          boolean;
-  event_name:          string;
-  event_status:        string;
-  event_banner:        string;
-  event_category:      string;
-  cancelled_at:        string;
+  eventId: string;
+  parentEventId: string;
+  isSubEvent: boolean;
+  event_name: string;
+  event_status: string;
+  event_banner: string;
+  event_category: string;
+  cancelled_at: string;
   cancellation_reason: string;
-  event_dates:         any[];
-  location:            string;
-  venue:               string;
+  event_dates: any[];
+  location: string;
+  venue: string;
 }
 
 export interface RehostedEventInfo {
-  eventId:       string;
+  eventId: string;
   parentEventId: string;
-  isSubEvent:    boolean;
-  event_name:    string;
-  event_status:  string;
-  event_banner:  string;
+  isSubEvent: boolean;
+  event_name: string;
+  event_status: string;
+  event_banner: string;
   event_category: string;
-  rehosted_at:   string;
-  event_dates:   any[];
-  location:      string;
-  venue:         string;
+  rehosted_at: string;
+  event_dates: any[];
+  location: string;
+  venue: string;
 }
 export const getTicketById = async (ticketId: string): Promise<TicketData> => {
   return new Promise((resolve, reject) => {
@@ -116,7 +154,7 @@ export const getTicketById = async (ticketId: string): Promise<TicketData> => {
       } else if (response.error) {
         reject(new Error(response.error));
       } else if (!response.ticket) {
-        reject(new Error('Ticket not found'));
+        reject(new Error("Ticket not found"));
       } else {
         resolve(response.ticket);
       }
@@ -132,7 +170,7 @@ export const getGroupById = async (groupId: string): Promise<GroupData> => {
       } else if (response.error) {
         reject(new Error(response.error));
       } else if (!response.group) {
-        reject(new Error('Group not found'));
+        reject(new Error("Group not found"));
       } else {
         resolve(response.group);
       }
@@ -142,9 +180,9 @@ export const getGroupById = async (groupId: string): Promise<GroupData> => {
 
 export const updateTicketStats = async (
   ticketId: string,
-  statType: 'like' | 'share' | 'totalBookings' | 'totalTicketsSold' | 'revenue',
+  statType: "like" | "share" | "totalBookings" | "totalTicketsSold" | "revenue",
   increment: number,
-  _attempt = 0
+  _attempt = 0,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
@@ -152,7 +190,7 @@ export const updateTicketStats = async (
     client.UpdateTicketStats(
       { ticketId, statType, increment },
       async (error: any, response: any) => {
-        const errMsg: string = error?.message || response?.error || '';
+        const errMsg: string = error?.message || response?.error || "";
 
         // Mongoose VersionError — retry with exponential backoff
         if (errMsg && VERSION_CONFLICT_PATTERN.test(errMsg)) {
@@ -160,11 +198,16 @@ export const updateTicketStats = async (
             const delay = RETRY_DELAY_MS * Math.pow(2, _attempt); // 80, 160, 320, 640 ms
             console.warn(
               `⚠️ [gRPC] Version conflict on UpdateTicketStats (${statType}), ` +
-              `retry ${_attempt + 1}/${MAX_RETRIES} in ${delay}ms…`
+              `retry ${_attempt + 1}/${MAX_RETRIES} in ${delay}ms…`,
             );
             await sleep(delay);
             try {
-              await updateTicketStats(ticketId, statType, increment, _attempt + 1);
+              await updateTicketStats(
+                ticketId,
+                statType,
+                increment,
+                _attempt + 1,
+              );
               resolve();
             } catch (retryErr) {
               reject(retryErr);
@@ -175,8 +218,8 @@ export const updateTicketStats = async (
           reject(
             new Error(
               `UpdateTicketStats (${statType}) failed after ${MAX_RETRIES} retries ` +
-              `due to version conflict: ${errMsg}`
-            )
+              `due to version conflict: ${errMsg}`,
+            ),
           );
           return;
         }
@@ -188,38 +231,54 @@ export const updateTicketStats = async (
         } else {
           resolve();
         }
-      }
+      },
     );
   });
 };
 
-export const getTicketBookingStats = async (ticketId: string): Promise<BookingStats> => {
+export const getTicketBookingStats = async (
+  ticketId: string,
+): Promise<BookingStats> => {
   return new Promise((resolve) => {
     if (
       !ticketId ||
-      ticketId === 'undefined' ||
-      ticketId === 'null' ||
+      ticketId === "undefined" ||
+      ticketId === "null" ||
       !/^[a-f\d]{24}$/i.test(ticketId)
     ) {
-      return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
+      return resolve({
+        totalBookings: 0,
+        totalRevenue: 0,
+        totalTicketsSold: 0,
+      });
     }
 
     const client = getClient();
 
     client.GetTicketBookingStats({ ticketId }, (error: any, response: any) => {
       if (error) {
-        console.error(`❌ [gRPC] GetTicketBookingStats transport error: ${error.message}`);
-        return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
+        console.error(
+          `❌ [gRPC] GetTicketBookingStats transport error: ${error.message}`,
+        );
+        return resolve({
+          totalBookings: 0,
+          totalRevenue: 0,
+          totalTicketsSold: 0,
+        });
       }
 
-      if (response?.error && response.error.trim() !== '') {
+      if (response?.error && response.error.trim() !== "") {
         console.error(`❌ [gRPC] Booking stats error: ${response.error}`);
-        return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
+        return resolve({
+          totalBookings: 0,
+          totalRevenue: 0,
+          totalTicketsSold: 0,
+        });
       }
 
       resolve({
-        totalBookings:    response?.totalBookings    || 0,
-        totalRevenue:     response?.totalRevenue     || 0,
+        totalBookings: response?.totalBookings || 0,
+        totalRevenue: response?.totalRevenue || 0,
         totalTicketsSold: response?.totalTicketsSold || 0,
       });
     });
@@ -228,11 +287,11 @@ export const getTicketBookingStats = async (ticketId: string): Promise<BookingSt
 
 export const updateTicketCancellation = async (
   ticketId: string,
-  increment: number
+  increment: number,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.UpdateTicketCancellation(
       { ticketId, increment },
       (error: any, response: any) => {
@@ -243,14 +302,14 @@ export const updateTicketCancellation = async (
         } else {
           resolve();
         }
-      }
+      },
     );
   });
 };
 export const getPreviousEventStats = async (ticketId: string): Promise<any> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetPreviousEventStats({ ticketId }, (error: any, response: any) => {
       if (error) {
         reject(new Error(`Failed to fetch event stats: ${error.message}`));
@@ -267,31 +326,40 @@ export const cancelEventViaGrpc = async (
   ticketId: string,
   subEventId: string = "",
   hostId: string,
-  cancellation_reason: string = ""
+  cancellation_reason: string = "",
 ): Promise<{ success: boolean; cancelledAt: string }> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
     client.CancelEvent(
       { ticketId, subEventId, hostId, cancellation_reason },
       (error: any, response: any) => {
-        if (error) return reject(new Error(`CancelEvent gRPC failed: ${error.message}`));
+        if (error)
+          return reject(new Error(`CancelEvent gRPC failed: ${error.message}`));
         if (!response.success) return reject(new Error(response.error));
         resolve({ success: true, cancelledAt: response.cancelledAt });
-      }
+      },
     );
   });
 };
 
 export const getEventCancellationInfo = async (
   ticketId: string,
-  subEventId: string = ""
-): Promise<{ eventId: string; paymentType: string; groupId: string; eventName: string }> => {
+  subEventId: string = "",
+): Promise<{
+  eventId: string;
+  paymentType: string;
+  groupId: string;
+  eventName: string;
+}> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
     client.GetEventCancellationInfo(
       { ticketId, subEventId },
       (error: any, response: any) => {
-        if (error) return reject(new Error(`GetEventCancellationInfo failed: ${error.message}`));
+        if (error)
+          return reject(
+            new Error(`GetEventCancellationInfo failed: ${error.message}`),
+          );
         if (response.error) return reject(new Error(response.error));
         resolve({
           eventId: response.eventId,
@@ -299,11 +367,14 @@ export const getEventCancellationInfo = async (
           groupId: response.groupId,
           eventName: response.eventName,
         });
-      }
+      },
     );
   });
 };
-export const getEventDates = async (ticketId: string): Promise<{
+
+export const getEventDates = async (
+  ticketId: string,
+): Promise<{
   start_date: string;
   start_time?: string;
   end_date?: string;
@@ -311,14 +382,14 @@ export const getEventDates = async (ticketId: string): Promise<{
 } | null> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetTicketById({ ticketId }, (error: any, response: any) => {
       if (error) {
         reject(new Error(`Failed to fetch event dates: ${error.message}`));
       } else if (response.error) {
         reject(new Error(response.error));
       } else if (!response.ticket) {
-        reject(new Error('Ticket not found'));
+        reject(new Error("Ticket not found"));
       } else {
         // Extract first event date
         const eventDates = response.ticket.event_dates?.[0];
@@ -327,7 +398,7 @@ export const getEventDates = async (ticketId: string): Promise<{
             start_date: eventDates.start_date,
             start_time: eventDates.start_time,
             end_date: eventDates.end_date,
-            end_time: eventDates.end_time
+            end_time: eventDates.end_time,
           });
         } else {
           resolve(null);
@@ -337,40 +408,56 @@ export const getEventDates = async (ticketId: string): Promise<{
   });
 };
 
-export const getCancelledEvents = async (userId?: string): Promise<CancelledEventInfo[]> => {
+export const getCancelledEvents = async (
+  userId?: string,
+): Promise<CancelledEventInfo[]> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    client.GetCancelledEvents({ userId: userId || '' }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ [gRPC] getCancelledEvents error:', error.message);
-        reject(new Error(error.message));
-        return;
-      }
-      if (response.error) {
-        console.error('❌ [gRPC] getCancelledEvents response error:', response.error);
-        reject(new Error(response.error));
-        return;
-      }
-      resolve(response.events || []);
-    });
+    client.GetCancelledEvents(
+      { userId: userId || "" },
+      (error: any, response: any) => {
+        if (error) {
+          console.error("❌ [gRPC] getCancelledEvents error:", error.message);
+          reject(new Error(error.message));
+          return;
+        }
+        if (response.error) {
+          console.error(
+            "❌ [gRPC] getCancelledEvents response error:",
+            response.error,
+          );
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(response.events || []);
+      },
+    );
   });
 };
 
-export const getRehostedEvents = async (userId?: string): Promise<RehostedEventInfo[]> => {
+export const getRehostedEvents = async (
+  userId?: string,
+): Promise<RehostedEventInfo[]> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    client.GetRehostedEvents({ userId: userId || '' }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ [gRPC] getRehostedEvents error:', error.message);
-        reject(new Error(error.message));
-        return;
-      }
-      if (response.error) {
-        console.error('❌ [gRPC] getRehostedEvents response error:', response.error);
-        reject(new Error(response.error));
-        return;
-      }
-      resolve(response.events || []);
-    });
+    client.GetRehostedEvents(
+      { userId: userId || "" },
+      (error: any, response: any) => {
+        if (error) {
+          console.error("❌ [gRPC] getRehostedEvents error:", error.message);
+          reject(new Error(error.message));
+          return;
+        }
+        if (response.error) {
+          console.error(
+            "❌ [gRPC] getRehostedEvents response error:",
+            response.error,
+          );
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(response.events || []);
+      },
+    );
   });
 };

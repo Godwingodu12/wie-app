@@ -1,0 +1,3 @@
+install this in auth-service path, npm install twilio
+install this in client,auth-service and user-service, npm install   
+install, npm install bcryptjs,  npm install uuid, npm install nodemailer,npm install axios   

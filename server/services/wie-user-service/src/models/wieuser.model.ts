@@ -125,6 +125,7 @@ class WieUserModel {
           await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
           continue;
         }
+        console.error("Error in withRetry operation:", error); // Log the error before re-throwing
         throw error;
       }
     }
@@ -308,13 +309,13 @@ class WieUserModel {
     return prisma.wieUser.count({
       where: search
         ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { username: { contains: search, mode: "insensitive" } },
-              { email: { contains: search, mode: "insensitive" } },
-              { contactNo: { contains: search, mode: "insensitive" } },
-            ],
-          }
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { username: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { contactNo: { contains: search, mode: "insensitive" } },
+          ],
+        }
         : {},
     });
   }
@@ -340,9 +341,6 @@ class WieUserModel {
         where: { googleId: google_id },
       });
       if (!user) return null;
-      if (Array.isArray((user as any).locationSource)) {
-        (user as any).locationSource = null;
-      }
       return toDatabaseFormat(user);
     } catch (error: any) {
       console.warn(
@@ -355,12 +353,13 @@ class WieUserModel {
         `;
         if (!results.length) return null;
         const raw = results[0];
-        // Fix the bad field
-        raw.locationSource = null;
-        raw.location_source = null;
+        // Ensure locationSource is handled correctly based on schema, assuming it should be string | null
+        if (Array.isArray(raw.locationSource)) {
+          raw.locationSource = null;
+        }
         return toDatabaseFormat({
           ...raw,
-          locationSource: null,
+          locationSource: raw.locationSource || null,
           contactNo: raw.contact_no,
           profilePicture: raw.profile_picture,
           countryId: raw.country_id,
@@ -394,9 +393,6 @@ class WieUserModel {
         where: { appleId: apple_id },
       });
       if (!user) return null;
-      if (Array.isArray((user as any).locationSource)) {
-        (user as any).locationSource = null;
-      }
       return toDatabaseFormat(user);
     } catch (error: any) {
       console.warn(
@@ -409,9 +405,13 @@ class WieUserModel {
         `;
         if (!results.length) return null;
         const raw = results[0];
+        // Ensure locationSource is handled correctly based on schema, assuming it should be string | null
+        if (Array.isArray(raw.locationSource)) {
+          raw.locationSource = null;
+        }
         return toDatabaseFormat({
           ...raw,
-          locationSource: null,
+          locationSource: raw.locationSource || null,
           contactNo: raw.contact_no,
           profilePicture: raw.profile_picture,
           countryId: raw.country_id,
@@ -446,9 +446,6 @@ class WieUserModel {
         where: { microsoftId: microsoft_id },
       });
       if (!user) return null;
-      if (Array.isArray((user as any).locationSource)) {
-        (user as any).locationSource = null;
-      }
       return toDatabaseFormat(user);
     } catch (error: any) {
       console.warn(
@@ -461,9 +458,13 @@ class WieUserModel {
         `;
         if (!results.length) return null;
         const raw = results[0];
+        // Ensure locationSource is handled correctly based on schema, assuming it should be string | null
+        if (Array.isArray(raw.locationSource)) {
+          raw.locationSource = null;
+        }
         return toDatabaseFormat({
           ...raw,
-          locationSource: null,
+          locationSource: raw.locationSource || null,
           contactNo: raw.contact_no,
           profilePicture: raw.profile_picture,
           countryId: raw.country_id,
@@ -506,6 +507,7 @@ class WieUserModel {
     return toDatabaseFormat(user);
   }
 
+  // AFTER — only set picture if user has none
   async linkMicrosoftAccount(
     userId: string,
     data: {
@@ -514,11 +516,14 @@ class WieUserModel {
       auth_provider: string;
     },
   ): Promise<WieUser> {
+    const existingUser = await prisma.wieUser.findUnique({ where: { id: userId } });
+
     const user = await prisma.wieUser.update({
       where: { id: userId },
       data: {
         microsoftId: data.microsoft_id,
-        ...(data.profile_picture
+        // ✅ Only set picture if user has no picture currently
+        ...(data.profile_picture && !existingUser?.profilePicture
           ? { profilePicture: data.profile_picture }
           : {}),
         authProvider: data.auth_provider,
@@ -537,13 +542,13 @@ class WieUserModel {
     const users = await prisma.wieUser.findMany({
       where: search
         ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { username: { contains: search, mode: "insensitive" } },
-              { email: { contains: search, mode: "insensitive" } },
-              { contactNo: { contains: search, mode: "insensitive" } },
-            ],
-          }
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { username: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { contactNo: { contains: search, mode: "insensitive" } },
+          ],
+        }
         : {},
       skip,
       take: limit,
@@ -680,6 +685,7 @@ class WieUserModel {
     }
   }
 
+  // AFTER — fetch current user first, only set picture if none exists
   async linkGoogleAccount(
     id: string,
     googleData: {
@@ -688,6 +694,9 @@ class WieUserModel {
       auth_provider: string;
     },
   ): Promise<WieUser> {
+    // Fetch existing user to check if they already have a profile picture
+    const existingUser = await prisma.wieUser.findUnique({ where: { id } });
+
     const updateData: any = {
       googleId: googleData.google_id,
       authProvider: googleData.auth_provider,
@@ -696,7 +705,8 @@ class WieUserModel {
       updatedAt: new Date(),
     };
 
-    if (googleData.profile_picture) {
+    // ✅ Only set picture if user has no picture currently
+    if (googleData.profile_picture && !existingUser?.profilePicture) {
       updateData.profilePicture = googleData.profile_picture;
     }
 
@@ -809,8 +819,8 @@ class WieUserModel {
         },
       });
       return result.count;
-    } catch {
-      // Background cleanup — silent on DB unavailability
+    } catch (error) {
+      console.error("Error deleting unverified users:", error);
       return 0;
     }
   }
@@ -852,23 +862,11 @@ class WieUserModel {
   }
 
   async incrementPosts(userId: string) {
-    return prisma.wieUser.update({
+    await prisma.wieUser.update({
       where: { id: userId },
-      data: { postsCount: { increment: 1 } },
-    });
-  }
-
-  async decrementPosts(userId: string) {
-    return prisma.wieUser.update({
-      where: { id: userId },
-      data: { postsCount: { decrement: 1 } },
-    });
-  }
-
-  async setPostsCount(userId: string, count: number) {
-    return prisma.wieUser.update({
-      where: { id: userId },
-      data: { postsCount: count },
+      data: {
+        postsCount: { increment: 1 },
+      },
     });
   }
 
@@ -886,7 +884,8 @@ class WieUserModel {
         }),
       );
       return toDatabaseFormat(user);
-    } catch {
+    } catch (error) {
+      console.error("Error updating online status:", error);
       return null;
     }
   }

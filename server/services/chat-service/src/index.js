@@ -1,4 +1,3 @@
-import "dotenv/config";
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
@@ -12,6 +11,8 @@ import blockRoutes from './routes/block.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import { startChatGrpcServer } from './grpc/server.js';
 import { JWT_SECRET } from './config/jwt.config.js';
+import dotenv from 'dotenv';
+dotenv.config();
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5004;
@@ -81,7 +82,7 @@ const startServer = async () => {
     initializeSocket(server);
     initializeWieSocket(server);
 
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, () => {
       console.log(`✅ Chat Service running on port ${PORT}`);
       console.log(`📍 HTTP:         http://localhost:${PORT}`);
       console.log(`📍 Admin Socket: /socket.io`);

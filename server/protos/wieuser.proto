@@ -14,13 +14,6 @@ service WieUserService {
   rpc CheckIfBlocked(CheckBlockRequest) returns (CheckBlockResponse);
   rpc GetBlockedUserIds(UserIdRequest) returns (BlockedUsersResponse);
   rpc GetAccountPrivacy(UserIdRequest) returns (AccountPrivacyResponse);
-  rpc IncrementPosts(UserIdRequest) returns (EmptyResponse);
-  rpc DecrementPosts(UserIdRequest) returns (EmptyResponse);
-  rpc SetPostsCount(SetPostsCountRequest) returns (EmptyResponse);
-}
-message SetPostsCountRequest {
-  string userId = 1;
-  int32 count = 2;
 }
 message GetUsersByIdsRequest {
   repeated string userIds = 1;
@@ -104,7 +97,4 @@ message WieUser {
   string account_privacy = 22;
   string allow_messages_from = 23;
   bool allow_message_requests = 24;
-  int32 posts_count = 25;
-  int32 followers_count = 26;
-  int32 following_count = 27;
 }

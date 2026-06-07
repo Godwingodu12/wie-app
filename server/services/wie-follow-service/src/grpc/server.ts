@@ -3,7 +3,6 @@ import * as protoLoader from "@grpc/proto-loader";
 import path from "path";
 import { fileURLToPath } from "url";
 import * as followService from "../services/follow.service";
-import Follow from "../models/follow.model";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -293,50 +292,13 @@ const checkIsFollowedBy = async (call: any, callback: any) => {
 const getFollowingIds = async (call: any, callback: any) => {
   try {
     const { userId } = call.request;
-    // Fetch both active and pending follows to ensure they are filtered from suggestions
-    const follows = await Follow.find({
-      followerId: userId,
-      status: { $in: ['active', 'pending'] }
-    }).lean();
-    
-    const followingIds = follows.map(
-      (f: any) => f.followingId
+    const result = await followService.getFollowing(userId, 1, 100000);
+    const followingIds = result.following.map(
+      (f: any) => f.id ?? f._id?.toString() ?? f.userId,
     );
     callback(null, { followingIds });
   } catch (error: any) {
     callback(null, { followingIds: [] });
-  }
-};
-
-const getFollowingIdsDetailed = async (call: any, callback: any) => {
-  try {
-    const { userId } = call.request;
-    const follows = await Follow.find({
-      followerId: userId,
-      status: { $in: ['active', 'pending'] }
-    }).lean();
-    
-    const followingIds = follows
-      .filter((f: any) => f.status === 'active')
-      .map((f: any) => f.followingId);
-      
-    const requestedIds = follows
-      .filter((f: any) => f.status === 'pending')
-      .map((f: any) => f.followingId);
-
-    callback(null, { followingIds, requestedIds });
-  } catch (error: any) {
-    callback(null, { followingIds: [], requestedIds: [] });
-  }
-};
-
-const checkCloseFriend = async (call: any, callback: any) => {
-  try {
-    const { userId, targetUserId } = call.request;
-    const isCF = await followService.isCloseFriend(userId, targetUserId);
-    callback(null, { isCloseFriend: isCF });
-  } catch (error: any) {
-    callback(null, { isCloseFriend: false });
   }
 };
 
@@ -361,8 +323,6 @@ export const startGrpcServer = (port: number = 50058) => {
     AutoAcceptPendingRequests: autoAcceptPendingRequests,
     CheckIsFollowedBy: checkIsFollowedBy,
     GetFollowingIds: getFollowingIds,
-    GetFollowingIdsDetailed: getFollowingIdsDetailed,
-    CheckCloseFriend: checkCloseFriend,
   });
 
   server.bindAsync(

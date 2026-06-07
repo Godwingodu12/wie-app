@@ -328,7 +328,7 @@ export const getUserChats = async (req, res) => {
 };
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, content, replyTo } = req.body;
+    const { chatId, content } = req.body;
     const userId = req.user._id || req.user.id;
 
     if (!chatId || !content || content.trim().length === 0) {
@@ -351,14 +351,6 @@ export const sendMessage = async (req, res) => {
         success: false,
         message: 'You are not a participant in this chat'
       });
-    }
-
-    let replyContent = null;
-    if (replyTo) {
-      const originalMessage = chat.messages.id(replyTo);
-      if (originalMessage) {
-        replyContent = originalMessage.content;
-      }
     }
 
     let senderInfo = null;
@@ -402,8 +394,6 @@ export const sendMessage = async (req, res) => {
       readBy: receiverViewingChat ? [userId, receiverId] : [userId], 
       isRead: receiverViewingChat,
       deliveredTo: receiverOnline ? [receiverId] : [],
-      replyTo: replyTo || undefined,
-      replyContent: replyContent || undefined,
       timestamp: new Date()
     };
     
@@ -434,8 +424,6 @@ export const sendMessage = async (req, res) => {
       readBy: savedMessage.readBy.map(id => id.toString()),
       deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
       isRead: savedMessage.isRead,
-      replyTo: savedMessage.replyTo ? savedMessage.replyTo.toString() : null,
-      replyContent: savedMessage.replyContent,
       isSender: true,
       receiverOnline
     };
@@ -449,8 +437,6 @@ export const sendMessage = async (req, res) => {
       readBy: savedMessage.readBy.map(id => id.toString()),
       deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
       isRead: savedMessage.isRead,
-      replyTo: savedMessage.replyTo ? savedMessage.replyTo.toString() : null,
-      replyContent: savedMessage.replyContent,
       isSender: false
     };
     
@@ -485,9 +471,7 @@ export const sendMessage = async (req, res) => {
             senderImage: senderInfo?.image || null,
             timestamp: new Date(),
             deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
-            isRead: savedMessage.isRead,
-            replyTo: savedMessage.replyTo ? savedMessage.replyTo.toString() : null,
-            replyContent: savedMessage.replyContent
+            isRead: savedMessage.isRead
           },
           lastMessage: {
             content: content.trim(),
@@ -662,9 +646,7 @@ export const getChatMessages = async (req, res) => {
       createdAt: msg.createdAt || msg.timestamp,
       readBy: msg.readBy || [],
       isRead: msg.isRead || false,
-      deliveredTo: msg.deliveredTo || [],
-      replyTo: msg.replyTo || null,
-      replyContent: msg.replyContent || null
+      deliveredTo: msg.deliveredTo || []
     }));
     
     res.status(200).json({

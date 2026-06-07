@@ -52,12 +52,8 @@ export const initializeSocket = (server) => {
 
     // Send initial unread counts immediately when user connects
     try {
-      if (!mongoose.Types.ObjectId.isValid(socket.userId)) {
-        // If not a valid ObjectId, skip unread counts for the 'Chat' model
-        return;
-      }
-
       const Chat = mongoose.model('Chat');
+      
       const userId = new mongoose.Types.ObjectId(socket.userId);
       
       // FIXED: Use aggregation to calculate unread counts more efficiently
@@ -106,9 +102,8 @@ export const initializeSocket = (server) => {
     // Handle explicit request for unread counts
     socket.on('request-unread-counts', async () => {
       try {
-        if (!mongoose.Types.ObjectId.isValid(socket.userId)) return;
-
         const Chat = mongoose.model('Chat');
+        
         const userId = new mongoose.Types.ObjectId(socket.userId);
         
         const unreadCounts = await Chat.aggregate([
@@ -176,9 +171,6 @@ export const initializeSocket = (server) => {
     });
     socket.on('mark-read', async ({ chatId, messageIds }) => {
       try {
-        if (!mongoose.Types.ObjectId.isValid(socket.userId)) return;
-        if (!mongoose.Types.ObjectId.isValid(chatId)) return;
-
         const Chat = mongoose.model('Chat');
         const userId = new mongoose.Types.ObjectId(socket.userId);
         const chatObjectId = new mongoose.Types.ObjectId(chatId);

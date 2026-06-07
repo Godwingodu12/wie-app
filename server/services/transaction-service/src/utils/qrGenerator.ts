@@ -14,6 +14,8 @@ export interface QRCodeData {
   pricePerTicket: number;
   totalAmount: number;
   paymentMethod?: string;
+  foodAddonAmount?: number;
+  accommodationAddonAmount?: number;
   venue?: string;
 }
 
@@ -40,6 +42,10 @@ export interface QRPayload {
   eventImage?: string;
   bookingStatus?: string;
   groupId?: string;
+  foodAddonAmount?: number;
+  accommodationAddonAmount?: number;
+  hasFoodAddon?: boolean;
+  hasAccommodationAddon?: boolean;
   v: number;
 }
 
@@ -66,6 +72,10 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
       paymentMethod: data.paymentMethod || "",
       totalAmount: Number(data.totalAmount) || 0,
       subtotal: Number(data.pricePerTicket) * data.quantity || 0,
+      foodAddonAmount: Number(data.foodAddonAmount) || 0,
+      accommodationAddonAmount: Number(data.accommodationAddonAmount) || 0,
+      hasFoodAddon: (data.foodAddonAmount || 0) > 0,
+      hasAccommodationAddon: (data.accommodationAddonAmount || 0) > 0,
       v: 1,
     };
 
@@ -73,10 +83,10 @@ export const generateQRCode = async (data: QRCodeData): Promise<string> => {
     const qrString = Buffer.from(JSON.stringify(payload)).toString("base64");
 
     const qrCodeDataURL = await QRCode.toDataURL(qrString, {
-      errorCorrectionLevel: "H",
+      errorCorrectionLevel: "M",  // Was "H" — M has 40% fewer modules → much faster to scan
       type: "image/png",
-      width: 400,
-      margin: 2,
+      width: 512,    // Was 400 — larger modules survive screen glare better
+      margin: 3,     // Extra quiet zone helps all scanners
       color: { dark: "#000000", light: "#FFFFFF" },
     });
 
@@ -137,7 +147,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
     }
   }
 
-  // ── Format 3: multiline text (old legacy) ────────────────────────────────
+  // ── Format 3: multiline text (old legacy) 
   const get = (label: string) => {
     const m = trimmed.match(new RegExp(`${label}:\\s*([^\\n\\r]+)`, "i"));
     return m ? m[1].trim() : "";
@@ -157,7 +167,7 @@ export const verifyQRCode = (raw: string): QRPayload | null => {
       venue: get("Location") || get("Venue"),
       paymentMethod: get("Payment"),
       totalAmount: Number(get("Total Price")?.replace(/[^\d.]/g, "")) || 0,
-      v: 0, // legacy
+      v: 0,
     };
   }
   return null;

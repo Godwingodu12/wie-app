@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import * as followService from '../services/follow.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import * as userClient from '../grpc/userClient';
 export const followUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const followerId = req.userId!;
@@ -187,7 +186,6 @@ export const getDetailedFollowStatus = async (req: AuthRequest, res: Response): 
 export const getFollowers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId;
-    const viewerId = req.userId!;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
 
@@ -196,7 +194,7 @@ export const getFollowers = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const result = await followService.getFollowers(userId, page, limit, viewerId);
+    const result = await followService.getFollowers(userId, page, limit);
     res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     res.status(500).json({
@@ -209,7 +207,6 @@ export const getFollowers = async (req: AuthRequest, res: Response): Promise<voi
 export const getFollowing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId;
-    const viewerId = req.userId!;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
 
@@ -218,7 +215,7 @@ export const getFollowing = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const result = await followService.getFollowing(userId, page, limit, viewerId);
+    const result = await followService.getFollowing(userId, page, limit);
     res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     res.status(500).json({
@@ -298,23 +295,12 @@ export const checkFollowStatus = async (req: AuthRequest, res: Response): Promis
     }
 
     const status = await followService.getFollowStatus(currentUserId, targetUserId);
-    
-    // Also fetch target user's privacy status
-    let isPrivate = false;
-    try {
-      const privacy = await userClient.getAccountPrivacy(targetUserId);
-      isPrivate = privacy === 'private';
-    } catch (e) {
-      console.warn('Failed to fetch user privacy in checkFollowStatus:', e);
-    }
 
     res.status(200).json({
       success: true,
       isFollowing: status.isFollowing,
       isPending: status.isPending,
       requestStatus: status.requestStatus,
-      status: status.status, // 'active', 'pending', or 'none'
-      isPrivate,
       isSelf: false
     });
   } catch (error: any) {

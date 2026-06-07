@@ -2,16 +2,16 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import path from "path";
 import { fileURLToPath } from "url";
-import BookingModel from "./models/booking.model.js";
-import { getEventDates } from "./grpc/ticketClient.js";
-import { processRefundJob } from "./controllers/settlementController.js";
-import { prisma } from "./config/db.js";
-import { publishRefundJob } from "./rabbit/index.js";
+import BookingModel from "../models/booking.model.js";
+import { getEventDates } from "./ticketClient.js";
+import { processRefundJob } from "../controllers/settlementController";
+import { prisma } from "../config/db.js";
+import { publishRefundJob } from "../rabbit/index.js";
 import amqp from "amqplib";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROTO_PATH = path.join(__dirname, "../../../protos/booking.proto");
+const PROTO_PATH = path.join(__dirname, "../../../../protos/booking.proto");
 
 let packageDefinition: any;
 let bookingProto: any;

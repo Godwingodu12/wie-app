@@ -1,5 +1,6 @@
 import DiaryModel, { IDiary } from "../models/diary.model";
 import FluxModel from "../models/flux.model";
+import CloseFriendModel from "../models/close-friend.model";
 import * as followClient from "../grpc/clients/followClient";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
@@ -25,13 +26,11 @@ const canViewDiary = async (
 
   // Close-friends diary: viewer must be in owner's CF list
   if (diary.isCloseFriends || diary.visibility === "close_friends") {
-    try {
-      const cf = await followClient.checkCloseFriend(ownerId, viewerId);
-      return cf.isCloseFriend;
-    } catch (err) {
-      console.error(`[canViewDiary] CF check failed:`, err);
-      return false;
-    }
+    const isCF = await CloseFriendModel.exists({
+      userId:        ownerId,
+      closeFriendId: viewerId,
+    }).catch(() => false);
+    return !!isCF;
   }
 
   const privacy = await wieUserClient
@@ -349,15 +348,6 @@ export const highlightFlux = async (
   }
 
   const title = newDiaryTitle?.trim() || "My Diary";
-  const userSettings = await (
-    await import("./diary-settings.service")
-  ).getDiarySettings(userId);
-  const diary = await createDiary(
-    userId,
-    title,
-    userSettings.defaultVisibility,
-    undefined,
-    [fluxId],
-  );
+  const diary = await createDiary(userId, title, "followers", undefined, [fluxId]);
   return { action: "created", diary };
 };

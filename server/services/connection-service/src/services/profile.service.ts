@@ -10,7 +10,17 @@ export const createProfile = async (
     const userId = (req as any).user.id;
 
     // Verify user exists via gRPC
-    const user = await getUserById(userId);
+    let user;
+    try {
+      user = await getUserById(userId);
+    } catch (grpcError: any) {
+      res.status(500).json({
+        success: false,
+        message: `Failed to fetch user details: ${grpcError.message}`,
+      });
+      return;
+    }
+
     if (!user) {
       res.status(404).json({
         success: false,
@@ -410,59 +420,62 @@ export const getProfileStatus = async (
   try {
     const userId = (req as any).user.id;
     const profile = await ConnectionProfile.findOne({ userId });
+
     if (!profile) {
       res.status(200).json({
         success: true,
         hasProfile: false,
         resumeStep: 1,
+        resumeSection: "user-details",
         isComplete: false,
-        section: "user-details",
+        faceVerified: false,
       });
       return;
     }
-    let resumeStep = 7;
-    let section = "completed";
-    let isComplete = false;
 
-    // Step 1: basic details
+    const faceVerified = profile.faceVerification?.status === "verified";
+
+    // ── Determine which user-detail step to resume
     const hasBasic =
       !!profile.displayName &&
       !!profile.dateOfBirth &&
       !!profile.location?.city &&
       !!profile.location?.country;
 
+    const hasPhotos = profile.photos.length >= 2;
+    const hasOrientation = !!profile.sexualOrientation?.type;
+    const hasInterests =
+      profile.interests?.some((i) => i.category === "general" && i.tags.length > 0);
+    const hasTerms = profile.termsAccepted;
+    const hasLookingFor =
+      profile.interests?.some((i) => i.category === "looking-for" && i.tags.length > 0);
+
+    let resumeStep = 1;
+    let resumeSection: string = "user-details";
+    let isComplete = false;
+
     if (!hasBasic) {
       resumeStep = 1;
-      section = "user-details";
-    }
-    // Step 2: photos (min 2 required)
-    else if (
-      profile.photos.length < 2 ||
-      profile.faceVerification?.status !== "verified"
-    ) {
+      resumeSection = "user-details";
+    } else if (!hasPhotos || !faceVerified) {
       resumeStep = 2;
-      section = "user-details";
-    }
-    // Step 3: sexual orientation
-    else if (!profile.sexualOrientation?.type) {
+      resumeSection = "user-details";
+    } else if (!hasOrientation) {
       resumeStep = 3;
-      section = "user-details";
-    }
-    // Step 4: interests
-    else if (!profile.interests || profile.interests.length === 0) {
+      resumeSection = "user-details";
+    } else if (!hasInterests) {
       resumeStep = 4;
-      section = "user-details";
-    }
-    // Step 5: privacy (always has defaults, skip check — advance automatically)
-    // Step 6: terms
-    else if (!profile.termsAccepted) {
+      resumeSection = "user-details";
+    } else if (!hasTerms) {
+      // step 5 (privacy) has defaults so auto-passes; go to 6
       resumeStep = 6;
-      section = "user-details";
-    }
-    // Step 7 / purpose selection — profile is fully filled
-    else {
+      resumeSection = "user-details";
+    } else if (!hasLookingFor) {
       resumeStep = 7;
-      section = "purpose-selection";
+      resumeSection = "user-details";
+    } else {
+      resumeStep = 7;
+      resumeSection = "purpose-selection";
       isComplete = true;
     }
 
@@ -470,11 +483,11 @@ export const getProfileStatus = async (
       success: true,
       hasProfile: true,
       resumeStep,
-      section,
+      resumeSection,
       isComplete,
       profileId: profile._id,
       completeness: profile.profileCompleteness,
-      faceVerified: profile.faceVerification?.status === "verified",
+      faceVerified,
       termsAccepted: profile.termsAccepted,
     });
   } catch (error: any) {

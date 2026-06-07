@@ -35,7 +35,7 @@ const getClient = () => {
 export const getBookingStatsByDate = async (ticketId, selectedDate) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetBookingStatsByDate(
       { ticketId, selectedDate },
       (error, response) => {
@@ -53,13 +53,13 @@ export const getBookingStatsByDate = async (ticketId, selectedDate) => {
 export const getBookingGrowthStats = async (ticketId, selectedDate, comparisonType) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetBookingGrowthStats(
       { ticketId, selectedDate, comparisonType },
       (error, response) => {
         if (error) {
-          console.error('❌ [Booking gRPC] Error:', error.message);
-          resolve({ growthPercentage: '0', currentPeriodBookings: 0, previousPeriodBookings: 0 });
+          console.error('❌ [Booking gRPC] Error in GetBookingGrowthStats:', error.message);
+          reject(error); // Reject the promise to propagate the error
         } else {
           resolve(response);
         }
@@ -71,13 +71,13 @@ export const getBookingGrowthStats = async (ticketId, selectedDate, comparisonTy
 export const getMonthlyBookingChart = async (ticketId, year, month) => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.GetMonthlyBookingChart(
       { ticketId, year, month },
       (error, response) => {
         if (error) {
-          console.error('❌ [Booking gRPC] Error:', error.message);
-          resolve({ chartData: [] });
+          console.error('❌ [Booking gRPC] Error in GetMonthlyBookingChart:', error.message);
+          reject(error); // Reject the promise to propagate the error
         } else {
           resolve(response);
         }
@@ -110,13 +110,13 @@ export const getBookingsForEvent = async (ticketId) => {
 
 export const cancelEventBookings = (eventId, { cancellationReason, refundPercentage, cancellationTier, isHostCancellation }) => {
   return new Promise((resolve, reject) => {
-    const grpcClient = getClient(); 
+    const grpcClient = getClient();
     grpcClient.CancelEventBookings(
       {
-        eventId:            String(eventId),
+        eventId: String(eventId),
         cancellationReason: cancellationReason || '',
-        refundPercentage:   refundPercentage   ?? 100,
-        cancellationTier:   cancellationTier   || 'full_refund',
+        refundPercentage: refundPercentage ?? 100,
+        cancellationTier: cancellationTier || 'full_refund',
         isHostCancellation: isHostCancellation ?? true,
       },
       (err, response) => {
@@ -176,12 +176,59 @@ export const getEventTransactionList = (ticketId, { limit = 50, offset = 0, stat
 export const verifyBookingQR = (qrData) => {
   return new Promise((resolve) => {
     const grpcClient = getClient();
+
+    // Reduced from 8 s to 4 s — fast enough for reconnect, short enough to feel responsive
+    const timer = setTimeout(() => {
+      console.error('❌ [Booking gRPC] verifyBookingQR timed out after 4s');
+      resolve({ success: false, error: 'Verification service timed out — try again' });
+    }, 4000);
+
+    // Pass an explicit call deadline so gRPC doesn't queue behind other calls
+    const deadline = new Date(Date.now() + 4000);
+
     grpcClient.VerifyBookingQR(
       { qrData: String(qrData) },
+      { deadline },          // ← ADD THIS — forces the RPC to fail fast if the server is stalled
       (error, response) => {
+        clearTimeout(timer);
         if (error) {
           console.error('❌ [Booking gRPC] verifyBookingQR error:', error.message);
           resolve({ success: false, error: error.message });
+          return;
+        }
+        console.log('[Booking gRPC] verifyBookingQR response:', JSON.stringify(response));
+        resolve(response);
+      }
+    );
+  });
+};
+
+export const getEventUserResponses = (ticketId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetEventUserResponses(
+      { ticket_id: ticketId },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getEventUserResponses error:', error.message);
+          resolve({ success: false, responses: [], count: 0 });
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};
+
+export const getBookingAddons = (bookingId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetBookingAddons(
+      { booking_id: bookingId },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getBookingAddons error:', error.message);
+          resolve({ success: false });
           return;
         }
         resolve(response);

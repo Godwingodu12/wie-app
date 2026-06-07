@@ -5,6 +5,10 @@ package chat;
 service ChatService {
   rpc SendSystemMessage(SendSystemMessageRequest) returns (SendSystemMessageResponse);
   rpc GetChatByParticipants(GetChatByParticipantsRequest) returns (GetChatByParticipantsResponse);
+  rpc BlockUser(BlockUserRequest) returns (BlockUserResponse);
+  rpc UnblockUser(UnblockUserRequest) returns (UnblockUserResponse);
+  rpc CheckBlockStatus(CheckBlockStatusRequest) returns (CheckBlockStatusResponse);
+  rpc ReportUser(ReportUserRequest) returns (ReportUserResponse);
 }
 
 message SendSystemMessageRequest {
@@ -31,4 +35,55 @@ message GetChatByParticipantsResponse {
   bool   success = 1;
   string chat_id = 2;
   string error   = 3;
+}
+
+// Block / Unblock
+
+message BlockUserRequest {
+  string blocker_id = 1;
+  string blocked_id = 2;
+}
+
+message BlockUserResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message UnblockUserRequest {
+  string blocker_id  = 1;
+  string unblocked_id = 2;
+}
+
+message UnblockUserResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message CheckBlockStatusRequest {
+  string current_user_id = 1;
+  string other_user_id   = 2;
+}
+
+message CheckBlockStatusResponse {
+  bool   success         = 1;
+  bool   i_blocked_them  = 2;
+  bool   they_blocked_me = 3;
+  string error           = 4;
+}
+
+//Report
+
+message ReportUserRequest {
+  string reporter_id   = 1;
+  string reported_id   = 2;
+  string report_type   = 3;
+  string reason        = 4;
+  string chat_id       = 5;
+  string message_ids   = 6;   // JSON-encoded array of message IDs
+}
+
+message ReportUserResponse {
+  bool   success   = 1;
+  string report_id = 2;
+  string error     = 3;
 }

@@ -2,6 +2,7 @@ import { Response } from "express";
 import mongoose from "mongoose";
 import { AuthRequest } from "../middlewares/auth";
 import FluxModel from "../models/flux.model";
+import CloseFriendModel from "../models/close-friend.model";
 import FluxSettingsModel from "../models/flux-settings.model";
 import FluxScreenshotEventModel from "../models/flux-screenshot-event.model";
 import * as fluxService from "../services/flux.service";
@@ -9,7 +10,6 @@ import {
   isFollowing,
   getFollowerIds,
   getFollowingIds,
-  checkCloseFriend,
 } from "../grpc/clients/followClient";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
@@ -29,42 +29,31 @@ export const createFlux = async (
 ): Promise<void> => {
   try {
     const callerId = req.userId!.toString();
-    // ── CORE CATEGORIZATION ─────────────────────────────
-    // Determine persistence based on the API route used.
-    // /api/flux -> Story (transient)
-    // /api/post -> Post (persistent)
-    const isStoryPath = req.baseUrl.includes("/flux");
-    const isPersistent = !isStoryPath;
-    // ───────────────────────────────────────────────────
-    const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
     const flux = await fluxService.createFlux(
       callerId,
-      files,
-      {
-        ...req.body,
-        isPersistent
-      },
+      req.file ?? null,
+      req.body,
     );
 
-    // Increment post count if it's a regular post (persistent)
-    if (isPersistent) {
-      wieUserClient.incrementPosts(callerId).catch(err => {
-        console.error("❌ Failed to increment post count:", err);
-      });
+    const createdAt = new Date(flux.createdAt);
+    const expiresAt = new Date(flux.expiresAt);
+    const diffHours =
+      (expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    if (diffHours < 23.9) {
+      console.warn(
+        `[createFlux] ⚠️  expiresAt is less than 24h from createdAt! ` +
+          `diffHours=${diffHours}. Check server clock and schema defaults.`,
+      );
     }
-
     await fluxService.invalidateFollowerFeedCaches(callerId).catch(() => {});
-    
-    // Process mentions
     let mentionedUserIds: string[] = [];
     try {
-      const raw = req.body.mentions || req.body.taggedUsers;
+      const raw = req.body.mentions;
       if (raw) {
         mentionedUserIds = typeof raw === "string" ? JSON.parse(raw) : raw;
       }
     } catch {}
-    
     if (mentionedUserIds.length > 0) {
       processMentionsAfterCreate(
         flux._id.toString(),
@@ -74,13 +63,8 @@ export const createFlux = async (
         console.error("❌ processMentionsAfterCreate failed:", err),
       );
     }
-
-    // Format response using unified helper
-    const formatted = fluxService.formatPostResponse(flux, callerId);
-
-    res.status(201).json({ success: true, data: formatted });
+    res.status(201).json({ success: true, data: flux });
   } catch (error: any) {
-    console.error(`❌ [createFlux] ERROR:`, error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -250,83 +234,8 @@ export const getFluxFeed = async (
 ): Promise<void> => {
   try {
     const viewerId = req.userId!.toString();
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-
-    const result = await fluxService.getFluxFeed(viewerId, page, limit);
-
-    res.json({
-      success: true,
-      pagination: {
-        total: result.total,
-        page,
-        hasMore: result.hasMore
-      },
-      data: result.data
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const getStoriesFeed = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const viewerId = req.userId!.toString();
-    const result = await fluxService.getStoriesFeed(viewerId);
-    res.json({ success: true, data: result.data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const getExploreFeed = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const viewerId = req.userId!.toString();
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-
-    const result = await fluxService.getExploreFeed(viewerId, page, limit);
-
-    res.json({
-      success: true,
-      pagination: {
-        total: result.total,
-        page,
-        hasMore: result.hasMore
-      },
-      data: result.data
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const getReelsFeed = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const viewerId = req.userId!.toString();
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-
-    const result = await fluxService.getReelsFeed(viewerId, page, limit);
-
-    res.json({
-      success: true,
-      pagination: {
-        total: result.total,
-        page,
-        hasMore: result.hasMore
-      },
-      data: result.data
-    });
+    const feed = await fluxService.getFluxFeed(viewerId); // ← service version (has Redis cache)
+    res.json({ success: true, data: feed });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -362,7 +271,7 @@ export const getFluxById = async (
 
     const flux = await FluxModel.findById(fluxId).lean();
     if (!flux || (flux as any).isDeleted) {
-      res.status(404).json({ success: false, message: "Post not found" });
+      res.status(404).json({ success: false, message: "Flux not found" });
       return;
     }
 
@@ -370,48 +279,26 @@ export const getFluxById = async (
 
     // Enforce close_friends visibility
     if ((flux as any).visibility === "close_friends" && ownerId !== viewerId) {
-      try {
-        const cf = await checkCloseFriend(ownerId, viewerId);
-        if (!cf.isCloseFriend) {
-          res.status(403).json({
-            success: false,
-            message: "This post is for close friends only",
-          });
-          return;
-        }
-      } catch (err) {
-        console.error(`[getFluxById] CF check failed:`, err);
-        res.status(500).json({ success: false, message: "Visibility check failed" });
+      const isCF = await CloseFriendModel.exists({
+        userId: ownerId, // owner's list
+        closeFriendId: viewerId, // viewer must be in it
+      });
+      if (!isCF) {
+        res.status(403).json({
+          success: false,
+          message: "This flux is for close friends only",
+        });
         return;
       }
     }
 
     // Enforce only_me
     if ((flux as any).visibility === "only_me" && ownerId !== viewerId) {
-      res.status(403).json({ success: false, message: "This post is private" });
+      res.status(403).json({ success: false, message: "This flux is private" });
       return;
     }
 
-    // Fetch user and follow status
-    const usersResp = await wieUserClient.getUsersByIds([ownerId]).catch(() => ({ users: [] }));
-    const ownerUser = (usersResp.users || [])[0] || null;
-
-    let isFollowing = false;
-    if (ownerId !== viewerId) {
-      const follow = await followClient.isFollowing(viewerId, ownerId).catch(() => ({ isFollowing: false }));
-      isFollowing = follow.isFollowing;
-
-      // Check followers-only visibility
-      if ((flux as any).visibility === "followers" && !isFollowing) {
-        res.status(403).json({ success: false, message: "Follow this user to see their posts" });
-        return;
-      }
-    }
-
-    const followingSet = new Set(isFollowing ? [ownerId] : []);
-    const formattedPost = fluxService.formatPostResponse(flux, viewerId, ownerUser, followingSet);
-
-    res.json({ success: true, data: formattedPost });
+    res.json({ success: true, flux });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -422,21 +309,14 @@ export const getUserFluxes = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { userId: ownerId } = req.params;
-    const viewerId = req.userId!.toString();
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-
-    const result = await fluxService.getUserFluxes(viewerId, ownerId, page, limit);
-
+    const { userId } = req.params;
+    const fluxes = await fluxService.getUserFluxes(req.userId!, userId);
     res.json({
       success: true,
-      pagination: {
-        total: result.total,
-        page,
-        hasMore: result.hasMore
-      },
-      data: result.data
+      data: fluxes,
+      count: fluxes.length,
+      message:
+        fluxes.length === 0 ? "No active fluxes for this user" : undefined,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -474,6 +354,12 @@ export const reactToFlux = async (
     }
 
     const ownerId = (flux as any).userId.toString();
+    if (ownerId === callerId) {
+      res
+        .status(403)
+        .json({ success: false, message: "Cannot react to your own flux" });
+      return;
+    }
     const ownerSettings = await FluxSettingsModel.findOne({
       userId: ownerId,
     }).lean();
@@ -585,14 +471,7 @@ export const deleteFlux = async (
 ): Promise<void> => {
   try {
     const { fluxId } = req.params;
-    const callerId = req.userId!.toString();
-    await fluxService.deleteFlux(fluxId, callerId);
-
-    // Decrement post count
-    wieUserClient.decrementPosts(callerId).catch(err => {
-      console.error("❌ Failed to decrement post count:", err);
-    });
-
+    await fluxService.deleteFlux(fluxId, req.userId!);
     res.json({ success: true, message: "Flux deleted" });
   } catch (error: any) {
     res.status(403).json({ success: false, message: error.message });
@@ -804,148 +683,6 @@ export const toggleFluxComments = async (
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-/**
- * POST /api/flux/:fluxId/save
- * Toggle save status for a flux.
- */
-export const toggleSaveFlux = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-    const userId = req.userId!.toString();
-
-    const flux = await FluxModel.findById(fluxId);
-    if (!flux || flux.isDeleted) {
-      res.status(404).json({ success: false, message: "Flux not found" });
-      return;
-    }
-
-    const alreadySaved = flux.savedBy.includes(userId);
-    if (alreadySaved) {
-      await FluxModel.findByIdAndUpdate(fluxId, {
-        $pull: { savedBy: userId },
-        $inc: { saveCount: -1 },
-      });
-    } else {
-      await FluxModel.findByIdAndUpdate(fluxId, {
-        $addToSet: { savedBy: userId },
-        $inc: { saveCount: 1 },
-      });
-    }
-
-    res.json({ success: true, saved: !alreadySaved });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-/**
- * GET /api/flux/saved
- * Returns all fluxes saved by the current user.
- */
-export const getSavedFluxes = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const userId = req.userId!.toString();
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 12;
-    const skip = (page - 1) * limit;
-
-    const total = await FluxModel.countDocuments({
-      savedBy: userId,
-      isDeleted: false,
-    });
-
-    const rawFluxes = await FluxModel.find({
-      savedBy: userId,
-      isDeleted: false,
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    if (rawFluxes.length === 0) {
-      res.json({
-        success: true,
-        data: [],
-        pagination: { page, limit, total: 0, hasMore: false },
-      });
-      return;
-    }
-
-    const ownerIds = [...new Set(rawFluxes.map((f: any) => f.userId.toString()))];
-    const [usersResp, followingResp] = await Promise.all([
-      wieUserClient.getUsersByIds(ownerIds).catch(() => ({ users: [] })),
-      getFollowingIds(userId).catch(() => ({ followingIds: [] }))
-    ]);
-
-    const userMap: Record<string, any> = {};
-    (usersResp.users || []).forEach((u: any) => {
-      userMap[u.id] = u;
-    });
-
-    const followingSet = new Set(followingResp.followingIds || []);
-
-    const data = rawFluxes.map((f: any) => {
-      const user = userMap[f.userId.toString()];
-      return fluxService.formatPostResponse(f, userId, user, followingSet);
-    });
-
-    res.json({
-      success: true,
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        hasMore: skip + rawFluxes.length < total
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-/**
- * PATCH /api/flux/:fluxId/ai-label/toggle
- * Toggle the AI-generated label on a flux.
- */
-export const toggleFluxAiLabel = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-    const flux = await FluxModel.findOne({
-      _id: fluxId,
-      userId: req.userId,
-      isDeleted: false,
-    });
-    if (!flux) {
-      res
-        .status(404)
-        .json({ success: false, message: "Flux not found or not yours" });
-      return;
-    }
-    flux.isAiGenerated = !flux.isAiGenerated;
-    await flux.save();
-    await redisClient.del(`flux:user:${req.userId}`).catch(() => {});
-    await redisClient.del(`flux:feed:${req.userId}`).catch(() => {});
-    res.json({
-      success: true,
-      isAiGenerated: flux.isAiGenerated,
-      message: flux.isAiGenerated ? "AI label added" : "AI label removed",
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
 /**
  * GET /api/flux/mine
  * Returns all non-deleted fluxes for the authenticated user, newest first.
@@ -957,11 +694,10 @@ export const getMyFluxes = async (
   try {
     const userId = req.userId!.toString();
 
-    // Mark newly-expired fluxes before fetching - BUT NEVER persistent ones
+    // Mark newly-expired fluxes before fetching
     const expiredResult = await FluxModel.updateMany(
       {
         userId,
-        isPersistent: { $ne: true },
         expiresAt: { $lt: new Date() },
         isDeleted: false,
         status: "active",
@@ -977,9 +713,11 @@ export const getMyFluxes = async (
 
     const fluxes = await FluxModel.find({
       userId,
-      isDeleted: false
+      expiresAt: { $gt: new Date() },
+      isDeleted: false,
+      status: "active",
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1 })
       .exec();
 
     res.json({
@@ -1062,106 +800,11 @@ export const getViewers = async (
   }
 };
 
-export const deleteFluxComment = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId, commentId } = req.params;
-    const userId = req.userId!.toString();
-
-    const flux = await FluxModel.findOneAndUpdate(
-      {
-        _id: fluxId,
-        "comments._id": commentId,
-        $or: [{ userId }, { "comments.userId": userId }]
-      },
-      { $pull: { comments: { _id: commentId } } },
-      { new: true }
-    );
-
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Comment not found or unauthorized" });
-      return;
-    }
-
-    res.json({ success: true, message: "Comment deleted" });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const updatePost = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-    const userId = req.userId!.toString();
-    const { caption, visibility, locationLabel, locationPlaceId, locationLat, locationLng } = req.body;
-
-    const updateData: any = {};
-    if (caption !== undefined) updateData.caption = caption;
-    if (visibility !== undefined) updateData.visibility = visibility;
-    if (locationLabel !== undefined) updateData.locationLabel = locationLabel;
-    if (locationPlaceId !== undefined) updateData.locationPlaceId = locationPlaceId;
-    if (locationLat !== undefined) updateData.locationLat = locationLat;
-    if (locationLng !== undefined) updateData.locationLng = locationLng;
-
-    if (Object.keys(updateData).length === 0) {
-      res.status(400).json({ success: false, message: "No fields provided to update" });
-      return;
-    }
-
-    const flux = await FluxModel.findOneAndUpdate(
-      { _id: fluxId, userId },
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Post not found or unauthorized" });
-      return;
-    }
-
-    res.json({ success: true, data: flux });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const addCommentReply = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId, commentId } = req.params;
-    const userId = req.userId!.toString();
-    const { text } = req.body;
-
-    const reply = { userId, text, likes: [], createdAt: new Date() };
-
-    const flux = await FluxModel.findOneAndUpdate(
-      { _id: fluxId, "comments._id": commentId },
-      { 
-        $push: { 
-          "comments.$.replies": reply
-        } 
-      },
-      { new: true }
-    );
-
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Comment not found" });
-      return;
-    }
-
-    res.status(201).json({ success: true, reply });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
+/**
+ * PATCH /api/flux/:fluxId/visibility
+ * Update the visibility of a single flux.
+ * Body: { visibility: 'public' | 'followers' | 'close_friends' | 'only_me' }
+ */
 export const updateFluxVisibility = async (
   req: AuthRequest,
   res: Response,
@@ -2560,9 +2203,8 @@ export const addFluxComment = async (
       comment: {
         ...comment,
         name: callerInfo?.name ?? callerInfo?.username ?? "Someone",
-        profile_picture:
+        avatar:
           callerInfo?.profile_picture ?? callerInfo?.profilePicture ?? null,
-        replies: [],
       },
     });
   } catch (err) {
@@ -2591,18 +2233,16 @@ export const getFluxComments = async (
     }
 
     const comments: any[] = (flux as any).comments ?? [];
-    const userIds = new Set<string>();
-    comments.forEach((c: any) => {
-      if (c.userId) userIds.add(c.userId.toString());
-      (c.replies ?? []).forEach((r: any) => {
-        if (r.userId) userIds.add(r.userId.toString());
-      });
-    });
+    const userIds = [
+      ...new Set(
+        comments.map((c: any) => c.userId?.toString()).filter(Boolean),
+      ),
+    ];
 
     const usersResp =
-      userIds.size > 0
+      userIds.length > 0
         ? await wieUserClient
-            .getUsersByIds(Array.from(userIds))
+            .getUsersByIds(userIds)
             .catch(() => ({ users: [] }))
         : { users: [] };
 
@@ -2611,7 +2251,7 @@ export const getFluxComments = async (
         (u._id ?? u.id).toString(),
         {
           name: u.name ?? u.username,
-          profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+          avatar: u.profile_picture ?? u.profilePicture ?? null,
           username: u.username,
         },
       ]),
@@ -2622,18 +2262,8 @@ export const getFluxComments = async (
       userId: c.userId?.toString(),
       text: c.text,
       likes: c.likes ?? [],
-      likeCount: (c.likes ?? []).length,
       createdAt: c.createdAt,
       ...(userMap.get(c.userId?.toString()) ?? {}),
-      replies: (c.replies ?? []).map((r: any) => ({
-        _id: r._id?.toString(),
-        userId: r.userId?.toString(),
-        text: r.text,
-        likes: r.likes ?? [],
-        likeCount: (r.likes ?? []).length,
-        createdAt: r.createdAt,
-        ...(userMap.get(r.userId?.toString()) ?? {}),
-      })),
     }));
 
     res
@@ -2774,6 +2404,13 @@ export const toggleFluxLike = async (
       return;
     }
 
+    // Flux owner cannot like their own flux
+    if (flux.userId.toString() === callerId) {
+      res
+        .status(403)
+        .json({ success: false, message: "Cannot like your own flux" });
+      return;
+    }
     // Enforce allowReactions setting
     const ownerSettings = await FluxSettingsModel.findOne({
       userId: flux.userId.toString(),
@@ -2885,7 +2522,7 @@ export const getFluxLikes = async (
         (u._id ?? u.id).toString(),
         {
           name: u.name ?? u.username,
-          profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+          avatar: u.profile_picture ?? u.profilePicture ?? null,
           username: u.username,
         },
       ]),
@@ -3529,165 +3166,6 @@ export const getFluxAnalytics = async (
         recentUsers: recentScreenshotters,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const updatePostSettings = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-    const userId = req.userId!.toString();
-    const { commentsDisabled, likesHidden, visibility, isPinned } = req.body;
-
-    const flux = await FluxModel.findOne({ _id: fluxId, userId, isDeleted: false });
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Post not found or unauthorized" });
-      return;
-    }
-
-    if (commentsDisabled !== undefined) (flux as any).commentsDisabled = commentsDisabled;
-    if (likesHidden !== undefined) (flux as any).likesHidden = likesHidden;
-    if (visibility !== undefined) flux.visibility = visibility;
-    if (isPinned !== undefined) (flux as any).isPinned = isPinned;
-
-    await flux.save();
-
-    res.json({
-      success: true,
-      data: {
-        commentsDisabled: (flux as any).commentsDisabled ?? false,
-        likesHidden: (flux as any).likesHidden ?? false,
-        visibility: flux.visibility,
-        isPinned: (flux as any).isPinned ?? false,
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const setTaggedUsers = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-    const userId = req.userId!.toString();
-    const { taggedUsers } = req.body;
-
-    if (!Array.isArray(taggedUsers)) {
-      res.status(400).json({ success: false, message: "taggedUsers must be an array" });
-      return;
-    }
-
-    const flux = await FluxModel.findOneAndUpdate(
-      { _id: fluxId, userId, isDeleted: false },
-      { $set: { taggedUsers } },
-      { new: true }
-    );
-
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Post not found or unauthorized" });
-      return;
-    }
-
-    res.json({ success: true, taggedUsers: flux.taggedUsers });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const getTaggedUsers = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId } = req.params;
-
-    const flux = await FluxModel.findOne({ _id: fluxId, isDeleted: false }).lean();
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
-
-    const taggedUsers = flux.taggedUsers ?? [];
-    if (taggedUsers.length === 0) {
-      res.json({ success: true, taggedUsers: [] });
-      return;
-    }
-
-    const userIds = taggedUsers.map((t: any) => t.userId);
-    const usersResp = await wieUserClient.getUsersByIds(userIds).catch(() => ({ users: [] }));
-    const userMap = new Map(
-      (usersResp.users ?? []).map((u: any) => [
-        (u._id ?? u.id).toString(),
-        {
-          name: u.name ?? u.username,
-          username: u.username,
-          profile_picture: u.profile_picture ?? u.profilePicture ?? null,
-        },
-      ])
-    );
-
-    const enrichedTags = taggedUsers.map((t: any) => ({
-      userId: t.userId,
-      x: t.x,
-      y: t.y,
-      mediaIndex: t.mediaIndex,
-      ...(userMap.get(t.userId) ?? {}),
-    }));
-
-    res.json({ success: true, taggedUsers: enrichedTags });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const likeCommentReply = async (
-  req: AuthRequest,
-  res: Response,
-): Promise<void> => {
-  try {
-    const { fluxId, commentId, replyId } = req.params;
-    const userId = req.userId!.toString();
-
-    const flux = await FluxModel.findOne({
-      _id: fluxId,
-      isDeleted: false,
-    });
-
-    if (!flux) {
-      res.status(404).json({ success: false, message: "Post not found" });
-      return;
-    }
-
-    const comment = (flux.comments as any[]).find((c: any) => c._id?.toString() === commentId);
-    if (!comment) {
-      res.status(404).json({ success: false, message: "Comment not found" });
-      return;
-    }
-
-    const reply = (comment.replies as any[]).find((r: any) => r._id?.toString() === replyId);
-    if (!reply) {
-      res.status(404).json({ success: false, message: "Reply not found" });
-      return;
-    }
-
-    reply.likes = reply.likes ?? [];
-    const alreadyLiked = reply.likes.includes(userId);
-
-    if (alreadyLiked) {
-      reply.likes = reply.likes.filter((id: string) => id !== userId);
-    } else {
-      reply.likes.push(userId);
-    }
-
-    await flux.save();
-    res.json({ success: true, liked: !alreadyLiked });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

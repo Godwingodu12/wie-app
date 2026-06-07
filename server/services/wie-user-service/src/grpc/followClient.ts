@@ -116,59 +116,8 @@ export const isFollowing = async (
   });
 };
 
-/**
- * Get all user IDs that a user is following
- */
-export const getFollowingIds = async (
-  userId: string
-): Promise<string[]> => {
-  return new Promise((resolve, reject) => {
-    const grpcClient = getClient();
-    
-    grpcClient.GetFollowingIds(
-      { userId },
-      (error: any, response: any) => {
-        if (error) {
-          console.error('❌ gRPC GetFollowingIds error:', error);
-          resolve([]);
-          return;
-        }
-        resolve(response.followingIds || []);
-      }
-    );
-  });
-};
-
-/**
- * Get detailed following IDs (active and pending separately)
- */
-export const getFollowingIdsDetailed = async (
-  userId: string
-): Promise<{ followingIds: string[]; requestedIds: string[] }> => {
-  return new Promise((resolve, reject) => {
-    const grpcClient = getClient();
-    
-    grpcClient.GetFollowingIdsDetailed(
-      { userId },
-      (error: any, response: any) => {
-        if (error) {
-          console.error('❌ gRPC GetFollowingIdsDetailed error:', error);
-          resolve({ followingIds: [], requestedIds: [] });
-          return;
-        }
-        resolve({
-          followingIds: response.followingIds || [],
-          requestedIds: response.requestedIds || []
-        });
-      }
-    );
-  });
-};
-
 export default {
   autoAcceptPendingRequests,
   getFollowStatus,
-  isFollowing,
-  getFollowingIds,
-  getFollowingIdsDetailed
+  isFollowing
 };

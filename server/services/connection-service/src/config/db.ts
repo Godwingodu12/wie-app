@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import dns from 'dns';
 
 export const connectDatabase = async (): Promise<void> => {
   try {
@@ -7,7 +6,15 @@ export const connectDatabase = async (): Promise<void> => {
       throw new Error('MONGODB_URI is not defined in environment variables');
     }
 
-    await mongoose.connect(process.env.MONGODB_URI);
+    const options = {
+      maxPoolSize: 100,
+      minPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4,
+    };
+
+    await mongoose.connect(process.env.MONGODB_URI, options);
 
     mongoose.connection.on('connected', () => {
       console.log('✅ Mongoose connected to MongoDB');

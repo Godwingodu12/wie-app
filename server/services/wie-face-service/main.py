@@ -254,4 +254,6 @@ def health():
     return {"status": "running", "service": "WIE Face Verification v2.1"}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=True)
+    import sys
+    print("Use: uvicorn main:app --host 0.0.0.0 --port 8002", file=sys.stderr)
+    sys.exit(1)

@@ -17,7 +17,7 @@ const ALLOWED_MIMETYPES = new Set([
   "image/avif",
 ]);
 
-// ── Call Python /validate-photo for a single file ─────────────────
+// ── Call Python /validate-photo for a single file 
 async function validatePhotoWithPython(
   fileBuffer: Buffer,
   mimetype: string,
@@ -41,9 +41,44 @@ async function validatePhotoWithPython(
 
     return response.data;
   } catch (err: any) {
-    // If validation service is unreachable, log and allow upload to proceed
-    console.error("[PHOTO VALIDATE] Service unreachable:", err.message);
-    return { passed: true, code: "service_unavailable", message: "" };
+    // Log the full error detail so you can see exactly what's failing
+    console.error("[PHOTO VALIDATE] Failed to reach face service:");
+    console.error("  URL        :", `${FACE_SERVICE_URL}/validate-photo`);
+    console.error("  Error code :", err.code);            // e.g. ECONNREFUSED
+    console.error("  HTTP status:", err.response?.status);
+    console.error("  Message    :", err.message);
+    console.error("  Response   :", err.response?.data);
+
+    // If the face service is unreachable (network/startup issue),
+    // allow the upload to proceed rather than blocking the user.
+    // The face-match check later (checkPhotoMatchesProfile) will
+    // still enforce identity matching for verified profiles.
+    if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND" || err.code === "ETIMEDOUT") {
+      console.warn("[PHOTO VALIDATE] Face service is down — skipping validation, allowing upload.");
+      return {
+        passed: true,
+        code: "service_unavailable",
+        message: "Validation service unavailable — upload allowed.",
+      };
+    }
+
+    // For 4xx/5xx responses from the face service itself, surface the real message
+    const serverMessage = err.response?.data?.message || err.response?.data?.detail;
+    if (serverMessage) {
+      return {
+        passed: false,
+        code: err.response?.data?.code || "validation_error",
+        message: serverMessage,
+      };
+    }
+
+    // Unknown error — allow through and log for investigation
+    console.warn("[PHOTO VALIDATE] Unknown error — allowing upload through.");
+    return {
+      passed: true,
+      code: "unknown_error",
+      message: "Validation check skipped due to an unexpected error.",
+    };
   }
 }
 
@@ -353,12 +388,10 @@ export const replaceProfilePhoto = async (
     }
 
     if (!ALLOWED_MIMETYPES.has(file.mimetype)) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: `Invalid file type. Allowed: JPG, PNG, WebP, AVIF.`,
-        });
+      res.status(400).json({
+        success: false,
+        message: `Invalid file type. Allowed: JPG, PNG, WebP, AVIF.`,
+      });
       return;
     }
 
@@ -380,12 +413,10 @@ export const replaceProfilePhoto = async (
       profile.faceVerification?.profileLocked &&
       profile.photos[photoIndex].isVerified
     ) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          message: "Verified photos cannot be replaced.",
-        });
+      res.status(403).json({
+        success: false,
+        message: "Verified photos cannot be replaced.",
+      });
       return;
     }
 
@@ -396,13 +427,11 @@ export const replaceProfilePhoto = async (
       file.originalname,
     );
     if (!validation.passed) {
-      res
-        .status(422)
-        .json({
-          success: false,
-          code: validation.code,
-          message: validation.message,
-        });
+      res.status(422).json({
+        success: false,
+        code: validation.code,
+        message: validation.message,
+      });
       return;
     }
 

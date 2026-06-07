@@ -89,7 +89,7 @@ const FluxSettingsSchema = new Schema(
     },
     restrictScreenshots: { type: Boolean, default: false },
   },
-  { timestamps: true, suppressReservedKeysWarning: true },
+  { timestamps: true },
 );
 
 const FluxSettingsModel: Model<IFluxSettings> =

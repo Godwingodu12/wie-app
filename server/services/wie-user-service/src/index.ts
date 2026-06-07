@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
 import express, { Application } from "express";
 import cors from "cors";
 import db from "./config/db";
@@ -101,28 +102,30 @@ const startCleanupInterval = () => {
 
 async function startServer() {
   try {
-    // ── DB connect with retry ──
     let dbConnected = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         await db.connect();
         console.log("✅ Supabase database connected");
         dbConnected = true;
         break;
       } catch (err) {
+        const msg = (err as Error).message;
         console.error(
-          `❌ DB connection attempt ${attempt}/3 failed:`,
-          (err as Error).message,
+          `❌ DB connection attempt ${attempt}/${maxAttempts} failed: ${msg}`,
         );
-        if (attempt < 3) {
-          console.log(`⏳ Retrying in 3 seconds...`);
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (attempt < maxAttempts) {
+          // Exponential backoff: 2s, 4s, 6s, 8s
+          const delay = attempt * 2000;
+          console.log(`⏳ Retrying in ${delay / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
     if (!dbConnected) {
-      console.error("❌ Could not connect to database after 3 attempts");
+      console.error("❌ Could not connect to database after all attempts");
       process.exit(1);
     }
 
@@ -142,7 +145,7 @@ async function startServer() {
     startGrpcServer(GRPC_PORT);
     console.log(`✅ gRPC server running on ${GRPC_PORT}`);
 
-    const server = app.listen(PORT, '0.0.0.0', () => {
+    const server = app.listen(PORT, () => {
       console.log(`✅ HTTP server running on port ${PORT}`);
     });
 

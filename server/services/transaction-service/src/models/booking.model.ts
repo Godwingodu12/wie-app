@@ -56,6 +56,8 @@ export interface CreateBookingData {
     }>;
   };
   selectedSeats?: string[];
+  food_addon_amount?: number;
+  accommodation_addon_amount?: number;
 }
 
 export interface UpdateBookingData {
@@ -83,6 +85,42 @@ export interface UpdateBookingData {
   financialState?: string;
   refundPolicyId?: string;
 }
+
+export interface CustomQuestionAnswer {
+  question_id: string;
+  question_text: string;
+  answer_type: string;
+  answer_value: string | number | boolean;
+}
+
+export interface CreateEventUserResponseData {
+  booking_id: string;
+  ticket_id: string;
+  group_id: string;
+  user_id: string;
+  // Standard predefined answers
+  answer_name?: string;
+  answer_email?: string;
+  answer_phone?: string;
+  answer_position?: string;
+  // Custom question answers
+  custom_answers?: CustomQuestionAnswer[];
+  // Food addon
+  food_selected?: boolean;
+  food_quantity?: number;
+  food_menu?: string[];
+  food_catering_name?: string;
+  food_price?: number;
+  food_picture?: string;
+  // Accommodation addon
+  accommodation_selected?: boolean;
+  accommodation_quantity?: number;
+  accommodation_type?: string[];
+  accommodation_catering_name?: string;
+  accommodation_price?: number;
+  accommodation_picture?: string;
+}
+
 const isValidUUID = (id: string): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     id,
@@ -120,6 +158,12 @@ export class BookingModel {
         }),
         ...(data.financialState !== undefined && {
           financialState: data.financialState,
+        }),
+        ...(data.food_addon_amount !== undefined && {
+          food_addon_amount: data.food_addon_amount,
+        }),
+        ...(data.accommodation_addon_amount !== undefined && {
+          accommodation_addon_amount: data.accommodation_addon_amount,
         }),
       },
     });
@@ -688,6 +732,65 @@ export class BookingModel {
     ]);
 
     return { confirmed, pending, cancelled };
+  }
+
+  static async createEventUserResponse(
+    data: CreateEventUserResponseData
+  ): Promise<any> {
+    return await prisma.eventUserResponse.create({
+      data: {
+        booking_id: data.booking_id,
+        ticket_id: data.ticket_id,
+        group_id: data.group_id,
+        user_id: data.user_id,
+        answer_name: data.answer_name ?? null,
+        answer_email: data.answer_email ?? null,
+        answer_phone: data.answer_phone ?? null,
+        answer_position: data.answer_position ?? null,
+        ...(data.custom_answers !== undefined && data.custom_answers !== null
+          ? { custom_answers: data.custom_answers as any }
+          : {}),
+        food_selected: data.food_selected ?? false,
+        food_quantity: data.food_quantity ?? 0,
+        food_menu: (data.food_menu ?? []) as any,
+        food_catering_name: data.food_catering_name ?? null,
+        food_price: data.food_price ?? 0,
+        food_picture: data.food_picture ?? null,
+        accommodation_selected: data.accommodation_selected ?? false,
+        accommodation_quantity: data.accommodation_quantity ?? 0,
+        accommodation_type: (data.accommodation_type ?? []) as any,
+        accommodation_catering_name: data.accommodation_catering_name ?? null,
+        accommodation_price: data.accommodation_price ?? 0,
+        accommodation_picture: data.accommodation_picture ?? null,
+      },
+    });
+  }
+
+  static async getEventUserResponseByBookingId(
+    bookingId: string
+  ): Promise<any | null> {
+    return await prisma.eventUserResponse.findFirst({
+      where: { booking_id: bookingId },
+    });
+  }
+
+  static async getEventUserResponsesByTicketId(
+    ticketId: string
+  ): Promise<any[]> {
+    return await prisma.eventUserResponse.findMany({
+      where: { ticket_id: ticketId },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  // Batch fetch for getUserBookings
+  static async getEventUserResponsesByBookingIds(
+    bookingIds: string[]
+  ): Promise<any[]> {
+    if (!bookingIds.length) return [];
+    return await prisma.eventUserResponse.findMany({
+      where: { booking_id: { in: bookingIds } },
+    });
   }
 }
 export default BookingModel;
