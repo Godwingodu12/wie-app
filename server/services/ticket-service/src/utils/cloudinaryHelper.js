@@ -31,12 +31,16 @@ export const processGroupFileUploads = async (files) => {
           // For id_proof, bank_check, company_certificate
           resourceType = getResourceType(fieldName, file.mimetype);
         }
+
+        console.log(`Uploading ${fieldName} to Cloudinary (type: ${resourceType})...`);
+
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
         });
 
         uploadedFiles[fieldName] = result.url;
+        console.log(` ${fieldName} uploaded:`, result.url);
       }
     }
 
@@ -179,6 +183,7 @@ export const downloadFileFromCloudinary = async (cloudinaryUrl, fileName = null)
 
         file.on('finish', () => {
           file.close();
+          console.log(`Downloaded file to: ${localPath}`);
           resolve(localPath);
         });
       }).on('error', (error) => {
@@ -199,6 +204,7 @@ export const cleanupTempFile = async (filePath) => {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
+      console.log(`🗑️ Cleaned up temp file: ${filePath}`);
     }
   } catch (error) {
     console.error('Error cleaning up temp file:', error);
@@ -249,6 +255,7 @@ export const uploadGeneratedLayoutToCloudinary = async (layoutObject, ticketId) 
       public_id: `generated_layout_${ticketId}_${Date.now()}`,
       format: 'json'
     });
+    console.log(`✅ Generated layout uploaded to Cloudinary: ${result.url}`);
     return {
       url: result.url,
       public_id: result.public_id,
@@ -279,9 +286,11 @@ export const deleteFromCloudinary = async (publicIds, resourceType = 'image') =>
         }
       }
 
+      console.log(`Deleting from Cloudinary: ${extractedId}`);
       const result = await cloudinary.uploader.destroy(extractedId, {
         resource_type: resourceType
       });
+      console.log(`✅ Deleted: ${extractedId}`, result);
       return result;
     });
 

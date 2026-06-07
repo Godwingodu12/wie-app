@@ -1030,14 +1030,14 @@ export const stripHtmlForValidation = (html) => {
     .trim();
 };
 export const createTicketBasicInfo = async (req, res) => {
-  try {
-    const guestProfileFiles = {};
-    const eventRulesFiles = [];
-    const videoFiles = {};
-    const previewImageFiles = {};
-    const foodPictureFiles = {};
-    const accommodationPictureFiles = {};
+  const guestProfileFiles = {};
+  const eventRulesFiles = [];
+  const videoFiles = {};
+  const previewImageFiles = {};
+  const foodPictureFiles = {};
+  const accommodationPictureFiles = {};
 
+  try {
     // Handle file upload first using Promise wrapper
     await new Promise((resolve, reject) => {
       uploadFields(req, res, (err) => {
@@ -1070,6 +1070,7 @@ export const createTicketBasicInfo = async (req, res) => {
       // Date and Time
       event_date_type,
       event_dates,
+      recurring_type,
       gate_open_time,
       prohibited_items,
 
@@ -1213,13 +1214,26 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    const validDateTypes = ['one-day', 'multi-day', 'weekly'];
+    const validDateTypes = ['one-day', 'multi-day', 'weekly', 'recurring'];
     if (!validDateTypes.includes(event_date_type)) {
       return res.status(400).json({
         message: 'Invalid event_date_type',
         provided: event_date_type,
         validOptions: validDateTypes,
       });
+    }
+
+    let finalRecurringType = 'none';
+    if (event_date_type === 'recurring') {
+      const validRecurringTypes = ['weekly', 'monthly', 'yearly'];
+      if (!recurring_type || !validRecurringTypes.includes(recurring_type)) {
+        return res.status(400).json({
+          message: 'recurring_type is required and must be weekly, monthly, or yearly when event_date_type is recurring',
+          provided: recurring_type,
+          validOptions: validRecurringTypes,
+        });
+      }
+      finalRecurringType = recurring_type;
     }
 
     // 3. Location Type Specific Required Fields
@@ -1530,6 +1544,22 @@ export const createTicketBasicInfo = async (req, res) => {
       return res.status(404).json({
         message: "Group not found or you don't have permission to create events for this group",
       });
+    }
+
+    // Retrieve existing ticket early for update checks and fallbacks
+    let existingTicket = null;
+    if (ticketId) {
+      existingTicket = await Ticket.findById(ticketId);
+      if (!existingTicket) {
+        return res.status(404).json({
+          message: "Ticket not found",
+        });
+      }
+      if (existingTicket.userId.toString() !== userId.toString()) {
+        return res.status(403).json({
+          message: "You don't have permission to update this ticket",
+        });
+      }
     }
 
     // Helper function to validate date format and check if it's not in the past
@@ -1895,44 +1925,63 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
     // Parse and map food and accommodation details
-    const parsedFoodAccoum = Boolean(food_accoum === "true" || food_accoum === true);
-    const parsedFoodAccoumType = food_accoum_type || "none";
-    const parsedQuestionData = Boolean(question_data === "true" || question_data === true);
+    const parsedFoodAccoum = food_accoum !== undefined
+      ? Boolean(food_accoum === "true" || food_accoum === true)
+      : (existingTicket ? existingTicket.food_accoum : false);
 
-    const parsedQuestionDetails = typeof question_details === "string"
-      ? parseJSONSafely(question_details, { name: false, email: false, phone_number: false, position: false })
-      : question_details || { name: false, email: false, phone_number: false, position: false };
+    const parsedFoodAccoumType = food_accoum_type !== undefined
+      ? food_accoum_type
+      : (existingTicket ? existingTicket.food_accoum_type : "none");
 
-    let parsedFoodDetails = parseJSONSafely(food_details, []);
-    let parsedAccommodationDetails = parseJSONSafely(accommodation_details, []);
+    const parsedQuestionData = question_data !== undefined
+      ? Boolean(question_data === "true" || question_data === true)
+      : (existingTicket ? existingTicket.question_data : false);
 
-    parsedFoodDetails = parsedFoodDetails.map((item, index) => {
-      const foodItem = {
-        food_quantity: Number(item.food_quantity) || 0,
-        food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
-        food_catering_name: item.food_catering_name || "",
-        food_price: Number(item.food_price) || 0,
-        food_picture: item.food_picture || ""
-      };
-      if (foodPictureFiles[index] && foodPictureFiles[index].path) {
-        foodItem.food_picture = foodPictureFiles[index].path;
-      }
-      return foodItem;
-    });
+    const parsedQuestionDetails = question_details !== undefined
+      ? (typeof question_details === "string"
+        ? parseJSONSafely(question_details, { name: false, email: false, phone_number: false, position: false })
+        : question_details || { name: false, email: false, phone_number: false, position: false })
+      : (existingTicket ? existingTicket.question_details : { name: false, email: false, phone_number: false, position: false });
 
-    parsedAccommodationDetails = parsedAccommodationDetails.map((item, index) => {
-      const accItem = {
-        accommodation_quantity: Number(item.accommodation_quantity) || 0,
-        accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
-        accommodation_catering_name: item.accommodation_catering_name || "",
-        accommodation_price: Number(item.accommodation_price) || 0,
-        accommodation_picture: item.accommodation_picture || ""
-      };
-      if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
-        accItem.accommodation_picture = accommodationPictureFiles[index].path;
-      }
-      return accItem;
-    });
+    let parsedFoodDetails;
+    if (food_details !== undefined) {
+      let rawFoodDetails = parseJSONSafely(food_details, []);
+      parsedFoodDetails = rawFoodDetails.map((item, index) => {
+        const foodItem = {
+          food_quantity: Number(item.food_quantity) || 0,
+          food_menu: Array.isArray(item.food_menu) ? item.food_menu : (typeof item.food_menu === 'string' ? item.food_menu.split(',').map(s => s.trim()).filter(Boolean) : []),
+          food_catering_name: item.food_catering_name || "",
+          food_price: Number(item.food_price) || 0,
+          food_picture: item.food_picture || ""
+        };
+        if (foodPictureFiles[index] && foodPictureFiles[index].path) {
+          foodItem.food_picture = foodPictureFiles[index].path;
+        }
+        return foodItem;
+      });
+    } else {
+      parsedFoodDetails = existingTicket ? existingTicket.food_details : [];
+    }
+
+    let parsedAccommodationDetails;
+    if (accommodation_details !== undefined) {
+      let rawAccommodationDetails = parseJSONSafely(accommodation_details, []);
+      parsedAccommodationDetails = rawAccommodationDetails.map((item, index) => {
+        const accItem = {
+          accommodation_quantity: Number(item.accommodation_quantity) || 0,
+          accommodation_type: Array.isArray(item.accommodation_type) ? item.accommodation_type : (typeof item.accommodation_type === 'string' ? item.accommodation_type.split(',').map(s => s.trim()).filter(Boolean) : []),
+          accommodation_catering_name: item.accommodation_catering_name || "",
+          accommodation_price: Number(item.accommodation_price) || 0,
+          accommodation_picture: item.accommodation_picture || ""
+        };
+        if (accommodationPictureFiles[index] && accommodationPictureFiles[index].path) {
+          accItem.accommodation_picture = accommodationPictureFiles[index].path;
+        }
+        return accItem;
+      });
+    } else {
+      parsedAccommodationDetails = existingTicket ? existingTicket.accommodation_details : [];
+    }
 
     // Create ticket data object
     const ticketData = {
@@ -1947,6 +1996,7 @@ export const createTicketBasicInfo = async (req, res) => {
       pet_friendly: Boolean(pet_friendly === "true" || pet_friendly === true),
       location_type: location_type,
       event_date_type,
+      recurring_type: finalRecurringType,
       event_dates: totalEventDates,
       event_instagram_link: event_instagram_link?.trim() || "",
       event_youtube_link: event_youtube_link?.trim() || "",
@@ -1967,12 +2017,14 @@ export const createTicketBasicInfo = async (req, res) => {
       updated_by: userId,
       created_at: new Date(),
       updated_at: new Date(),
-      form_progress: {
-        basic_info: true,
-        media: false,
-        pricing: false,
-        additional_info: false,
-      },
+      form_progress: existingTicket
+        ? existingTicket.form_progress
+        : {
+          basic_info: true,
+          media: false,
+          pricing: false,
+          additional_info: false,
+        },
     };
     // Process prohibited items
     const processedProhibitedItems = (() => {
@@ -2058,17 +2110,7 @@ export const createTicketBasicInfo = async (req, res) => {
     let ticket;
     let responseMessage;
     if (ticketId) {
-      ticket = await Ticket.findById(ticketId);
-      if (!ticket) {
-        return res.status(404).json({
-          message: "Ticket not found",
-        });
-      }
-      if (ticket.userId.toString() !== userId.toString()) {
-        return res.status(403).json({
-          message: "You don't have permission to update this ticket",
-        });
-      }
+      ticket = existingTicket;
 
       // Preserve the current event_status when updating
       const currentEventStatus = ticket.event_status;
@@ -2249,6 +2291,12 @@ export const createTicketBasicInfo = async (req, res) => {
   }
 };
 export const updateTicketMedia = async (req, res) => {
+  let eventLogoUrl = null;
+  let eventBannerUrl = null;
+  let collegeAuthorisationUrl = null;
+  let eventPortraitUrl = null;
+  let event_images = [];
+  let event_videos = [];
   try {
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
@@ -2283,12 +2331,12 @@ export const updateTicketMedia = async (req, res) => {
       updated_at: new Date(),
     };
     // Extract URLs directly - these are already complete Cloudinary URLs
-    const eventLogoUrl = uploadedFiles.event_logo || null;
-    const eventBannerUrl = uploadedFiles.event_banner || null;
-    const collegeAuthorisationUrl = uploadedFiles.college_authorisation || null;
-    const eventPortraitUrl = uploadedFiles.event_portrait || null;
-    const event_images = uploadedFiles.event_images || [];
-    const event_videos = uploadedFiles.event_videos || [];
+    eventLogoUrl = uploadedFiles.event_logo || null;
+    eventBannerUrl = uploadedFiles.event_banner || null;
+    collegeAuthorisationUrl = uploadedFiles.college_authorisation || null;
+    eventPortraitUrl = uploadedFiles.event_portrait || null;
+    event_images = uploadedFiles.event_images || [];
+    event_videos = uploadedFiles.event_videos || [];
     const userRole = req.user?.role;
     let organisation_type = null;
     if (userRole === "organisation") {
@@ -3164,6 +3212,19 @@ export const updateTicketAddOns = async (req, res) => {
       });
     }
 
+    if (subEventData.event_date_type === "recurring") {
+      const validRecurringTypes = ["weekly", "monthly", "yearly"];
+      if (!subEventData.recurring_type || !validRecurringTypes.includes(subEventData.recurring_type)) {
+        clearTimeout(_lockTimeout);
+        _processingRequests.delete(_lockKey);
+        return res.status(400).json({
+          message: "recurring_type is required and must be weekly, monthly, or yearly when event_date_type is recurring",
+          provided: subEventData.recurring_type,
+          validOptions: validRecurringTypes,
+        });
+      }
+    }
+
     if (
       typeof subEventData.booking_start_date !== "string" ||
       subEventData.booking_start_date.trim() === ""
@@ -3962,6 +4023,9 @@ export const updateTicketAddOns = async (req, res) => {
         event_date_type: subEventData.event_date_type
           ? String(subEventData.event_date_type)
           : "",
+        recurring_type: subEventData.recurring_type
+          ? String(subEventData.recurring_type)
+          : "none",
         event_instagram_link: subEventData.event_instagram_link
           ? String(subEventData.event_instagram_link).trim()
           : "",
@@ -4621,6 +4685,9 @@ export const updateTicketAddOns = async (req, res) => {
       event_date_type: subEventData.event_date_type
         ? String(subEventData.event_date_type)
         : "",
+      recurring_type: subEventData.recurring_type
+        ? String(subEventData.recurring_type)
+        : "none",
       event_instagram_link: subEventData.event_instagram_link
         ? String(subEventData.event_instagram_link).trim()
         : "",
@@ -5044,12 +5111,13 @@ export const updateTicketDetails = async (req, res) => {
     }
   };
 
-  try {
-    const processedFiles = {};
-    const ticketPhotoFiles = {};
-    const foodPictureFiles = {};
-    const accommodationPictureFiles = {};
+  const processedFiles = {};
+  const ticketPhotoFiles = {};
+  const foodPictureFiles = {};
+  const accommodationPictureFiles = {};
+  let uploadedFiles = null;
 
+  try {
     // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
@@ -5223,7 +5291,7 @@ export const updateTicketDetails = async (req, res) => {
         }
       }
     }
-    const uploadedFiles = await processFileUploads(req.files || {});
+    uploadedFiles = await processFileUploads(req.files || {});
     Object.keys(uploadedFiles).forEach((fieldName) => {
       // Handle ticket photo files
       if (fieldName.startsWith("ticket_photo_")) {
@@ -6989,6 +7057,7 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     event_videos: promotedSubEventObj.event_videos || [],
     event_dates: promotedSubEventObj.event_dates,
     event_date_type: promotedSubEventObj.event_date_type || ticket.event_date_type,
+    recurring_type: promotedSubEventObj.recurring_type || ticket.recurring_type || "none",
     gate_open_time: promotedSubEventObj.gate_open_time,
     location: promotedSubEventObj.location,
     location_type: promotedSubEventObj.location_type || ticket.location_type,
@@ -7267,6 +7336,7 @@ export const rehostMainEventV2 = async (cancelledTicket, userId) => {
     event_videos: cancelledTicket.event_videos || [],
     event_dates: cancelledTicket.event_dates,
     event_date_type: cancelledTicket.event_date_type,
+    recurring_type: cancelledTicket.recurring_type || "none",
     gate_open_time: cancelledTicket.gate_open_time,
     location: cancelledTicket.location,
     location_type: cancelledTicket.location_type,

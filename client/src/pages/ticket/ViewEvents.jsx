@@ -38,9 +38,8 @@ const LegendItem = ({ color, label, percentage, theme }) => (
     </div>
     <div className="w-2/3 flex items-center gap-2">
       <div
-        className={`w-full ${
-          theme.cardBg === "bg-[#232426]" ? "bg-gray-700" : "bg-gray-200"
-        } rounded-full h-1.5`}
+        className={`w-full ${theme.cardBg === "bg-[#232426]" ? "bg-gray-700" : "bg-gray-200"
+          } rounded-full h-1.5`}
       >
         <div
           className={`${color} h-1.5 rounded-full`}
@@ -178,7 +177,7 @@ const getNeumorphicShadows = (isDark) =>
     : "shadow-[inset_6px_6px_12px_#0000002E,inset_-6px_-6px_12px_#FFFFFF14]";
 const getButtonNeumorphicShadows = (isDark) =>
   isDark
-    ?  "shadow-[8px_8px_12px_0px_#00000029,_-8px_-8px_12px_0px_#FFFFFF0A]"
+    ? "shadow-[8px_8px_12px_0px_#00000029,_-8px_-8px_12px_0px_#FFFFFF0A]"
     : "shadow-[8px_8px_12px_0px_#0000001A,_-8px_-8px_12px_0px_#FFFFFF0A)]";
 
 
@@ -214,11 +213,10 @@ function MonthSelector({
       {months.map((monthName, index) => (
         <button
           key={monthName}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentMonth === index
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
               ? "bg-blue-600 text-blue-100"
               : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+            }`}
           onClick={() => {
             onSelectMonth(index);
             onClose();
@@ -247,11 +245,10 @@ function YearSelector({
       {years.map((yearNum) => (
         <button
           key={yearNum}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentYear === yearNum
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
               ? "bg-blue-600 text-blue-100"
               : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+            }`}
           onClick={() => {
             onSelectYear(yearNum);
             onClose();
@@ -281,29 +278,28 @@ function CalendarControls({
   const calendarBg = isDark ? theme.cardBg : "bg-[ffffff]";
   return (
     <div
-      className={`flex flex-wrap md:flex-nowrap items-center justify-start max-w-full md:w-auto gap-2 md:gap-1 ${
-        className || ""
-      } ${theme.text}`}
+      className={`flex flex-wrap md:flex-nowrap items-center justify-start max-w-full md:w-auto gap-2 md:gap-1 ${className || ""
+        } ${theme.text}`}
     >
       <div className="flex items-center gap-1 md:gap-1 lg:gap-3">
         <button
           onClick={onPrevMonth}
           className={`p-1 md:p-1.5 flex items-center justify-center ${calendarBg} rounded-full  w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10`}
           style={{
-    boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-  }}
+            boxShadow: isDark
+              ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+              : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+          }}
         >
           <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
         </button>
         <button
           onClick={onNextMonth}
           style={{
-    boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-  }}
+            boxShadow: isDark
+              ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+              : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+          }}
           className={`p-1 md:p-1.5 flex items-center justify-center ${calendarBg} rounded-full  w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10`}
         >
           <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
@@ -318,10 +314,10 @@ function CalendarControls({
               setShowYearSelector(false);
             }}
             style={{
-    boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-  }}
+              boxShadow: isDark
+                ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+                : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+            }}
             className={`flex items-center justify-between ${calendarBg} rounded-full  h-7 md:h-8 lg:h-10 gap-1 md:gap-2 px-2 md:px-2`}
           >
             <span className="text-xs md:text-sm font-semibold whitespace-nowrap">
@@ -356,10 +352,10 @@ function CalendarControls({
             }}
             className={`flex items-center ${calendarBg} rounded-full  h-7 md:h-8 lg:h-10 gap-1 px-2 md:px-3 md:pr-[13px]`}
             style={{
-    boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-  }}
+              boxShadow: isDark
+                ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+                : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+            }}
           >
             <span className="text-xs md:text-sm font-semibold">
               {currentYear}
@@ -397,14 +393,13 @@ function CalendarGrid({
 
   return (
     <div
-      className={`${
-        isDark ? theme.cardBg : "bg-[#FFFFFF]"
-      } rounded-[2.5rem] w-full flex flex-col p-4 gap-2 ${className}`}
+      className={`${isDark ? theme.cardBg : "bg-[#FFFFFF]"
+        } rounded-[2.5rem] w-full flex flex-col p-4 gap-2 ${className}`}
       style={{
-    boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-  }}
+        boxShadow: isDark
+          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+          : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+      }}
     >
       <div className="grid grid-cols-7 gap-1 text-center">
         {days.map((day) => (
@@ -468,6 +463,10 @@ const EventsList = ({
   setSelectedDate, // Make sure this is included
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const truncateEventName = (name) => {
+    if (!name) return "N/A";
+    return name.length > 25 ? name.substring(0, 22) + "..." : name;
+  };
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
@@ -621,9 +620,8 @@ const EventsList = ({
         flexDirection: "column",
         overflow: "hidden",
       }}
-      className={`w-full rounded-[50px] ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
+      className={`w-full rounded-[50px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+        } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
@@ -633,9 +631,8 @@ const EventsList = ({
               {/* Filter Button */}
               <button
                 onClick={() => setShowFilter(!showFilter)}
-                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
-                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
-                }`}
+                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
+                  }`}
                 style={{
                   boxShadow: isDark
                     ? "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset"
@@ -658,9 +655,8 @@ const EventsList = ({
               </button>
               {/* Search Bar */}
               <div
-                className={`flex-1 flex items-center gap-2 ${
-                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
-                }`}
+                className={`flex-1 flex items-center gap-2 ${isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
+                  }`}
                 style={{
                   maxWidth: "300px",
                   height: "31px",
@@ -678,9 +674,8 @@ const EventsList = ({
                   placeholder="Search events..."
                   value={searchTerm}
                   onChange={(e) => onSearchTermChange(e.target.value)}
-                  className={`bg-transparent focus:outline-none w-full text-sm ${
-                    isDark ? "placeholder-gray-500" : "placeholder-gray-400"
-                  }`}
+                  className={`bg-transparent focus:outline-none w-full text-sm ${isDark ? "placeholder-gray-500" : "placeholder-gray-400"
+                    }`}
                 />
               </div>
             </div>
@@ -701,11 +696,10 @@ const EventsList = ({
                 <div className="mt-2">
                   <button
                     onClick={() => setSelectedDate(null)}
-                    className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-                      isDark
+                    className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${isDark
                         ? "bg-blue-600 hover:bg-blue-500 text-white"
                         : "bg-blue-500 hover:bg-blue-600 text-white"
-                    }`}
+                      }`}
                   >
                     Clear filter
                   </button>
@@ -779,7 +773,7 @@ const EventsList = ({
                         <p
                           className={`${theme.text} font-medium text-sm truncate flex-1`}
                         >
-                          {event.event_name}
+                          {truncateEventName(event.event_name)}
                         </p>
                         <button
                           onClick={() => toggleRowExpansion(event._id)}
@@ -871,9 +865,8 @@ const EventsList = ({
                       {/* Divider */}
                       {index < paginatedEvents.length - 1 && (
                         <div
-                          className={`h-px ${
-                            isDark ? "bg-gray-700" : "bg-gray-300"
-                          }`}
+                          className={`h-px ${isDark ? "bg-gray-700" : "bg-gray-300"
+                            }`}
                         />
                       )}
                     </div>
@@ -890,9 +883,8 @@ const EventsList = ({
             <div className="flex items-center justify-between w-full">
               {!isSearchActive ? (
                 <button
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
-                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                  } ${getNeumorphicShadows(isDark)}`}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                    } ${getNeumorphicShadows(isDark)}`}
                   onClick={() => setIsSearchActive(true)}
                 >
                   <Search className={`w-4 h-4 ${theme.subText}`} />
@@ -902,9 +894,8 @@ const EventsList = ({
                 </button>
               ) : (
                 <div
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
-                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                  } ${getNeumorphicShadows(isDark)}`}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                    } ${getNeumorphicShadows(isDark)}`}
                 >
                   <Search className={`w-4 h-4 ${theme.subText}`} />
                   <input
@@ -941,11 +932,10 @@ const EventsList = ({
                 </div>
                 <button
                   onClick={() => setSelectedDate(null)}
-                  className={`text-xs font-bold px-3 py-1 rounded-full transition-colors ${
-                    isDark
+                  className={`text-xs font-bold px-3 py-1 rounded-full transition-colors ${isDark
                       ? "bg-blue-600 hover:bg-blue-500 text-white"
                       : "bg-blue-500 hover:bg-blue-600 text-white"
-                  }`}
+                    }`}
                 >
                   Clear filter
                 </button>
@@ -965,18 +955,15 @@ const EventsList = ({
               return (
                 <div
                   key={event._id || index}
-                  className={`border-b ${
-                    isDark ? "border-gray-700/50" : "border-gray-200"
-                  } p-4`}
+                  className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"
+                    } p-4`}
                 >
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-8 h-8 rounded-full ${
-                          isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                        } flex items-center justify-center ${
-                          isDark ? "text-indigo-300" : "text-indigo-500"
-                        }`}
+                        className={`w-8 h-8 rounded-full ${isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                          } flex items-center justify-center ${isDark ? "text-indigo-300" : "text-indigo-500"
+                          }`}
                       >
                         <svg
                           className="w-5 h-5"
@@ -993,24 +980,22 @@ const EventsList = ({
                         </svg>
                       </div>
                       <span className={`${theme.text} truncate`}>
-                        {event.event_name}
+                        {truncateEventName(event.event_name)}
                       </span>
                     </div>
                     <button
                       onClick={() => handleViewEvent(event)}
-                      className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                        isDark
+                      className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${isDark
                           ? "text-white hover:bg-[#6549B8]"
                           : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                      }`}
+                        }`}
                     >
                       View
                     </button>
                   </div>
                   <div
-                    className={`mt-2 text-sm ${
-                      isDark ? "text-gray-400" : "text-gray-600"
-                    }`}
+                    className={`mt-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"
+                      }`}
                   >
                     <p>Event Status: {event.event_status}</p>
                   </div>
@@ -1037,9 +1022,8 @@ const EventsList = ({
                 </div>
                 <button
                   onClick={() => setSelectedDate(null)}
-                  className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
-                          isDark ? "text-gray-300" : "text-gray-700"
-                        }`}
+                  className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${isDark ? "text-gray-300" : "text-gray-700"
+                    }`}
                 >
                   Clear filter
                 </button>
@@ -1049,11 +1033,9 @@ const EventsList = ({
             <table className="w-full table-auto text-left">
               <thead>
                 <tr
-                  className={`${
-                    isDark ? "text-gray-400" : "text-black"
-                  } border-b ${
-                    isDark ? "border-gray-700" : "border-gray-200"
-                  } text-sm sticky top-0`}
+                  className={`${isDark ? "text-gray-400" : "text-black"
+                    } border-b ${isDark ? "border-gray-700" : "border-gray-200"
+                    } text-sm sticky top-0`}
                   style={{
                     background: isDark ? "#232426" : "transparent",
                     zIndex: 10,
@@ -1105,11 +1087,10 @@ const EventsList = ({
                       </button>
                       {isCategoryDropdownOpen && (
                         <div
-                          className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                            isDark
+                          className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${isDark
                               ? "bg-[#232426] ring-gray-600"
                               : "bg-slate-100 ring-gray-400"
-                          }`}
+                            }`}
                           style={{
                             boxShadow: isDark
                               ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
@@ -1124,15 +1105,14 @@ const EventsList = ({
                                   setSelectedCategory(category);
                                   setCategoryDropdownOpen(false);
                                 }}
-                                className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                                  selectedCategory === category
+                                className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${selectedCategory === category
                                     ? isDark
                                       ? "bg-gray-700 text-white"
                                       : "bg-gray-200 text-gray-900"
                                     : isDark
-                                    ? "text-gray-300 hover:bg-gray-800"
-                                    : "text-gray-700 hover:bg-gray-200"
-                                }`}
+                                      ? "text-gray-300 hover:bg-gray-800"
+                                      : "text-gray-700 hover:bg-gray-200"
+                                  }`}
                               >
                                 {category}
                               </button>
@@ -1165,20 +1145,16 @@ const EventsList = ({
                   return (
                     <tr
                       key={event._id || index}
-                      className={`border-b ${
-                        isDark ? "border-gray-700/50" : "border-gray-200"
-                      } ${
-                        isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                      }`}
+                      className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"
+                        } ${isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                        }`}
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-6 h-6 rounded-full ${
-                              isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                            } flex items-center justify-center ${
-                              isDark ? "text-indigo-300" : "text-indigo-500"
-                            }`}
+                            className={`w-6 h-6 rounded-full ${isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                              } flex items-center justify-center ${isDark ? "text-indigo-300" : "text-indigo-500"
+                              }`}
                           >
                             <svg
                               className="w-4 h-4"
@@ -1195,7 +1171,7 @@ const EventsList = ({
                             </svg>
                           </div>
                           <span className={`${theme.text} text-sm truncate`}>
-                            {event.event_name}
+                            {truncateEventName(event.event_name)}
                           </span>
                         </div>
                       </td>
@@ -1205,25 +1181,23 @@ const EventsList = ({
                         {event.event_category ? event.event_category : "N/A"}
                       </td>
                       <td className="py-3 px-4 text-sm truncate">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          event.event_status === "live"      ? "bg-red-500/20 text-red-400"      :
-                          event.event_status === "confirmed" ? "bg-green-500/20 text-green-400"  :
-                          event.event_status === "cancelled" ? "bg-gray-500/20 text-gray-400"    :
-                          event.event_status === "completed" ? "bg-blue-500/20 text-blue-400"    :
-                          event.event_status === "pending"   ? "bg-yellow-500/20 text-yellow-400":
-                          `${theme.text}`
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${event.event_status === "live" ? "bg-red-500/20 text-red-400" :
+                            event.event_status === "confirmed" ? "bg-green-500/20 text-green-400" :
+                              event.event_status === "cancelled" ? "bg-gray-500/20 text-gray-400" :
+                                event.event_status === "completed" ? "bg-blue-500/20 text-blue-400" :
+                                  event.event_status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
+                                    `${theme.text}`
+                          }`}>
                           {event.event_status?.toUpperCase() || "N/A"}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => handleViewEvent(event)}
-                          className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                            isDark
+                          className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${isDark
                               ? "text-white hover:bg-[#6549B8]"
                               : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                          }`}
+                            }`}
                         >
                           View
                         </button>
@@ -1248,13 +1222,12 @@ const EventsList = ({
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
-                  currentPage === page
+                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${currentPage === page
                     ? "bg-[#6549B8] text-white"
                     : isDark
-                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
               >
                 {page}
               </button>
@@ -1524,21 +1497,21 @@ const ViewEvent = () => {
 
   const theme = isDark
     ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]",
-        border: "border-[#23233a]",
-        inputBg: "bg-[#212426]",
-      }
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#212426]",
+      border: "border-[#23233a]",
+      inputBg: "bg-[#212426]",
+    }
     : {
-        bg: "bg-[#F9F9F9]",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-[#f1f1f1]",
-        border: "border-[#e4e6ea]",
-        inputBg: "bg-[#ffffff]",
-      };
+      bg: "bg-[#F9F9F9]",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-[#f1f1f1]",
+      border: "border-[#e4e6ea]",
+      inputBg: "bg-[#ffffff]",
+    };
 
   const user = { name: "U" };
   const confirmedEventsCount = events.length;
@@ -1586,7 +1559,7 @@ const ViewEvent = () => {
                 theme={theme}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onTuneClick={() => {}}
+                onTuneClick={() => { }}
               />
             </div>
             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
@@ -1610,17 +1583,15 @@ const ViewEvent = () => {
               onClick={handleCreateEvent}
               disabled={loading}
               style={{
-             
-                      boxShadow: isDark
-      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+
+                boxShadow: isDark
+                  ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+                  : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
 
               }}
-              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                theme.bg
-              } ${theme.text} ${
-                isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
-              }`}
+              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg
+                } ${theme.text} ${isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
+                }`}
             >
               <span
                 className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"
@@ -1751,12 +1722,10 @@ const ViewEvent = () => {
 
                       const activeClass =
                         "bg-[linear-gradient(180deg,#1E1242_0%,#6549B8_100%)] text-white shadow-lg border border-[#6549B8]  rounded-full px-4 py-1 text-sm font-light tracking-wider";
-                      const inactiveOutlineClass = `border border-[#6549B8] ${
-                        isDark ? "text-white" : "text-[#6D4DE6]"
-                      }`;
-                      const inactiveNeumorphicClass = `${
-                        theme.text
-                      } ${getButtonNeumorphicShadows}`;
+                      const inactiveOutlineClass = `border border-[#6549B8] ${isDark ? "text-white" : "text-[#6D4DE6]"
+                        }`;
+                      const inactiveNeumorphicClass = `${theme.text
+                        } ${getButtonNeumorphicShadows}`;
 
                       let buttonClass;
                       if (isActive) {
@@ -1797,11 +1766,10 @@ const ViewEvent = () => {
             {/* Right Column - Statistics & Calendar (40%) */}
             <div className="lg:col-span-2">
               <div
-                className={`w-full rounded-[50px] ${
-                  isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                } ${getNeumorphicShadows(
-                  isDark
-                )} p-4 md:p-5 lg:p-6 flex flex-col gap-4 h-full`}
+                className={`w-full rounded-[50px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(
+                    isDark
+                  )} p-4 md:p-5 lg:p-6 flex flex-col gap-4 h-full`}
               >
                 {/* Group Statistics Chart */}
                 <div className="w-full py-6">

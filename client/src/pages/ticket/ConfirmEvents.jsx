@@ -297,9 +297,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
   if (loading) {
     return (
       <div
-        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-          theme.cardBg
-        } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg
+          } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
         <p className={`${theme.subText}`}>Loading bank details...</p>
@@ -310,9 +309,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
   if (!currentAccount || bankDetails.length === 0) {
     return (
       <div
-        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-          theme.cardBg
-        } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg
+          } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
         <p className={`${theme.subText}`}>No bank account details available</p>
@@ -321,15 +319,13 @@ function BankAccountDetailsCard({ isDark, theme }) {
   }
   return (
     <div
-      className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-        theme.cardBg
-      } ${getNeumorphicShadows(isDark)}`}
+      className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg
+        } ${getNeumorphicShadows(isDark)}`}
     >
       {/* Card Header */}
       <header
-        className={`flex items-center justify-between border-b ${
-          isDark ? "border-gray-700" : "border-gray-200"
-        } pb-4 mb-6 flex-wrap gap-4`}
+        className={`flex items-center justify-between border-b ${isDark ? "border-gray-700" : "border-gray-200"
+          } pb-4 mb-6 flex-wrap gap-4`}
       >
         <div className="flex items-center">
           <Landmark className="h-8 w-8 text-green-500" />
@@ -359,9 +355,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
             Account holder :
           </p>
           <p
-            className={`text-sm ${theme.text} ${
-              isDark ? "bg-gray-700" : "bg-gray-500"
-            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
           >
             {currentAccount.bank_acc_holder || "N/A"}
           </p>
@@ -371,9 +366,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
             Account type :
           </p>
           <p
-            className={`text-sm ${theme.text} ${
-              isDark ? "bg-gray-700" : "bg-gray-500"
-            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
           >
             {currentAccount.bank_acc_type || "N/A"}
           </p>
@@ -381,9 +375,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
         <div className="flex items-center justify-between gap-2">
           <p className={`text-sm font-medium ${theme.subText}`}>IFSC code :</p>
           <p
-            className={`text-sm ${theme.text} ${
-              isDark ? "bg-gray-700" : "bg-gray-500"
-            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
           >
             {currentAccount.bank_ifsc || "N/A"}
           </p>
@@ -393,9 +386,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
             Account number :
           </p>
           <p
-            className={`text-sm ${theme.text} ${
-              isDark ? "bg-gray-700" : "bg-gray-500"
-            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
           >
             {currentAccount.bank_acc_no || "N/A"}
           </p>
@@ -409,11 +401,10 @@ function BankAccountDetailsCard({ isDark, theme }) {
             <button
               onClick={handlePrevious}
               disabled={currentIndex === 0}
-              className={`text-xs ${
-                currentIndex === 0
-                  ? "opacity-30 cursor-not-allowed"
-                  : "hover:opacity-80 cursor-pointer"
-              } ${theme.text}`}
+              className={`text-xs ${currentIndex === 0
+                ? "opacity-30 cursor-not-allowed"
+                : "hover:opacity-80 cursor-pointer"
+                } ${theme.text}`}
             >
               ←
             </button>
@@ -422,26 +413,24 @@ function BankAccountDetailsCard({ isDark, theme }) {
                 <div
                   key={index}
                   onClick={() => setCurrentIndex(index)}
-                  className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${
-                    index === currentIndex
-                      ? isDark
-                        ? "bg-purple-500"
-                        : "bg-purple-600"
-                      : isDark
-                        ? "bg-gray-600"
-                        : "bg-gray-400"
-                  }`}
+                  className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${index === currentIndex
+                    ? isDark
+                      ? "bg-purple-500"
+                      : "bg-purple-600"
+                    : isDark
+                      ? "bg-gray-600"
+                      : "bg-gray-400"
+                    }`}
                 ></div>
               ))}
             </div>
             <button
               onClick={handleNext}
               disabled={currentIndex === bankDetails.length - 1}
-              className={`text-xs ${
-                currentIndex === bankDetails.length - 1
-                  ? "opacity-30 cursor-not-allowed"
-                  : "hover:opacity-80 cursor-pointer"
-              } ${theme.text}`}
+              className={`text-xs ${currentIndex === bankDetails.length - 1
+                ? "opacity-30 cursor-not-allowed"
+                : "hover:opacity-80 cursor-pointer"
+                } ${theme.text}`}
             >
               →
             </button>
@@ -449,9 +438,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
         )}
         {bankDetails.length === 1 && (
           <div
-            className={`w-2.5 h-2.5 ${
-              isDark ? "bg-purple-500" : "bg-purple-600"
-            } rounded-full`}
+            className={`w-2.5 h-2.5 ${isDark ? "bg-purple-500" : "bg-purple-600"
+              } rounded-full`}
           ></div>
         )}
       </footer>
@@ -516,6 +504,10 @@ const EventsList = ({
   onHostEvent,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const truncateEventName = (name) => {
+    if (!name) return "N/A";
+    return name.length > 25 ? name.substring(0, 22) + "..." : name;
+  };
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
@@ -624,9 +616,8 @@ const EventsList = ({
         flexDirection: "column",
         overflow: "hidden",
       }}
-      className={`w-full rounded-[50px] ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
+      className={`w-full rounded-[50px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+        } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
@@ -636,9 +627,8 @@ const EventsList = ({
               {/* Filter Button */}
               <button
                 onClick={() => setShowFilter(!showFilter)}
-                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
-                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
-                }`}
+                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
+                  }`}
                 style={{
                   boxShadow: isDark
                     ? "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset"
@@ -661,9 +651,8 @@ const EventsList = ({
               </button>
               {/* Search Bar */}
               <div
-                className={`flex-1 flex items-center gap-2 ${
-                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
-                }`}
+                className={`flex-1 flex items-center gap-2 ${isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
+                  }`}
                 style={{
                   maxWidth: "300px",
                   height: "31px",
@@ -681,9 +670,8 @@ const EventsList = ({
                   placeholder="Search events..."
                   value={searchTerm}
                   onChange={(e) => onSearchTermChange(e.target.value)}
-                  className={`bg-transparent focus:outline-none w-full text-sm ${
-                    isDark ? "placeholder-gray-500" : "placeholder-gray-400"
-                  }`}
+                  className={`bg-transparent focus:outline-none w-full text-sm ${isDark ? "placeholder-gray-500" : "placeholder-gray-400"
+                    }`}
                 />
               </div>
             </div>
@@ -755,7 +743,7 @@ const EventsList = ({
                         <p
                           className={`${theme.text} font-medium text-sm truncate flex-1`}
                         >
-                          {event.event_name}
+                          {truncateEventName(event.event_name)}
                         </p>
                         <button
                           onClick={() => toggleRowExpansion(event._id)}
@@ -887,9 +875,8 @@ const EventsList = ({
             <div className="flex items-center justify-between w-full">
               {!isSearchActive ? (
                 <button
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
-                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                  } ${getNeumorphicShadows(isDark)}`}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                    } ${getNeumorphicShadows(isDark)}`}
                   onClick={() => setIsSearchActive(true)}
                 >
                   <Search className={`w-4 h-4 ${theme.subText}`} />
@@ -899,9 +886,8 @@ const EventsList = ({
                 </button>
               ) : (
                 <div
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
-                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                  } ${getNeumorphicShadows(isDark)}`}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                    } ${getNeumorphicShadows(isDark)}`}
                 >
                   <Search className={`w-4 h-4 ${theme.subText}`} />
                   <input
@@ -934,11 +920,10 @@ const EventsList = ({
 
                   {isCategoryDropdownOpen && (
                     <div
-                      className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                        isDark
-                          ? "bg-[#232426] ring-gray-600"
-                          : "bg-slate-100 ring-gray-400"
-                      }`}
+                      className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${isDark
+                        ? "bg-[#232426] ring-gray-600"
+                        : "bg-slate-100 ring-gray-400"
+                        }`}
                       style={{
                         boxShadow: isDark
                           ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
@@ -953,15 +938,14 @@ const EventsList = ({
                               setSelectedCategory(category);
                               setCategoryDropdownOpen(false);
                             }}
-                            className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                              selectedCategory === category
-                                ? isDark
-                                  ? "bg-gray-700 text-white"
-                                  : "bg-gray-200 text-gray-900"
-                                : isDark
-                                  ? "text-gray-300 hover:bg-gray-800"
-                                  : "text-gray-700 hover:bg-gray-200"
-                            }`}
+                            className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${selectedCategory === category
+                              ? isDark
+                                ? "bg-gray-700 text-white"
+                                : "bg-gray-200 text-gray-900"
+                              : isDark
+                                ? "text-gray-300 hover:bg-gray-800"
+                                : "text-gray-700 hover:bg-gray-200"
+                              }`}
                           >
                             {category}
                           </button>
@@ -991,19 +975,16 @@ const EventsList = ({
               return (
                 <div
                   key={event._id || index}
-                  className={`border-b ${
-                    isDark ? "border-gray-700/50" : "border-gray-200"
-                  } p-4`}
+                  className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"
+                    } p-4`}
                 >
                   <div className="flex items-center gap-2">
                     {/* Event Name and Status Column */}
                     <div className="flex items-center gap-3 flex-[3] min-w-0">
                       <div
-                        className={`w-8 h-8 rounded-full flex-shrink-0 ${
-                          isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                        } flex items-center justify-center ${
-                          isDark ? "text-indigo-300" : "text-indigo-500"
-                        }`}
+                        className={`w-8 h-8 rounded-full flex-shrink-0 ${isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                          } flex items-center justify-center ${isDark ? "text-indigo-300" : "text-indigo-500"
+                          }`}
                       >
                         <svg
                           className="w-5 h-5"
@@ -1023,7 +1004,7 @@ const EventsList = ({
                         <span
                           className={`${theme.text} truncate font-semibold text-sm`}
                         >
-                          {event.event_name}
+                          {truncateEventName(event.event_name)}
                         </span>
                         <span
                           className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"} truncate`}
@@ -1043,11 +1024,10 @@ const EventsList = ({
                     <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                       <button
                         onClick={() => onHostEvent(event)}
-                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
-                          isDark
-                            ? "text-white hover:bg-[#6549B8]"
-                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                        }`}
+                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                          }`}
                       >
                         Run
                       </button>
@@ -1055,11 +1035,10 @@ const EventsList = ({
                         onClick={() =>
                           navigate(`/ticket/view-confirm-event/${event._id}`)
                         }
-                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
-                          isDark
-                            ? "text-white hover:bg-[#6549B8]"
-                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                        }`}
+                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                          }`}
                       >
                         View
                       </button>
@@ -1074,9 +1053,8 @@ const EventsList = ({
           <table className="hidden lg:table w-full table-auto text-left">
             <thead>
               <tr
-                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                  isDark ? "border-gray-700" : "border-gray-200"
-                } text-sm sticky top-0`}
+                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${isDark ? "border-gray-700" : "border-gray-200"
+                  } text-sm sticky top-0`}
                 style={{
                   zIndex: 10,
                 }}
@@ -1127,11 +1105,10 @@ const EventsList = ({
                     </button>
                     {isCategoryDropdownOpen && (
                       <div
-                        className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                          isDark
-                            ? "bg-[#232426] ring-gray-600"
-                            : "bg-slate-100 ring-gray-400"
-                        }`}
+                        className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${isDark
+                          ? "bg-[#232426] ring-gray-600"
+                          : "bg-slate-100 ring-gray-400"
+                          }`}
                         style={{
                           boxShadow: isDark
                             ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
@@ -1146,15 +1123,14 @@ const EventsList = ({
                                 setSelectedCategory(category);
                                 setCategoryDropdownOpen(false);
                               }}
-                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                                selectedCategory === category
-                                  ? isDark
-                                    ? "bg-gray-700 text-white"
-                                    : "bg-gray-200 text-gray-900"
-                                  : isDark
-                                    ? "text-gray-300 hover:bg-gray-800"
-                                    : "text-gray-700 hover:bg-gray-200"
-                              }`}
+                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${selectedCategory === category
+                                ? isDark
+                                  ? "bg-gray-700 text-white"
+                                  : "bg-gray-200 text-gray-900"
+                                : isDark
+                                  ? "text-gray-300 hover:bg-gray-800"
+                                  : "text-gray-700 hover:bg-gray-200"
+                                }`}
                             >
                               {category}
                             </button>
@@ -1174,6 +1150,7 @@ const EventsList = ({
             </thead>
             <tbody>
               {displayEvents.map((event, index) => {
+                const truncateEventName = (name) => (name?.length > 20 ? `${name.substring(0, 20)}...` : name);
                 if (!event) {
                   return (
                     <tr key={`placeholder-${index}`}>
@@ -1187,20 +1164,16 @@ const EventsList = ({
                 return (
                   <tr
                     key={event._id || index}
-                    className={`border-b ${
-                      isDark ? "border-gray-700/50" : "border-gray-200"
-                    } ${
-                      isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                    }`}
+                    className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"
+                      } ${isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                      }`}
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-6 h-6 rounded-full ${
-                            isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                          } flex items-center justify-center ${
-                            isDark ? "text-indigo-300" : "text-indigo-500"
-                          }`}
+                          className={`w-6 h-6 rounded-full ${isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                            } flex items-center justify-center ${isDark ? "text-indigo-300" : "text-indigo-500"
+                            }`}
                         >
                           <svg
                             className="w-4 h-4"
@@ -1217,7 +1190,7 @@ const EventsList = ({
                           </svg>
                         </div>
                         <span className={`${theme.text} text-sm truncate`}>
-                          {event.event_name}
+                          {truncateEventName(event.event_name)}
                         </span>
                       </div>
                     </td>
@@ -1230,11 +1203,10 @@ const EventsList = ({
                     <td className="py-3 px-4 text-right">
                       <button
                         onClick={() => onHostEvent(event)}
-                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                          isDark
-                            ? "text-white hover:bg-[#6549B8]"
-                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                        }`}
+                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                          }`}
                       >
                         Run
                       </button>
@@ -1244,11 +1216,10 @@ const EventsList = ({
                         onClick={() =>
                           navigate(`/ticket/view-confirm-event/${event._id}`)
                         }
-                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                          isDark
-                            ? "text-white hover:bg-[#6549B8]"
-                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                        }`}
+                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                          }`}
                       >
                         View
                       </button>
@@ -1272,13 +1243,12 @@ const EventsList = ({
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
-                  currentPage === page
-                    ? "bg-[#6549B8] text-white"
-                    : isDark
-                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${currentPage === page
+                  ? "bg-[#6549B8] text-white"
+                  : isDark
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
               >
                 {page}
               </button>
@@ -1398,7 +1368,7 @@ const ConfirmEvents = () => {
       } else {
         alert(
           error.response?.data?.message ||
-            "Failed to host event. Please try again.",
+          "Failed to host event. Please try again.",
         );
       }
     } finally {
@@ -1413,17 +1383,17 @@ const ConfirmEvents = () => {
 
   const theme = isDark
     ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#232426]",
-      }
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#232426]",
+    }
     : {
-        bg: "bg-slate-100",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-slate-100",
-      };
+      bg: "bg-slate-100",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-slate-100",
+    };
   const confirmedEventsCount = events.length;
   return (
     <>
@@ -1494,7 +1464,7 @@ const ConfirmEvents = () => {
                   theme={theme}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onTuneClick={() => {}}
+                  onTuneClick={() => { }}
                 />
               </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
@@ -1520,11 +1490,9 @@ const ConfirmEvents = () => {
                     ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                     : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
                 }}
-                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                  theme.bg
-                } ${theme.text} ${
-                  isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
-                }`}
+                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg
+                  } ${theme.text} ${isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
+                  }`}
               >
                 <span
                   className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"

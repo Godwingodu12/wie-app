@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { 
-  Utensils, 
-  Hotel, 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  Camera, 
+import {
+  Utensils,
+  Hotel,
+  Plus,
+  Trash2,
+  Edit3,
+  Camera,
   Sparkles
 } from "lucide-react";
 import ToggleSwitch from "../CreateGroup/ToggleSwitch.jsx";
@@ -27,7 +27,7 @@ const FoodModal = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState("food"); // "food" or "accommodation"
   const [editingIndex, setEditingIndex] = useState(null);
-  
+
   // Modal form states
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");
@@ -37,7 +37,7 @@ const FoodModal = ({
   const [itemPhotoPreview, setItemPhotoPreview] = useState(""); // Base64 or URL
 
   const isObjectMode = !!formData;
-  
+
   const currentFoodAccoum = isObjectMode ? (formData.food_accoum || false) : (foodAccoum || false);
   const currentFoodAccoumType = isObjectMode ? (formData.food_accoum_type || "none") : (foodAccoumType || "none");
   const currentFoodDetails = isObjectMode ? (formData.food_details || []) : (foodDetails || []);
@@ -200,7 +200,7 @@ const FoodModal = ({
 
   return (
     <div className="space-y-6 pt-4 border-t border-gray-200 dark:border-gray-800">
-      
+
       {/* ─── FOOD & ACCOMMODATION OPTION ─── */}
       <div className="bg-white dark:bg-[#1E2124] p-5 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between">
@@ -244,11 +244,10 @@ const FoodModal = ({
                       key={opt.value}
                       type="button"
                       onClick={() => updateFoodAccoumType(opt.value)}
-                      className={`flex items-center gap-3 p-4 rounded-xl border text-sm font-medium transition-all duration-300 ${
-                        isSelected
+                      className={`flex items-center gap-3 p-4 rounded-xl border text-sm font-medium transition-all duration-300 ${isSelected
                           ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-sm"
                           : "bg-gray-50 dark:bg-[#181A1C] border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700"
-                      }`}
+                        }`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
                       <span>{opt.label}</span>
@@ -422,15 +421,15 @@ const FoodModal = ({
                 {modalType === "food" ? <Utensils className="w-5 h-5 text-indigo-500" /> : <Hotel className="w-5 h-5 text-indigo-500" />}
                 {editingIndex !== null ? "Edit Option" : "Add New Option"}
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 font-bold text-xl leading-none"
               >
                 &times;
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               {/* Photo Upload */}
               <div>
@@ -448,11 +447,11 @@ const FoodModal = ({
                   <div>
                     <label className="inline-block px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer transition-colors shadow-sm">
                       Choose Photo
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handlePhotoChange} 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                        className="hidden"
                       />
                     </label>
                     <p className="text-[11px] text-gray-400 mt-1.5">PNG, JPG or WEBP. Max 5MB.</p>
