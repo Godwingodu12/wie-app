@@ -131,7 +131,8 @@ const subEventSchema = new mongoose.Schema({
   },
 
   // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
+  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly', 'recurring'], required: false },
+  recurring_type: { type: String, default: 'none' },
   event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
   gate_open_time: { type: String, required: false },
   event_instagram_link: { type: String, required: false },
@@ -299,7 +300,8 @@ const ticketSchema = new mongoose.Schema({
     address: { type: String }
   },
   // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
+  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly', 'recurring'], required: true },
+  recurring_type: { type: String, default: 'none' },
   event_dates: [ticketdateSchema],
   event_instagram_link: { type: String, required: false },
   gate_open_time: { type: String, required: false },
