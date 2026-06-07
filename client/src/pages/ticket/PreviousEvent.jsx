@@ -352,6 +352,10 @@ const EventsList = ({
 }) => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
+  const truncateEventName = (name) => {
+    if (!name) return "N/A";
+    return name.length > 25 ? name.substring(0, 22) + "..." : name;
+  };
   const [isSearchActive, setIsSearchActive] = useState(false);
   const searchInputRef = useRef(null);
   const itemsPerPage = 6;
@@ -701,7 +705,7 @@ const EventsList = ({
                       <p
                         className={`${theme.text} font-semibold text-sm truncate`}
                       >
-                        {event.event_name}
+                        {truncateEventName(event.event_name)}
                       </p>
                       <div
                         className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"
@@ -827,7 +831,7 @@ const EventsList = ({
                 >
                   <td className={`py-8 px-4 ${theme.text} text-sm`}>
                     <div className="truncate pr-4">
-                      {event.event_name || "N/A"}
+                      {truncateEventName(event.event_name)}
                     </div>
                   </td>
                   <td className={`py-8 px-4 ${theme.text} text-sm`}>
