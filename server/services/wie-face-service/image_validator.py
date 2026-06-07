@@ -44,7 +44,14 @@ class ImageValidator:
         return PASS
 
     def _check_face_count(self, rgb) -> Optional[ValidationResult]:
-        locations = face_recognition.face_locations(rgb, model="hog")
+        # Upsample twice so small/distant faces are caught by HOG
+        locations = face_recognition.face_locations(
+            rgb, model="hog", number_of_times_to_upsample=2
+        )
+
+        # CNN fallback for difficult images
+        if not locations:
+            locations = face_recognition.face_locations(rgb, model="cnn")
 
         if len(locations) == 0:
             return ValidationResult(
