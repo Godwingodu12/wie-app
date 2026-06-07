@@ -188,6 +188,7 @@ const UpdateTicketAddOns = () => {
     hashtag: [],
     event_dates: [],
     event_date_type: "one-day",
+    event_recurring_type: "",
     guests: [],
     event_rules_file: null,
     prohibited_items: [],
@@ -1094,6 +1095,16 @@ const UpdateTicketAddOns = () => {
     if (!formData.event_subcategory)
       addError("event_subcategory", "Event subcategory is required.");
 
+    if (formData.event_date_type === "recurring") {
+      const validRecurringTypes = ["weekly", "monthly", "yearly"];
+      if (!formData.event_recurring_type || !validRecurringTypes.includes(formData.event_recurring_type)) {
+        addError(
+          "event_recurring_type",
+          "Event recurring type is required and must be weekly, monthly, or yearly when event date type is recurring."
+        );
+      }
+    }
+
     if (formData.event_dates.length === 0)
       addError("event_dates", "At least one event date is required.");
     if (formData.event_language.length === 0)
@@ -1429,6 +1440,8 @@ const UpdateTicketAddOns = () => {
       restrict_booking: formData.restrict_booking,
       location_type: formData.location_type,
       event_date_type: formData.event_date_type,
+      event_recurring_type: formData.event_recurring_type || "",
+      recurring_type: formData.event_recurring_type || "none",
       total_capacity: formData.total_capacity, // ✅ ADD THIS
       event_dates: formData.event_dates.map((d) => {
         let eventLink = d.eventLink || "";
@@ -2703,6 +2716,7 @@ const UpdateTicketAddOns = () => {
               : [],
           event_dates: mappedEventDates,
           event_date_type: subEvent.event_date_type,
+          event_recurring_type: subEvent.recurring_type || "",
           gate_open_time: Boolean(subEvent.gate_open_time),
           guests:
             subEvent.guests?.map((g) => ({
@@ -3907,6 +3921,56 @@ const UpdateTicketAddOns = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Event Recurring Type (conditional on recurring date type) */}
+                  {formData.event_date_type === "recurring" && (
+                    <div
+                      className="animate-fade-in mt-4"
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_recurring_type = el)
+                      }
+                    >
+                      <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                        Event recurring type
+                        <InfoTooltip note="Event is anything that happens repeatedly on your set schedule (Dates you selected)." />
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="event_recurring_type"
+                          name="event_recurring_type"
+                          value={formData.event_recurring_type}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 rounded-lg border appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                            ${errors.event_recurring_type ? "border-red-500 focus:ring-red-500/50" : (darkMode ? "border-[#4A4A4A]" : "border-black")}
+                            ${darkMode
+                              ? "bg-[#1E1E1E] text-white"
+                              : "bg-white text-black"
+                            }`}
+                        >
+                          <option value="">select a type</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                        <div className={`pointer-events-none absolute inset-y-0 right-3 flex items-center ${darkMode ? "text-gray-400" : "text-gray-600"
+                          }`}>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                      {errors.event_recurring_type && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_recurring_type}
+                        </p>
+                      )}
+                      <p className={`text-xs mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"
+                        }`}>
+                        Event is anything that happens repeatedly on your set schedule(Dates you selected).
+                      </p>
+                    </div>
+                  )}
+
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
                       <div className="flex items-center justify-between pt-4">
@@ -4041,62 +4105,49 @@ const UpdateTicketAddOns = () => {
                       <img src={Guest_Form_Icon} alt="" />
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                      {formData.guests.map((guest) => {
-                        const guestImageUrl =
-                          getTicketImageUrl(guest.image || guest.guest_profile) ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            guest.name || "Guest"
-                          )}&background=random`;
-                        return (
-                          <div
-                            key={guest.id}
-                            className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
-                              }`}
-                          >
-                            <div className="flex items-center gap-3 overflow-hidden">
-                              <img
-                                src={guestImageUrl}
-                                alt={guest.name}
-                                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    guest.name || "Guest"
-                                  )}&background=random`;
-                                }}
-                              />
-                              <div className="truncate">
-                                <p className="font-semibold truncate">
-                                  {guest.name}
-                                </p>
-                                {guest.link && (
-                                  <a
-                                    href={guest.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-indigo-400 truncate block"
-                                  >
-                                    {guest.link}
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleEditGuest(guest)}
-                                className={`p-2 ${darkMode
-                                  ? "text-gray-400 hover:text-white"
-                                  : "text-black hover:text-black"
-                                  }`}
-                                title="Edit"
-                              >
-                                ✏️
-                              </button>
+                      {formData.guests.map((guest) => (
+                        <div
+                          key={guest.id}
+                          className={`rounded-lg p-3 flex items-center justify-between ${darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
+                            }`}
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <img
+                              src={guest.image}
+                              alt={guest.name}
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                            />
+                            <div className="truncate">
+                              <p className="font-semibold truncate">
+                                {guest.name}
+                              </p>
+                              {guest.link && (
+                                <a
+                                  href={guest.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-indigo-400 truncate block"
+                                >
+                                  {guest.link}
+                                </a>
+                              )}
                             </div>
                           </div>
-                        );
-                      })}
+                          <div className="flex items-center flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleEditGuest(guest)}
+                              className={`p-2 ${darkMode
+                                ? "text-gray-400 hover:text-white"
+                                : "text-black hover:text-black"
+                                }`}
+                              title="Edit"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
