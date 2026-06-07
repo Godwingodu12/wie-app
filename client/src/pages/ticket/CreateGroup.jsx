@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -142,10 +142,10 @@ const customSelectStyles = (isDark) => ({
     backgroundColor: state.isSelected
       ? "#4F46E5"
       : state.isFocused
-      ? isDark
-        ? "#374151"
-        : "#E5E7EB"
-      : "transparent",
+        ? isDark
+          ? "#374151"
+          : "#E5E7EB"
+        : "transparent",
     color: isDark ? "#FFFFFF" : "#1F2937",
     "&:active": {
       backgroundColor: "#4338CA",
@@ -170,13 +170,13 @@ const GST_MANDATORY_SECTORS = [
   "Private", "Public Limited Company",
 ];
 const GST_CONDITIONAL_SECTORS = ["NGO", "Non-profit", "Trust", "Society"];
-const GST_EXEMPT_SECTORS      = ["Educational", "Healthcare", "Hospital", "Institute"];
+const GST_EXEMPT_SECTORS = ["Educational", "Healthcare", "Hospital", "Institute"];
 const getGSTStatus = (orgType) => {
   if (!orgType) return "optional";
   const lower = orgType.toLowerCase().trim();
-  if (GST_MANDATORY_SECTORS.includes(lower))  return "mandatory";
+  if (GST_MANDATORY_SECTORS.includes(lower)) return "mandatory";
   if (GST_CONDITIONAL_SECTORS.includes(lower)) return "conditional";
-  if (GST_EXEMPT_SECTORS.includes(lower))      return "exempt";
+  if (GST_EXEMPT_SECTORS.includes(lower)) return "exempt";
   return "optional"; // "other" and unknown types
 };
 const CreateGroup = () => {
@@ -404,9 +404,8 @@ const CreateGroup = () => {
       if (remaining <= 0) {
         return "You have reached the maximum limit of 4 groups.";
       } else {
-        return `You can create ${remaining} more organisation group${
-          remaining > 1 ? "s" : ""
-        }.`;
+        return `You can create ${remaining} more organisation group${remaining > 1 ? "s" : ""
+          }.`;
       }
     }
   };
@@ -493,23 +492,23 @@ const CreateGroup = () => {
         addError("organisation_type", "Organisation type is required.");
       if (!formData.address.trim()) addError("address", "Address is required.");
       if (formData.organisation_type) {
-          const gstStatus = getGSTStatus(formData.organisation_type);
-          const isExempt  = gstStatus === "exempt";
-          if (gstStatus === "mandatory" && !formData.gst_no.trim()) {
-            addError(
-              "gst_no",
-              `GST number is mandatory for ${formData.organisation_type} organisations under Indian GST law.`
-            );
+        const gstStatus = getGSTStatus(formData.organisation_type);
+        const isExempt = gstStatus === "exempt";
+        if (gstStatus === "mandatory" && !formData.gst_no.trim()) {
+          addError(
+            "gst_no",
+            `GST number is mandatory for ${formData.organisation_type} organisations under Indian GST law.`
+          );
+        }
+        if (!isExempt) {
+          if (!files.bank_check && !filePreviews.bank_check) {
+            addError("bank_check", "Cancelled bank cheque is required.");
           }
-          if (!isExempt) {
-            if (!files.bank_check && !filePreviews.bank_check) {
-              addError("bank_check", "Cancelled bank cheque is required.");
-            }
-            if (!files.company_logo && !filePreviews.company_logo) {
-              addError("company_logo", "Company logo is required.");
-            }
+          if (!files.company_logo && !filePreviews.company_logo) {
+            addError("company_logo", "Company logo is required.");
           }
         }
+      }
     }
     if (!files.id_proof && !filePreviews.id_proof) {
       addError("id_proof", "Aadhaar card is required for verification.");
@@ -613,8 +612,8 @@ const CreateGroup = () => {
         message: isValidationError
           ? "Validation Failed"
           : isEditMode
-          ? "Update Failed"
-          : "Creation Failed",
+            ? "Update Failed"
+            : "Creation Failed",
         description: errorMessage,
       });
     } finally {
@@ -625,9 +624,8 @@ const CreateGroup = () => {
   if (loading || !capabilities || !userData) {
     return (
       <div
-        className={`min-h-screen flex items-center justify-center ${
-          darkMode ? "bg-[#212426] text-white" : "bg-gray-100 text-black"
-        }`}
+        className={`min-h-screen flex items-center justify-center ${darkMode ? "bg-[#212426] text-white" : "bg-gray-100 text-black"
+          }`}
       >
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
@@ -707,9 +705,8 @@ const CreateGroup = () => {
     return (
       <div className="space-y-2">
         <label
-          className={`flex items-center text-sm font-medium ${
-            darkMode ? "text-gray-300" : "text-gray-700"
-          }`}
+          className={`flex items-center text-sm font-medium ${darkMode ? "text-gray-300" : "text-gray-700"
+            }`}
         >
           {label}
           <InfoTooltip
@@ -719,24 +716,20 @@ const CreateGroup = () => {
         <div
           onClick={openFileDialog}
           className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors flex flex-col items-center justify-center min-h-[220px] cursor-pointer
-          ${
-            darkMode
-              ? `bg-transparent ${
-                  hasError ? "border-red-500" : "border-gray-600"
-                } hover:border-gray-500`
-              : `bg-white ${
-                  hasError ? "border-red-500" : "border-gray-300"
-                } hover:border-gray-400`
-          }`}
+          ${darkMode
+              ? `bg-transparent ${hasError ? "border-red-500" : "border-gray-600"
+              } hover:border-gray-500`
+              : `bg-white ${hasError ? "border-red-500" : "border-gray-300"
+              } hover:border-gray-400`
+            }`}
         >
           {(hasFile || hasExistingFile) && (
             <button
               onClick={handleRemoveFile}
-              className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 ${
-                darkMode
+              className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 ${darkMode
                   ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
                   : "bg-gray-200 hover:bg-gray-300 text-gray-600"
-              } transition-colors`}
+                } transition-colors`}
             >
               <svg
                 className="w-4 h-4"
@@ -758,7 +751,7 @@ const CreateGroup = () => {
             {previewUrl && previewUrl !== "FILE_SELECTED" ? (
               <div className="text-center">
                 {previewUrl.match(/\.(jpg|jpeg|png|gif|svg)$/i) ||
-                previewUrl.startsWith("blob:") ? (
+                  previewUrl.startsWith("blob:") ? (
                   <img
                     src={previewUrl}
                     alt="Preview"
@@ -786,9 +779,8 @@ const CreateGroup = () => {
                 )}
                 {hasExistingFile && (
                   <p
-                    className={`text-xs mt-2 ${
-                      darkMode ? "text-gray-400" : "text-gray-500"
-                    }`}
+                    className={`text-xs mt-2 ${darkMode ? "text-gray-400" : "text-gray-500"
+                      }`}
                   >
                     Existing file - Click to change
                   </p>
@@ -814,9 +806,8 @@ const CreateGroup = () => {
             ) : (
               <>
                 <svg
-                  className={`w-10 h-10 mx-auto ${
-                    darkMode ? "text-gray-500" : "text-gray-400"
-                  }`}
+                  className={`w-10 h-10 mx-auto ${darkMode ? "text-gray-500" : "text-gray-400"
+                    }`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -829,17 +820,15 @@ const CreateGroup = () => {
                   />
                 </svg>
                 <p
-                  className={`text-sm ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
+                  className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"
+                    }`}
                 >
                   Drag your file(s) or{" "}
                   <span className="font-semibold text-indigo-400">browse</span>
                 </p>
                 <p
-                  className={`text-xs ${
-                    darkMode ? "text-gray-500" : "text-gray-400"
-                  }`}
+                  className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"
+                    }`}
                 >
                   Max 10 MB files are allowed
                 </p>
@@ -879,9 +868,8 @@ const CreateGroup = () => {
           />
         )}
         <div
-          className={`${
-            isEditMode ? "w-full" : "flex-1"
-          } transition-colors duration-300`}
+          className={`${isEditMode ? "w-full" : "flex-1"
+            } transition-colors duration-300`}
           style={{ backgroundColor: darkMode ? "#212426" : "#F9FAFB" }}
         >
           <div className="absolute top-6 right-6 z-10">
@@ -915,18 +903,16 @@ const CreateGroup = () => {
                 <img
                   src={LightIcon}
                   alt="Light Mode"
-                  className={`w-[18px] h-[18px] ${
-                    !darkMode ? "filter brightness-0" : ""
-                  }`}
+                  className={`w-[18px] h-[18px] ${!darkMode ? "filter brightness-0" : ""
+                    }`}
                 />
               </div>
               <div className="w-[40px] h-[40px] flex items-center justify-center z-20">
                 <img
                   src={DarkIcon}
                   alt="Dark Mode"
-                  className={`w-[18px] h-[18px] ${
-                    !darkMode ? "filter brightness-0" : ""
-                  }`}
+                  className={`w-[18px] h-[18px] ${!darkMode ? "filter brightness-0" : ""
+                    }`}
                 />
               </div>
             </div>
@@ -946,27 +932,24 @@ const CreateGroup = () => {
                   />
                 </div>
                 <p
-                  className={`text-sm mb-2 ${
-                    darkMode ? "text-gray-400" : "text-gray-500"
-                  }`}
+                  className={`text-sm mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"
+                    }`}
                 >
                   SECTION 1/6
                 </p>
                 <h1
-                  className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${
-                    darkMode ? "text-white" : "text-gray-900"
-                  }`}
+                  className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${darkMode ? "text-white" : "text-gray-900"
+                    }`}
                 >
                   {isEditMode
                     ? "Update your group"
                     : "Create your group to organize the event"}
                 </h1>
                 <div
-                  className={`mt-4 p-3 rounded-lg ${
-                    darkMode
+                  className={`mt-4 p-3 rounded-lg ${darkMode
                       ? "bg-blue-900/20 border border-blue-700/30 text-blue-300"
                       : "bg-blue-50 border border-blue-200 text-blue-700"
-                  }`}
+                    }`}
                 >
                   <p className="text-sm">{getGroupCreationMessage()}</p>
                 </div>
@@ -974,11 +957,10 @@ const CreateGroup = () => {
 
               {errors.general && (
                 <div
-                  className={`border px-4 py-3 rounded-lg mb-6 ${
-                    darkMode
+                  className={`border px-4 py-3 rounded-lg mb-6 ${darkMode
                       ? "bg-red-900/50 border-red-500 text-red-200"
                       : "bg-red-100 border-red-400 text-red-700"
-                  }`}
+                    }`}
                 >
                   {errors.general}
                 </div>
@@ -996,9 +978,8 @@ const CreateGroup = () => {
                         return (
                           <div>
                             <label
-                              className={`flex items-center text-sm font-medium mb-3 ${
-                                darkMode ? "text-gray-300" : "text-gray-700"
-                              }`}
+                              className={`flex items-center text-sm font-medium mb-3 ${darkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
                             >
                               Event created under{" "}
                               <span className="text-red-400 mx-1">*</span>
@@ -1017,18 +998,16 @@ const CreateGroup = () => {
                                     checked={formData.grp_type === type}
                                     onChange={handleGroupTypeChange}
                                     disabled={isEditMode}
-                                    className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${
-                                      darkMode
+                                    className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode
                                         ? "bg-gray-800 border-gray-600"
                                         : "bg-gray-100 border-gray-300"
-                                    }`}
+                                      }`}
                                   />
                                   <span
-                                    className={`${
-                                      darkMode
+                                    className={`${darkMode
                                         ? "text-gray-300"
                                         : "text-gray-700"
-                                    } capitalize`}
+                                      } capitalize`}
                                   >
                                     {type}
                                   </span>
@@ -1041,17 +1020,15 @@ const CreateGroup = () => {
                       return (
                         <div>
                           <label
-                            className={`block text-sm font-medium mb-3 ${
-                              darkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
+                            className={`block text-sm font-medium mb-3 ${darkMode ? "text-gray-300" : "text-gray-700"
+                              }`}
                           >
                             Event created under{" "}
                             <span className="text-red-400">*</span>
                           </label>
                           <div
-                            className={`px-4 capitalize font-medium ${
-                              darkMode ? "text-gray-200" : "text-gray-800"
-                            }`}
+                            className={`px-4 capitalize font-medium ${darkMode ? "text-gray-200" : "text-gray-800"
+                              }`}
                           >
                             {isEditMode ? formData.grp_type : creatableTypes[0]}
                           </div>
@@ -1061,25 +1038,22 @@ const CreateGroup = () => {
                   {formData.grp_type === "admin" && (
                     <div className="space-y-6">
                       <div
-                        className={`p-4 rounded-lg ${
-                          darkMode
+                        className={`p-4 rounded-lg ${darkMode
                             ? "bg-gray-800/50 border border-gray-700"
                             : "bg-gray-50 border border-gray-200"
-                        }`}
+                          }`}
                       >
                         <h3
-                          className={`text-lg font-semibold mb-4 ${
-                            darkMode ? "text-white" : "text-gray-900"
-                          }`}
+                          className={`text-lg font-semibold mb-4 ${darkMode ? "text-white" : "text-gray-900"
+                            }`}
                         >
                           Admin Group Details
                         </h3>
                         <div
-                          className={`p-3 rounded ${
-                            darkMode
+                          className={`p-3 rounded ${darkMode
                               ? "bg-blue-900/20 text-blue-300"
                               : "bg-blue-50 text-blue-700"
-                          }`}
+                            }`}
                         >
                           <p className="text-sm mb-2">
                             Admin details will be automatically filled from your
@@ -1096,25 +1070,23 @@ const CreateGroup = () => {
                         {(!userData?.name ||
                           !userData?.email ||
                           !userData?.contact_no) && (
-                          <div
-                            className={`mt-3 p-3 rounded ${
-                              darkMode
-                                ? "bg-red-900/20 border border-red-700/30 text-red-300"
-                                : "bg-red-50 border border-red-200 text-red-700"
-                            }`}
-                          >
-                            <p className="text-sm">
-                              Please update your profile with missing
-                              information before creating an admin group.
-                            </p>
-                          </div>
-                        )}
+                            <div
+                              className={`mt-3 p-3 rounded ${darkMode
+                                  ? "bg-red-900/20 border border-red-700/30 text-red-300"
+                                  : "bg-red-50 border border-red-200 text-red-700"
+                                }`}
+                            >
+                              <p className="text-sm">
+                                Please update your profile with missing
+                                information before creating an admin group.
+                              </p>
+                            </div>
+                          )}
                       </div>
                       <div>
                         <label
-                          className={`flex items-center text-sm font-medium mb-3 ${
-                            darkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
+                          className={`flex items-center text-sm font-medium mb-3 ${darkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
                         >
                           Do you have GST registration{" "}
                           <span className="text-red-400 mx-1">*</span>
@@ -1132,16 +1104,14 @@ const CreateGroup = () => {
                                 value={option}
                                 checked={hasGst === option}
                                 onChange={handleGstChange}
-                                className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${
-                                  darkMode
+                                className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode
                                     ? "bg-gray-800 border-gray-600"
                                     : "bg-gray-100 border-gray-300"
-                                }`}
+                                  }`}
                               />
                               <span
-                                className={`${
-                                  darkMode ? "text-gray-300" : "text-gray-700"
-                                }`}
+                                className={`${darkMode ? "text-gray-300" : "text-gray-700"
+                                  }`}
                               >
                                 {option}
                               </span>
@@ -1158,9 +1128,8 @@ const CreateGroup = () => {
                       {hasGst === "Yes" && (
                         <div className="mt-4">
                           <label
-                            className={`flex items-center text-sm font-medium mb-2 ${
-                              darkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
+                            className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                              }`}
                           >
                             GST IN <span className="text-red-400 mx-1">*</span>
                             <InfoTooltip note="Enter your 15-digit GST Identification Number." />
@@ -1172,11 +1141,10 @@ const CreateGroup = () => {
                             onChange={handleInputChange}
                             placeholder="Enter your GST number"
                             className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                                  ${
-                                    darkMode
-                                      ? "text-white border-gray-600"
-                                      : "text-gray-900 border-gray-300"
-                                  }
+                                  ${darkMode
+                                ? "text-white border-gray-600"
+                                : "text-gray-900 border-gray-300"
+                              }
                                   ${errors.gst_no ? "border-red-500" : ""}`}
                             style={{
                               backgroundColor: darkMode ? "#212426" : "white",
@@ -1196,9 +1164,8 @@ const CreateGroup = () => {
                     <>
                       <div>
                         <label
-                          className={`flex items-center text-sm font-medium mb-2 ${
-                            darkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
+                          className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
                         >
                           Organization name{" "}
                           <span className="text-red-400 mx-1">*</span>
@@ -1211,10 +1178,9 @@ const CreateGroup = () => {
                           onChange={handleInputChange}
                           placeholder="Enter your organization name"
                           className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                            ${
-                              darkMode
-                                ? "text-white border-gray-600"
-                                : "text-gray-900 border-gray-300"
+                            ${darkMode
+                              ? "text-white border-gray-600"
+                              : "text-gray-900 border-gray-300"
                             }
                             ${errors.name ? "border-red-500" : ""}`}
                           ref={(el) => (errorFieldRefs.current.name = el)}
@@ -1231,9 +1197,8 @@ const CreateGroup = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label
-                            className={`flex items-center text-sm font-medium mb-2 ${
-                              darkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
+                            className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                              }`}
                           >
                             Organisation email ID{" "}
                             <span className="text-red-400 mx-1">*</span>
@@ -1246,10 +1211,9 @@ const CreateGroup = () => {
                             onChange={handleInputChange}
                             placeholder="Enter your organization email"
                             className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                              ${
-                                darkMode
-                                  ? "text-white border-gray-600"
-                                  : "text-gray-900 border-gray-300"
+                              ${darkMode
+                                ? "text-white border-gray-600"
+                                : "text-gray-900 border-gray-300"
                               }
                               ${errors.email ? "border-red-500" : ""}`}
                             ref={(el) => (errorFieldRefs.current.email = el)}
@@ -1265,9 +1229,8 @@ const CreateGroup = () => {
                         </div>
                         <div>
                           <label
-                            className={`flex items-center text-sm font-medium mb-2 ${
-                              darkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
+                            className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                              }`}
                           >
                             Organisation contact{" "}
                             <span className="text-red-400 mx-1">*</span>
@@ -1281,10 +1244,9 @@ const CreateGroup = () => {
                             placeholder="Enter your contact number"
                             maxLength="10"
                             className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                              ${
-                                darkMode
-                                  ? "text-white border-gray-600"
-                                  : "text-gray-900 border-gray-300"
+                              ${darkMode
+                                ? "text-white border-gray-600"
+                                : "text-gray-900 border-gray-300"
                               }
                               ${errors.contact_no ? "border-red-500" : ""}`}
                             ref={(el) =>
@@ -1307,9 +1269,8 @@ const CreateGroup = () => {
                         }
                       >
                         <label
-                          className={`flex items-center text-sm font-medium mb-2 ${
-                            darkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
+                          className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
                         >
                           Type of organization{" "}
                           <span className="text-red-400 mx-1">*</span>
@@ -1335,9 +1296,8 @@ const CreateGroup = () => {
                       </div>
                       <div>
                         <label
-                          className={`flex items-center text-sm font-medium mb-2 ${
-                            darkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
+                          className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
                         >
                           Organisation address{" "}
                           <span className="text-red-400 mx-1">*</span>
@@ -1350,10 +1310,9 @@ const CreateGroup = () => {
                           placeholder="Enter your organisation address"
                           rows="4"
                           className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[100px]
-                            ${
-                              darkMode
-                                ? "text-white border-gray-600"
-                                : "text-gray-900 border-gray-300"
+                            ${darkMode
+                              ? "text-white border-gray-600"
+                              : "text-gray-900 border-gray-300"
                             }
                             ${errors.address ? "border-red-500" : ""}`}
                           ref={(el) => (errorFieldRefs.current.address = el)}
@@ -1369,33 +1328,32 @@ const CreateGroup = () => {
                       </div>
                       {(() => {
                         const gstStatus = getGSTStatus(formData.organisation_type);
-                        const isMandatory   = gstStatus === "mandatory";
+                        const isMandatory = gstStatus === "mandatory";
                         const isConditional = gstStatus === "conditional";
-                        const isExempt      = gstStatus === "exempt";
+                        const isExempt = gstStatus === "exempt";
 
                         const gstNote = isMandatory
                           ? "Mandatory for your organisation type under Indian GST law."
                           : isConditional
-                          ? "Optional — required only if you conduct commercial activities or cross ₹20L turnover."
-                          : isExempt
-                          ? "Generally exempt — enter only if your organisation has voluntarily registered for GST."
-                          : "Enter your GST number if registered.";
+                            ? "Optional — required only if you conduct commercial activities or cross ₹20L turnover."
+                            : isExempt
+                              ? "Generally exempt — enter only if your organisation has voluntarily registered for GST."
+                              : "Enter your GST number if registered.";
 
                         const gstBadge = isMandatory
                           ? { text: "Required", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" }
                           : isConditional
-                          ? { text: "Conditional", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" }
-                          : isExempt
-                          ? { text: "Usually Exempt", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" }
-                          : { text: "Optional", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
+                            ? { text: "Conditional", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" }
+                            : isExempt
+                              ? { text: "Usually Exempt", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" }
+                              : { text: "Optional", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
 
                         return (
                           <div>
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <label
-                                className={`flex items-center text-sm font-medium ${
-                                  darkMode ? "text-gray-300" : "text-gray-700"
-                                }`}
+                                className={`flex items-center text-sm font-medium ${darkMode ? "text-gray-300" : "text-gray-700"
+                                  }`}
                               >
                                 GST IN
                                 {isMandatory && <span className="text-red-400 mx-1">*</span>}
@@ -1410,9 +1368,8 @@ const CreateGroup = () => {
 
                             {/* Contextual hint for conditional/exempt sectors */}
                             {(isConditional || isExempt) && formData.organisation_type && (
-                              <p className={`text-xs mb-2 ${
-                                darkMode ? "text-gray-400" : "text-gray-500"
-                              }`}>
+                              <p className={`text-xs mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"
+                                }`}>
                                 {isConditional
                                   ? "For NGOs, Trusts & Societies: GST applies only if conducting ticketed/commercial events."
                                   : "For Educational & Healthcare: GST is exempt for core services but applies to paid events."}
@@ -1446,9 +1403,8 @@ const CreateGroup = () => {
 
                   <div>
                     <label
-                      className={`flex items-center text-sm font-medium mb-2 ${
-                        darkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
+                      className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
                     >
                       PAN number <span className="text-red-400 mx-1">*</span>
                       <InfoTooltip note="Enter your 10-digit Permanent Account Number." />
@@ -1460,10 +1416,9 @@ const CreateGroup = () => {
                       onChange={handleInputChange}
                       placeholder="Enter your PAN number"
                       className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                        ${
-                          darkMode
-                            ? "text-white border-gray-600"
-                            : "text-gray-900 border-gray-300"
+                        ${darkMode
+                          ? "text-white border-gray-600"
+                          : "text-gray-900 border-gray-300"
                         }
                         ${errors.pan_no ? "border-red-500" : ""}`}
                       ref={(el) => (errorFieldRefs.current.pan_no = el)}
@@ -1479,35 +1434,31 @@ const CreateGroup = () => {
                   </div>
 
                   <div
-                    className={`rounded-xl p-6 md:p-8 ${
-                      darkMode ? "" : "bg-white border"
-                    }`}
+                    className={`rounded-xl p-6 md:p-8 ${darkMode ? "" : "bg-white border"
+                      }`}
                     style={darkMode ? { backgroundColor: "#2B2B2B" } : {}}
                   >
                     <div className="space-y-6">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <h2
-                          className={`text-lg font-semibold ${
-                            darkMode ? "text-white" : "text-gray-900"
-                          }`}
+                          className={`text-lg font-semibold ${darkMode ? "text-white" : "text-gray-900"
+                            }`}
                         >
                           Primary banking details
                         </h2>
                         <span
-                          className={`text-xs font-medium px-3 py-1 rounded-full ${
-                            darkMode
+                          className={`text-xs font-medium px-3 py-1 rounded-full ${darkMode
                               ? "bg-yellow-400/20 text-yellow-300"
                               : "bg-yellow-100 text-yellow-800"
-                          }`}
+                            }`}
                         >
                           Bank account must be a current account or merchant
                           account
                         </span>
                       </div>
                       <p
-                        className={`text-sm -mt-4 ${
-                          darkMode ? "text-gray-400" : "text-gray-600"
-                        }`}
+                        className={`text-sm -mt-4 ${darkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
                       >
                         Provide bank account details for payment processing,
                         settlements, or refunds.
@@ -1526,9 +1477,8 @@ const CreateGroup = () => {
                             <>
                               <div>
                                 <label
-                                  className={`flex items-center text-sm font-medium mb-2 ${
-                                    darkMode ? "text-gray-300" : "text-gray-700"
-                                  }`}
+                                  className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                                    }`}
                                 >
                                   Account type
                                   <InfoTooltip note="Select if your account is Savings or Current." />
@@ -1548,8 +1498,8 @@ const CreateGroup = () => {
                                     themeOverride(theme, darkMode)
                                   }
                                   ref={(el) =>
-                                    (errorFieldRefs.current.primary_bank_acc_type =
-                                      el)
+                                  (errorFieldRefs.current.primary_bank_acc_type =
+                                    el)
                                   }
                                 />
                                 {errors.primary_bank_acc_type && (
@@ -1561,9 +1511,8 @@ const CreateGroup = () => {
 
                               <div>
                                 <label
-                                  className={`flex items-center text-sm font-medium mb-2 ${
-                                    darkMode ? "text-gray-300" : "text-gray-700"
-                                  }`}
+                                  className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                                    }`}
                                 >
                                   Account holder name
                                   <InfoTooltip note="Enter the full name as it appears on your bank account." />
@@ -1574,17 +1523,15 @@ const CreateGroup = () => {
                                   value={formData.primary_bank_acc_holder}
                                   onChange={handleInputChange}
                                   placeholder="eg: John Doe"
-                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                                    darkMode ? "text-white" : "text-gray-900"
-                                  }
-                                                      ${
-                                                        errors.primary_bank_acc_holder
-                                                          ? "ring-2 ring-red-500"
-                                                          : ""
-                                                      }`}
+                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? "text-white" : "text-gray-900"
+                                    }
+                                                      ${errors.primary_bank_acc_holder
+                                      ? "ring-2 ring-red-500"
+                                      : ""
+                                    }`}
                                   ref={(el) =>
-                                    (errorFieldRefs.current.primary_bank_acc_holder =
-                                      el)
+                                  (errorFieldRefs.current.primary_bank_acc_holder =
+                                    el)
                                   }
                                   style={inputStyle}
                                 />
@@ -1597,9 +1544,8 @@ const CreateGroup = () => {
 
                               <div>
                                 <label
-                                  className={`flex items-center text-sm font-medium mb-2 ${
-                                    darkMode ? "text-gray-300" : "text-gray-700"
-                                  }`}
+                                  className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                                    }`}
                                 >
                                   Account number
                                   <InfoTooltip note="Enter your complete bank account number." />
@@ -1610,17 +1556,15 @@ const CreateGroup = () => {
                                   value={formData.primary_bank_acc_no}
                                   onChange={handleInputChange}
                                   placeholder="XXXX - XXXX - XXXX - XXXX"
-                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                                    darkMode ? "text-white" : "text-gray-900"
-                                  }
-                                                      ${
-                                                        errors.primary_bank_acc_no
-                                                          ? "ring-2 ring-red-500"
-                                                          : ""
-                                                      }`}
+                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? "text-white" : "text-gray-900"
+                                    }
+                                                      ${errors.primary_bank_acc_no
+                                      ? "ring-2 ring-red-500"
+                                      : ""
+                                    }`}
                                   ref={(el) =>
-                                    (errorFieldRefs.current.primary_bank_acc_no =
-                                      el)
+                                  (errorFieldRefs.current.primary_bank_acc_no =
+                                    el)
                                   }
                                   style={inputStyle}
                                 />
@@ -1633,9 +1577,8 @@ const CreateGroup = () => {
 
                               <div>
                                 <label
-                                  className={`flex items-center text-sm font-medium mb-2 ${
-                                    darkMode ? "text-gray-300" : "text-gray-700"
-                                  }`}
+                                  className={`flex items-center text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"
+                                    }`}
                                 >
                                   IFSC code
                                   <InfoTooltip note="Enter the 11-character IFSC code of your bank branch." />
@@ -1647,17 +1590,15 @@ const CreateGroup = () => {
                                   onChange={handleInputChange}
                                   placeholder="XXXXXXXXXXX"
                                   maxLength="11"
-                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                                    darkMode ? "text-white" : "text-gray-900"
-                                  }
-                                                      ${
-                                                        errors.primary_bank_ifsc
-                                                          ? "ring-2 ring-red-500"
-                                                          : ""
-                                                      }`}
+                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? "text-white" : "text-gray-900"
+                                    }
+                                                      ${errors.primary_bank_ifsc
+                                      ? "ring-2 ring-red-500"
+                                      : ""
+                                    }`}
                                   ref={(el) =>
-                                    (errorFieldRefs.current.primary_bank_ifsc =
-                                      el)
+                                  (errorFieldRefs.current.primary_bank_ifsc =
+                                    el)
                                   }
                                   style={inputStyle}
                                 />
@@ -1747,8 +1688,8 @@ const CreateGroup = () => {
                         ? "Updating..."
                         : "Creating..."
                       : isEditMode
-                      ? "Update group"
-                      : "Add group"}
+                        ? "Update group"
+                        : "Add group"}
                   </button>
                 </div>
               </form>
