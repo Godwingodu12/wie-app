@@ -32,9 +32,35 @@ export interface ConnectionProfile {
   status: 'draft' | 'active' | 'paused' | 'suspended' | 'deleted';
   profileCompleteness: number;
   faceVerification?: FaceVerification;
+  dateOfBirth: string;
+  qualifications: string[];
+  personalDescription: string;
+  sexualOrientation: {
+    type: string;
+    showToOthers: boolean;
+  };
+  interests: {
+    category: string;
+    tags: string[];
+  }[];
+  privacy: {
+    hideAccountFromOthers: boolean;
+    restrictVideoCall: boolean;
+    hideNameFromProfile: boolean;
+    hideProfileFromOthers: boolean;
+    visibleOnlyToMutuals: boolean;
+    locationVisibility: string;
+  };
+  analytics: {
+    profileViews: number;
+    connectionsSent: number;
+    connectionsReceived: number;
+    connectionsAccepted: number;
+    averageMatchScore: number;
+  };
+  termsAccepted: boolean;
 }
-
-// ── Face verification session ─────────────────────────────────────
+// ── Face verification session 
 export interface StartSessionResponse {
   success: boolean;
   session_id: string;

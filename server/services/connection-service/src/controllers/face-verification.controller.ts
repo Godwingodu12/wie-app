@@ -56,13 +56,13 @@ export const registerFaceFromProfile = async (
 
     const fv = (profile.faceVerification || {}) as IFaceVerification;
     if (fv.status === "verified" && !fv.appealPending) {
-      res.status(400).json({
-        success: false,
+      res.status(200).json({
+        success: true,
+        alreadyVerified: true,
         message: "Profile is already verified.",
       });
       return;
     }
-
     //  First check Python service is reachable
     try {
       await axios.get(`${FACE_SERVICE_URL}/health`, { timeout: 5000 });
@@ -75,7 +75,7 @@ export const registerFaceFromProfile = async (
       return;
     }
 
-    //  Download photo buffers from Cloudinary
+    // Download photo buffers from Cloudinary with proper headers
     const imageBuffers: {
       buffer: Buffer;
       mimetype: string;
@@ -84,12 +84,43 @@ export const registerFaceFromProfile = async (
 
     for (const photo of photos.slice(0, 4)) {
       try {
-        const response = await axios.get(photo.url, {
+        // Force Cloudinary to return a clean JPEG with no transformations
+        // by stripping any existing transformation segments from the URL
+        let fetchUrl = photo.url;
+
+        // If it's a Cloudinary URL, append quality and format params
+        if (fetchUrl.includes("cloudinary.com")) {
+          // Insert fl_force_strip,q_auto,f_jpg transformation before /upload/
+          fetchUrl = fetchUrl.replace(
+            "/upload/",
+            "/upload/fl_force_strip,q_90,f_jpg,w_600/"
+          );
+        }
+
+        console.log(`[REGISTER FACE] Fetching: ${fetchUrl}`);
+
+        const response = await axios.get(fetchUrl, {
           responseType: "arraybuffer",
-          timeout: 15000,
+          timeout: 20000,
+          headers: {
+            "Accept": "image/jpeg,image/png,image/*",
+            "User-Agent": "WIE-Connection-Service/1.0",
+          },
         });
+
+        const buffer = Buffer.from(response.data);
+        console.log(
+          `[REGISTER FACE] Fetched photo ${photo.publicId}: ${buffer.length} bytes, ` +
+          `content-type: ${response.headers["content-type"]}`
+        );
+
+        if (buffer.length < 1000) {
+          console.warn(`[REGISTER FACE] Skipping tiny buffer for ${photo.publicId}`);
+          continue;
+        }
+
         imageBuffers.push({
-          buffer: Buffer.from(response.data),
+          buffer,
           mimetype: "image/jpeg",
           originalname: `photo_${photo.publicId}.jpg`,
         });
@@ -98,15 +129,13 @@ export const registerFaceFromProfile = async (
           `[REGISTER FACE] Failed to fetch photo ${photo.url}:`,
           fetchErr.message,
         );
-        // skip photos that can't be fetched — continue with others
       }
     }
-
-    if (imageBuffers.length < 2) {
+    if (imageBuffers.length < 1) {
       res.status(422).json({
         success: false,
         message:
-          "Could not fetch enough photos from storage. Please ensure your photos are uploaded correctly.",
+          "Could not fetch photos from storage. Please ensure your photos are uploaded correctly.",
       });
       return;
     }

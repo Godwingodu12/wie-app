@@ -42,25 +42,38 @@ class FaceService:
     def extract_embedding_from_bytes(
         self, image_bytes: bytes
     ) -> Tuple[Optional[np.ndarray], Optional[str]]:
-        """
-        Decode bytes → BGR → RGB, find exactly one face, return embedding.
-        Returns (embedding, None) on success or (None, error_message) on failure.
-        """
         nparr = np.frombuffer(image_bytes, np.uint8)
         bgr   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if bgr is None:
             return None, "Could not decode image."
 
-        rgb       = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        locations = face_recognition.face_locations(rgb, model="hog")
+        # Resize if image is too small — HOG needs decent resolution
+        h, w = bgr.shape[:2]
+        if w < 300 or h < 300:
+            scale = max(300 / w, 300 / h)
+            bgr   = cv2.resize(bgr, (int(w * scale), int(h * scale)),
+                            interpolation=cv2.INTER_LINEAR)
+    
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+        # Try HOG first (fast), fall back to CNN (more accurate)
+        locations = face_recognition.face_locations(rgb, model="hog", number_of_times_to_upsample=2)
+
+        if not locations:
+            locations = face_recognition.face_locations(rgb, model="cnn")
 
         if len(locations) == 0:
             return None, "No face detected in image."
         if len(locations) > 1:
             return None, "Multiple faces detected. Please use a solo photo."
 
-        encodings = face_recognition.face_encodings(rgb, known_face_locations=locations)
+        encodings = face_recognition.face_encodings(
+            rgb,
+            known_face_locations=locations,
+            num_jitters=1,
+            model="large"
+        )
 
         if not encodings:
             return None, "Could not extract face embedding."
