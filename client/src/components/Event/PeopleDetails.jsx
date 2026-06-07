@@ -14,7 +14,7 @@ const PeopleDetails = ({
   const isObjectMode = !!formData;
 
   const currentQuestionData = isObjectMode ? (formData.question_data || false) : (questionData || false);
-  const currentQuestionDetails = isObjectMode 
+  const currentQuestionDetails = isObjectMode
     ? (formData.question_details || { name: false, email: false, phone_number: false, position: false, custom_questions: [] })
     : (questionDetails || { name: false, email: false, phone_number: false, position: false, custom_questions: [] });
 
@@ -145,10 +145,10 @@ const PeopleDetails = ({
     setIsModalOpen(false);
   };
 
-  const hasAnyFieldSelected = 
-    currentQuestionDetails.name || 
-    currentQuestionDetails.email || 
-    currentQuestionDetails.phone_number || 
+  const hasAnyFieldSelected =
+    currentQuestionDetails.name ||
+    currentQuestionDetails.email ||
+    currentQuestionDetails.phone_number ||
     currentQuestionDetails.position ||
     (currentQuestionDetails.custom_questions && currentQuestionDetails.custom_questions.length > 0);
 
@@ -256,7 +256,7 @@ const PeopleDetails = ({
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in transition-all duration-300">
           <div className="relative w-full max-w-xl bg-white dark:bg-[#1E2124] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden transform transition-all duration-300 scale-100 flex flex-col max-h-[85vh] animate-slide-up">
-            
+
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800/80 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -276,7 +276,7 @@ const PeopleDetails = ({
 
             {/* Modal Content */}
             <div className="px-6 py-5 overflow-y-auto space-y-6 flex-1 max-h-[60vh]">
-              
+
               {/* Section 1: Standard Suggestions */}
               <div>
                 <span className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
@@ -295,11 +295,10 @@ const PeopleDetails = ({
                         key={item.field}
                         type="button"
                         onClick={() => toggleTempStandardField(item.field)}
-                        className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all duration-200 ${
-                          isChecked
+                        className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all duration-200 ${isChecked
                             ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-sm"
                             : "bg-gray-50 dark:bg-[#181A1C] border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700"
-                        }`}
+                          }`}
                       >
                         <div className="mt-0.5">
                           {isChecked ? (
@@ -348,7 +347,7 @@ const PeopleDetails = ({
                     <h4 className="font-semibold text-sm text-gray-900 dark:text-white">
                       {isEditingFieldId ? "Edit Custom Question" : "Add Custom Question"}
                     </h4>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
