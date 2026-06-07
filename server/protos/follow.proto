@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package follow;
+
+service FollowService {
+  rpc FollowUser(FollowRequest) returns (FollowResponse);
+  rpc UnfollowUser(FollowRequest) returns (FollowResponse);
+  rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse);
+  rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse);
+  rpc IsFollowing(IsFollowingRequest) returns (IsFollowingResponse);
+  rpc GetFollowerIds(GetFollowerIdsRequest) returns (GetFollowerIdsResponse);
+  rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
+  rpc CheckMutualFollow(GetRelationshipRequest) returns (MutualFollowResponse);
+  rpc GetFollowStats(GetFollowStatsRequest) returns (GetFollowStatsResponse);
+  rpc AcceptFollowRequest(AcceptFollowRequestRequest) returns (FollowResponse);
+  rpc RejectFollowRequest(RejectFollowRequestRequest) returns (FollowResponse);
+  rpc GetFollowRequests(GetFollowRequestsRequest) returns (GetFollowRequestsResponse);
+  rpc CancelFollowRequest(FollowRequest) returns (FollowResponse);
+  rpc GetFollowStatus(GetFollowStatusRequest) returns (GetFollowStatusResponse);
+  rpc AutoAcceptPendingRequests(AutoAcceptPendingRequestsRequest) returns (AutoAcceptPendingRequestsResponse); 
+  rpc CheckIsFollowedBy(CheckIsFollowedByRequest) returns (CheckIsFollowedByResponse); 
+  rpc GetFollowingIds(GetFollowerIdsRequest) returns (GetFollowingIdsResponse);
+  rpc GetFollowingIdsDetailed(GetFollowerIdsRequest) returns (GetFollowingIdsDetailedResponse);
+}
+
+message AutoAcceptPendingRequestsRequest {
+  string userId = 1;
+}
+
+message AutoAcceptPendingRequestsResponse {
+  bool success = 1;
+  string message = 2;
+  int32 acceptedCount = 3;
+  string error = 4;
+}
+
+message GetFollowerIdsRequest {
+  string userId = 1;
+}
+
+message GetFollowerIdsResponse {
+  repeated string followerIds = 1;
+}
+
+message GetRelationshipRequest {
+  string userId = 1;
+  string targetUserId = 2;
+}
+
+message GetRelationshipResponse {
+  bool follows = 1;        // userId follows targetUserId
+  bool followedBy = 2;     // targetUserId follows userId
+  bool isMutual = 3;
+}
+
+message MutualFollowResponse {
+  bool isMutual = 1;
+}
+
+message GetFollowStatsRequest {
+  string userId = 1;
+}
+
+message GetFollowStatsResponse {
+  string userId = 1;
+  int32 followers = 2;
+  int32 following = 3;
+}
+
+message FollowRequest {
+  string targetUserId = 1;
+}
+
+message FollowResponse {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
+}
+
+message GetFollowersRequest {
+  string userId = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetFollowersResponse {
+  repeated FollowerInfo followers = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 totalPages = 4;
+  string error = 5;
+}
+
+message FollowerInfo {
+  string userId = 1;
+  string followedAt = 2;
+}
+
+message GetFollowingRequest {
+  string userId = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetFollowingResponse {
+  repeated FollowingInfo following = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 totalPages = 4;
+  string error = 5;
+}
+
+message FollowingInfo {
+  string userId = 1;
+  string followedAt = 2;
+}
+
+message IsFollowingRequest {
+  string followerId = 1;
+  string followingId = 2;
+}
+
+message IsFollowingResponse {
+  bool isFollowing = 1;
+  string error = 2;
+}
+message AcceptFollowRequestRequest {
+  string followerId = 1;
+}
+
+message RejectFollowRequestRequest {
+  string followerId = 1;
+}
+
+message GetFollowRequestsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message GetFollowRequestsResponse {
+  repeated FollowRequestInfo requests = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 totalPages = 4;
+}
+
+message FollowRequestInfo {
+  string userId = 1;
+  string requestedAt = 2;
+}
+
+message GetFollowStatusRequest {
+  string followerId = 1;
+  string followingId = 2;
+}
+
+message GetFollowStatusResponse {
+  bool isFollowing = 1;
+  bool isPending = 2;
+  string status = 3;
+}
+message CheckIsFollowedByRequest {
+  string userId = 1;        // the user asking "am I followed by..."
+  string targetUserId = 2;  // the potential follower
+}
+
+message CheckIsFollowedByResponse {
+  bool isFollowedBy = 1;
+  string error = 2;
+}
+message GetFollowingIdsResponse {
+  repeated string followingIds = 1;
+}
+
+message GetFollowingIdsDetailedResponse {
+  repeated string followingIds = 1;
+  repeated string requestedIds = 2;
+}
+
+message CheckCloseFriendResponse {
+  bool isCloseFriend = 1;
+}

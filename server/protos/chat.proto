@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package chat;
+
+service ChatService {
+  rpc SendSystemMessage(SendSystemMessageRequest) returns (SendSystemMessageResponse);
+  rpc GetChatByParticipants(GetChatByParticipantsRequest) returns (GetChatByParticipantsResponse);
+}
+
+message SendSystemMessageRequest {
+  string sender_id     = 1;
+  string receiver_id   = 2;
+  string message_type  = 3;
+  string content       = 4;
+  string metadata_json = 5;
+}
+
+message SendSystemMessageResponse {
+  bool   success    = 1;
+  string message_id = 2;
+  string chat_id    = 3;
+  string error      = 4;
+}
+
+message GetChatByParticipantsRequest {
+  string user_id_one = 1;
+  string user_id_two = 2;
+}
+
+message GetChatByParticipantsResponse {
+  bool   success = 1;
+  string chat_id = 2;
+  string error   = 3;
+}

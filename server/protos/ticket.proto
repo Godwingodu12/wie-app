@@ -1,0 +1,483 @@
+syntax = "proto3";
+
+package ticket;
+
+service TicketService {
+  rpc GetAllLiveEvents(GetAllLiveEventsRequest) returns (GetAllLiveEventsResponse);
+  rpc GetAllGroups(GetAllGroupsRequest) returns (GetAllGroupsResponse);
+  rpc GetTicketById(GetTicketByIdRequest) returns (TicketResponse);
+  rpc GetGroupById(GetGroupByIdRequest) returns (GroupResponse);
+  rpc UpdateTicketStats(UpdateTicketStatsRequest) returns (UpdateTicketStatsResponse);
+  rpc GetTicketsByIds(GetTicketsByIdsRequest) returns (GetTicketsByIdsResponse);
+  rpc GetTicketBookingStats(GetBookingStatsRequest) returns (BookingStatsResponse);
+  rpc UpdateTicketCancellation(UpdateCancellationRequest) returns (UpdateCancellationResponse);
+  rpc GetPreviousEventStats(GetPreviousEventStatsRequest) returns (PreviousEventStatsResponse);
+  rpc CancelEvent(CancelEventRequest) returns (CancelEventResponse);
+  rpc GetEventCancellationInfo(GetEventCancellationInfoRequest) returns (EventCancellationInfoResponse);
+  rpc GetCancelledEvents(GetCancelledEventsRequest) returns (GetCancelledEventsResponse);
+  rpc GetRehostedEvents(GetRehostedEventsRequest) returns (GetRehostedEventsResponse);
+}
+
+message GetAllLiveEventsRequest {}
+
+message GetAllLiveEventsResponse {
+  int32 count = 1;
+  repeated TicketData tickets = 2;
+  string error = 3;
+}
+
+message GetAllGroupsRequest {}
+
+message GetAllGroupsResponse {
+  int32 count = 1;
+  repeated GroupData groups = 2;
+  string error = 3;
+}
+
+message GetTicketByIdRequest {
+  string ticketId = 1;
+}
+
+message GetGroupByIdRequest {
+  string groupId = 1;
+}
+
+message GroupResponse {
+  GroupData group = 1;
+  string error = 2;
+}
+
+message UpdateTicketStatsRequest {
+  string ticketId = 1;
+  string statType = 2;
+  int32 increment = 3;
+}
+
+message UpdateTicketStatsResponse {
+  bool success = 1;
+  string ticketId = 2;
+  string parentTicketId = 3;
+  bool isSubEvent = 4;
+  string statType = 5;
+  int32 newValue = 6;
+  string error = 7;
+}
+
+message GetTicketsByIdsRequest {
+  repeated string ticketIds = 1;
+}
+
+message GetTicketsByIdsResponse {
+  bool success = 1;
+  repeated TicketData tickets = 2;
+  int32 count = 3;
+  string error = 4;
+}
+
+message GetBookingStatsRequest {
+  string ticketId = 1;
+}
+
+message BookingStatsResponse {
+  int32 totalBookings = 1;
+  double totalRevenue = 2;
+  int32 totalTicketsSold = 3;
+  string error = 4;
+}
+
+message UpdateCancellationRequest {
+  string ticketId = 1;
+  int32 increment = 2;
+}
+
+message UpdateCancellationResponse {
+  bool success = 1;
+  string ticketId = 2;
+  int32 newValue = 3;
+  string error = 4;
+}
+
+message GetPreviousEventStatsRequest {
+  string ticketId = 1;
+}
+
+message MonthlyStats {
+  string month = 1;
+  int32 bookings = 2;
+  double earnings = 3;
+}
+
+message QuarterStats {
+  string period = 1;
+  int32 bookings = 2;
+  double earnings = 3;
+  double percentage = 4;
+}
+
+message TicketTypeStats {
+  string ticketType = 1;
+  int32 soldCount = 2;
+  int32 maxCapacity = 3;
+  double percentage = 4;
+  double revenue = 5;
+}
+
+message PreviousEventStatsResponse {
+  int32 totalLikes = 1;
+  int32 totalShares = 2;
+  int32 totalBookings = 3;
+  double totalRevenue = 4;
+  int32 totalCancellations = 5;
+  int32 tagCount = 6;
+  repeated BankingDetails bankDetails = 7;
+  repeated SubEvent subEvents = 8;
+  repeated MonthlyStats monthlyStats = 9;
+  repeated QuarterStats quarterStats = 10;
+  repeated TicketTypeStats ticketTypeStats = 11;
+  double totalCapacityPercentage = 12;
+  string error = 13;
+}
+
+message TicketResponse {
+  TicketData ticket = 1;
+  string error = 2;
+}
+
+message Guest {
+  string guest_name = 1;
+  string guest_profile = 2;
+  string guest_link = 3;
+}
+
+message TicketType {
+  string _id = 1;
+  string ticket_type = 2;
+  double ticket_price = 3;
+  string ticket_photo = 4;
+  string ticket_photo_public_id = 5;
+  int32 max_capacity = 6;
+}
+
+message TicketDate {
+  string start_date = 1;
+  string end_date = 2;
+  string start_time = 3;
+  string end_time = 4;
+  string event_link = 5;
+  string video_name = 6;
+  string verification_event_code = 7;
+  string video_file_path = 8;
+  string preview_image_path = 9;
+}
+
+message BankingDetails {
+  string bank_acc_type = 1;
+  string bank_acc_no = 2;
+  string bank_ifsc = 3;
+  string bank_acc_holder = 4;
+}
+
+message POC {
+  string POC_name = 1;
+  string POC_email = 2;
+  string POC_contact = 3;
+}
+
+message FileData {
+  string type = 1;
+  string path = 2;
+  string originalName = 3;
+  string mimeType = 4;
+  int32 size = 5;
+  string content = 6;
+  string uploadedAt = 7;
+}
+
+message EventImage {
+  string path = 1;
+  string originalName = 2;
+  string mimeType = 3;
+  int32 size = 4;
+  string uploadedAt = 5;
+}
+
+message MapLocation {
+  double latitude = 1;
+  double longitude = 2;
+  string address = 3;
+}
+
+message Seat {
+  string seatId = 1;
+  string row = 2;
+  int32 column = 3;
+  bool isAvailable = 4;
+  bool isSelected = 5;
+  string ticketTypeId = 6;
+  string ticketTypeName = 7;
+  string ticketTypeColor = 8;
+  double price = 9;
+}
+
+message TicketTypeAssignment {
+  string ticketTypeId = 1;
+  string ticketTypeName = 2;
+  string color = 3;
+  repeated string assignedSeats = 4;
+  int32 capacity = 5;
+  double price = 6;
+}
+
+message SeatingLayout {
+  repeated string rows = 1;
+  int32 columns = 2;
+  repeated Seat seats = 3;
+  repeated TicketTypeAssignment ticketTypeAssignments = 4;
+}
+
+message OfferTicket {
+  string offer_ticket_type = 1;
+  string offer_ticket_price = 2;
+  string set_limit_for_user = 3;
+  string offer_ticket_pic = 4;
+}
+
+message FormProgress {
+  bool basic_info = 1;
+  bool media = 2;
+  bool add_on_events = 3;
+  bool banking_tickets = 4;
+  bool terms_conditions = 5;
+}
+
+message SubEvent {
+  string id = 1;
+  string event_name = 2;
+  string event_category = 3;
+  string event_subcategory = 4;
+  string event_type = 5;
+  string subevent = 6;
+  repeated string event_language = 7;
+  string location_type = 8;
+  string location = 9;
+  string venue = 10;
+  string seating_arrangement = 11;
+  int32 min_age_allowed = 12;
+  int32 max_age_allowed = 13;
+  bool kids_friendly = 14;
+  bool pet_friendly = 15;
+  MapLocation exact_map_location = 16;
+  string event_date_type = 17;
+  repeated TicketDate event_dates = 18;
+  string gate_open_time = 19;
+  string event_instagram_link = 20;
+  string event_youtube_link = 21;
+  string verification_event_code = 22;
+  FileData event_rules = 23;
+  repeated POC POCS = 24;
+  repeated string prohibited_items = 25;
+  string event_description = 26;
+  string event_logo = 27;
+  string event_banner = 28;
+  repeated EventImage event_images = 29;
+  repeated string hashtag = 30;
+  string payment_type = 31;
+  string main_ticket_id = 32;
+  repeated BankingDetails banking_details = 33;
+  repeated Guest guests = 34;
+  repeated TicketType ticket_types = 35;
+  string ticket_layout = 36;
+  string ticket_layout_public_id = 37;
+  SeatingLayout seating_layout = 38;
+  string total_capacity = 39;
+  string booking_start_date = 40;
+  string booking_end_date = 41;
+  int32 like = 42;
+  string event_status = 43;
+  int32 share = 44;
+  int32 totalBookings = 45;
+  int32 totalTicketsSold = 46;
+  double revenue = 47;
+  int32 total_cancellation = 48;
+  string createdAt = 49;
+  string updatedAt = 50;
+  string event_portrait = 51;
+}
+
+message TicketData {
+  string id = 1;
+  string _id = 2;
+  string event_name = 3;
+  string event_category = 4;
+  string event_subcategory = 5;
+  string event_type = 6;
+  repeated string event_language = 7;
+  int32 min_age_allowed = 8;
+  int32 max_age_allowed = 9;
+  string seating_arrangement = 10;
+  bool kids_friendly = 11;
+  bool pet_friendly = 12;
+  string location_type = 13;
+  string location = 14;
+  string venue = 15;
+  MapLocation exact_map_location = 16;
+  string event_date_type = 17;
+  repeated TicketDate event_dates = 18;
+  string event_instagram_link = 19;
+  string gate_open_time = 20;
+  string event_youtube_link = 21;
+  string verification_event_code = 22;
+  FileData event_rules = 23;
+  repeated string prohibited_items = 24;
+  string college_authorisation = 25;
+  string event_description = 26;
+  string event_logo = 27;
+  string event_banner = 28;
+  repeated EventImage event_images = 29;
+  repeated string hashtag = 30;
+  string payment_type = 31;
+  repeated BankingDetails banking_details = 32;
+  repeated Guest guests = 33;
+  repeated POC POCS = 34;
+  string total_capacity = 35;
+  string booking_start_date = 36;
+  string booking_end_date = 37;
+  string ticket_layout = 38;
+  string ticket_layout_public_id = 39;
+  SeatingLayout seating_layout = 40;
+  repeated TicketType ticket_types = 41;
+  string created_by = 42;
+  int32 like = 43;
+  int32 share = 44;
+  int32 totalBookings = 45;
+  int32 totalTicketsSold = 46;
+  double revenue = 47;
+  int32 total_cancellation = 48;
+  bool event_ticket_offer = 49;
+  repeated OfferTicket offerTickets = 50;
+  repeated SubEvent sub_events = 51;
+  string groupId = 52;
+  string userId = 53;
+  string event_status = 54;
+  string updated_by = 55;
+  string updated_at = 56;
+  FormProgress form_progress = 57;
+  bool terms_accepted = 58;
+  string terms_accepted_at = 59;
+  string company_terms_version = 60;
+  string createdAt = 61;
+  string updatedAt = 62;
+  bool razorpayEnabled = 63;
+  string razorpayKeyId = 64;
+  string razorpayKeySecret = 65;
+  string event_portrait = 66;
+
+}
+
+message GroupData {
+  string id = 1;
+  string _id = 2;
+  string name = 3;
+  string grp_type = 4;
+  string organisation_type = 5;
+  string email = 6;
+  string contact_no = 7;
+  string address = 8;
+  string status = 9;
+  string gst_no = 10;
+  string pan_no = 11;
+  string primary_bank_acc_type = 12;
+  string primary_bank_acc_no = 13;
+  string primary_bank_ifsc = 14;
+  string primary_bank_acc_holder = 15;
+  string userId = 16;
+  string id_proof = 17;
+  string bank_check = 18;
+  string company_certificate = 19;
+  string company_logo = 20;
+  string createdAt = 21;
+  string updatedAt = 22;
+  bool razorpayEnabled = 23;
+  string razorpayKeyId = 24;
+  string razorpayKeySecret = 25;
+  string razorpayAccountId = 26;
+}
+message CancelEventRequest {
+  string ticketId = 1;
+  string subEventId = 2;
+  string hostId = 3;
+  string cancellation_reason = 4;
+}
+
+message CancelEventResponse {
+  bool success = 1;
+  string ticketId = 2;
+  string subEventId = 3;
+  string cancelledAt = 4;
+  string error = 5;
+}
+
+message GetEventCancellationInfoRequest {
+  string ticketId = 1;
+  string subEventId = 2;
+}
+
+message EventCancellationInfoResponse {
+  string eventId = 1;
+  string paymentType = 2;
+  string groupId = 3;
+  string eventName = 4;
+  string error = 5;
+}
+// ADD these messages at the bottom of ticket.proto (before the last closing brace):
+
+message GetCancelledEventsRequest {
+  string userId = 1;
+}
+
+message CancelledEventInfo {
+  string eventId       = 1;
+  string parentEventId = 2;
+  bool   isSubEvent    = 3;
+  string event_name    = 4;
+  string event_status  = 5;
+  string event_banner  = 6;
+  string event_category = 7;
+  string cancelled_at  = 8;
+  string cancellation_reason = 9;
+  repeated TicketDate event_dates = 10;
+  string location      = 11;
+  string venue         = 12;
+}
+
+message GetCancelledEventsResponse {
+  bool   success = 1;
+  repeated CancelledEventInfo events = 2;
+  int32  count   = 3;
+  string error   = 4;
+}
+
+message GetRehostedEventsRequest {
+  string userId = 1;
+}
+
+message RehostedEventInfo {
+  string eventId        = 1;
+  string parentEventId  = 2;
+  bool   isSubEvent     = 3;
+  string event_name     = 4;
+  string event_status   = 5;
+  string event_banner   = 6;
+  string event_category = 7;
+  string rehosted_at    = 8;
+  repeated TicketDate event_dates = 9;
+  string location       = 10;
+  string venue          = 11;
+}
+
+message GetRehostedEventsResponse {
+  bool   success = 1;
+  repeated RehostedEventInfo events = 2;
+  int32  count   = 3;
+  string error   = 4;
+}

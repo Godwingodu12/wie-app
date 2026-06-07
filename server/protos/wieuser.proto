@@ -1,0 +1,110 @@
+syntax = "proto3";
+package wieuser;
+service WieUserService {
+  rpc GetWieUser(GetWieUserRequest) returns (WieUserResponse);
+  rpc IncrementFollowing(UserIdRequest) returns (EmptyResponse);
+  rpc DecrementFollowing(UserIdRequest) returns (EmptyResponse);
+  rpc IncrementFollowers(UserIdRequest) returns (EmptyResponse);
+  rpc DecrementFollowers(UserIdRequest) returns (EmptyResponse);
+  rpc UpdateOnlineStatus(UpdateOnlineStatusRequest) returns (EmptyResponse);
+  rpc GetOnlineStatus(UserIdRequest) returns (OnlineStatusResponse);
+  rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
+  rpc GetUserPrivacySettings(UserIdRequest) returns (PrivacySettingsResponse);
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  rpc CheckIfBlocked(CheckBlockRequest) returns (CheckBlockResponse);
+  rpc GetBlockedUserIds(UserIdRequest) returns (BlockedUsersResponse);
+  rpc GetAccountPrivacy(UserIdRequest) returns (AccountPrivacyResponse);
+  rpc IncrementPosts(UserIdRequest) returns (EmptyResponse);
+  rpc DecrementPosts(UserIdRequest) returns (EmptyResponse);
+  rpc SetPostsCount(SetPostsCountRequest) returns (EmptyResponse);
+}
+message SetPostsCountRequest {
+  string userId = 1;
+  int32 count = 2;
+}
+message GetUsersByIdsRequest {
+  repeated string userIds = 1;
+}
+message GetUsersByIdsResponse {
+  repeated WieUser users = 1;
+}
+message PrivacySettingsResponse {
+  string allow_messages_from = 1; // 'everyone', 'followers', 'mutuals', 'none'
+  bool allow_message_requests = 2;
+}
+message SearchUsersRequest {
+  string query = 1;
+  string excludeUserId = 2;
+  int32 limit = 3;
+}
+message UpdateOnlineStatusRequest {
+  string userId = 1;
+  bool isOnline = 2;
+}
+message OnlineStatusResponse {
+  bool isOnline = 1;
+  string lastSeenAt = 2;
+}
+message SearchUsersResponse {
+  repeated WieUser users = 1;
+}
+message UserIdRequest {
+  string userId = 1;
+}
+message EmptyResponse {
+  bool success = 1;
+}
+message GetWieUserRequest {
+  string userId = 1;
+}
+
+message WieUserResponse {
+  WieUser user = 1;
+  string error = 2;
+}
+// Add these NEW messages
+message CheckBlockRequest {
+  string userId1 = 1;
+  string userId2 = 2;
+}
+
+message CheckBlockResponse {
+  bool isBlocked = 1;
+  string blockedBy = 2; 
+}
+
+message BlockedUsersResponse {
+  repeated string blockedUserIds = 1;
+}
+message AccountPrivacyResponse {
+  string accountPrivacy = 1;
+}
+message WieUser {
+  string id = 1;
+  string email = 2;
+  string contact_no = 3;
+  string name = 4;
+  string username = 5;
+  string profile_picture = 6;
+  string country_id = 7;
+  string role = 8;
+  string status = 9;
+  string bio = 10;
+  string location = 11;
+  double latitude = 12;
+  double longitude = 13;
+  bool isOnline = 14;
+  string last_seen_at = 21;
+  bool is_blocked = 15;
+  bool is_verified = 16;
+  string google_id = 17;
+  string auth_provider = 18;
+  string created_at = 19;
+  string updated_at = 20;
+  string account_privacy = 22;
+  string allow_messages_from = 23;
+  bool allow_message_requests = 24;
+  int32 posts_count = 25;
+  int32 followers_count = 26;
+  int32 following_count = 27;
+}

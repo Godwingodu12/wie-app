@@ -1,0 +1,85 @@
+syntax = "proto3";
+package auth;
+service AuthService {
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+  rpc GetUserData(GetUserDataRequest) returns (UserResponse);
+  rpc GetFollowersData(GetFollowersDataRequest) returns (FollowersDataResponse);
+  rpc ClearUserCache(ClearCacheRequest) returns (ClearCacheResponse); 
+}
+message ClearCacheRequest {
+  string userId = 1;
+}
+message ClearCacheResponse {
+  bool success = 1;
+  string message = 2;
+}
+message GetUserRequest {
+  optional string userId = 1;
+  optional string email = 2;
+  optional string searchQuery = 3;
+  optional int32 limit = 4;
+}
+message GetUserDataRequest {
+  string userId = 1;
+}
+message GetFollowersDataRequest {
+  string userId = 1;
+}
+
+message SocialLinks {
+  string facebook = 1;
+  string x = 2;
+  string linkedin = 3;
+  string instagram = 4;
+  string google = 5;
+  string whatsapp = 6;
+}
+
+message SocialProfile {
+  string profileId = 1;
+  string displayName = 2;
+  string email = 3;
+  string photo = 4;
+  string username = 5;
+  string linkedAt = 6;
+}
+
+message SocialProfiles {
+  SocialProfile google = 1;
+  SocialProfile facebook = 2;
+  SocialProfile x = 3;
+  SocialProfile instagram = 4;
+  SocialProfile linkedin = 5;
+}
+
+message UserResponse {
+  string id = 1;
+  string name = 2;
+  string username = 3;
+  string email = 4;
+  string contact_no = 5;
+  string country_code = 6;
+  string country_iso2 = 7;
+  string organisation_type = 8;
+  string status = 9;
+  string address = 10;
+  string image = 11;
+  string role = 12;
+  string followers = 13;
+  string following = 14;
+  SocialLinks social_links = 15;
+  SocialProfiles social_profiles = 16;
+  string website = 17;
+  string bio = 18;
+  string gender = 19;
+  string lastLogout = 20;
+  bool isBlocked = 21;
+  string created_at = 22;
+  string updated_at = 23;
+  string error = 24;
+}
+message FollowersDataResponse {
+  repeated string followerIds = 1;
+  int32 count = 2;
+  string error = 3;
+}

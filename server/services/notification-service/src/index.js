@@ -1,0 +1,216 @@
+import "dotenv/config";
+import express from 'express';
+import cors from 'cors';
+import http from 'http';
+import mongoose from 'mongoose';
+import { connectDB } from './config/database.js';
+import { connectRabbitMQ, startConsumers } from './rabbit/index.js';
+import { initializeSocket, getIO } from './socket/socket.js';
+import notificationRoutes from './routes/notification.routes.js';
+import { startEventCancellationConsumer,startBookingCancellationUpdateConsumer } from './consumers/eventCancellationConsumer.js';
+import { startEventRehostConsumer, startRefundSuccessConsumer } from './consumers/eventRehostConsumer.js';
+
+// Validate required environment variables
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'RABBITMQ_URL'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('💡 Please check your .env file');
+  process.exit(1);
+}
+
+// Store validated JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const app = express();
+const server = http.createServer(app);
+
+const PORT = process.env.PORT || 5006;
+
+// CORS Configuration
+// Combine both CORS_ORIGIN and USER_CORS_ORIGIN from .env
+const allowedOrigins = [
+  ...(process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+    : []),
+  ...(process.env.USER_CORS_ORIGIN
+    ? process.env.USER_CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+    : [])
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Allow all localhost ports for development
+    if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging middleware (development only)
+
+
+// Health check route
+app.get('/health', (req, res) => {
+  let socketStatus = 'not initialized';
+  try {
+    const io = getIO();
+    socketStatus = io ? 'initialized' : 'not initialized';
+  } catch (error) {
+    socketStatus = 'not initialized';
+  }
+  
+  const healthStatus = {
+    status: 'OK',
+    service: 'notification-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    socket: socketStatus
+  };
+  
+  const isHealthy = healthStatus.database === 'connected';
+  res.status(isHealthy ? 200 : 503).json(healthStatus);
+});
+
+// API Routes
+app.use('/api/notification', notificationRoutes);
+
+// 404 handler - using middleware instead of app.all('*')
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.method} ${req.url} not found`
+  });
+});
+
+// Error handling middleware - MUST be last
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err);
+  
+  // Don't leak error details in production
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Internal server error' 
+    : err.message || 'Internal server error';
+  
+  res.status(err.status || 500).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
+
+// Graceful shutdown handler
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+  
+  // Stop accepting new connections
+  server.close(async () => {    
+    try {
+      // Close Socket.IO connections
+      try {
+        const io = getIO();
+        if (io) {
+          io.close(() => {
+            console.log('✅ Socket.IO closed');
+          });
+        }
+      } catch (socketError) {
+        console.log('ℹ️ Socket.IO not initialized or already closed');
+      }
+      
+      // Close MongoDB connection
+      if (mongoose.connection.readyState === 1) {
+        await mongoose.connection.close();
+        console.log('✅ MongoDB connection closed');
+      }
+      
+      // Note: RabbitMQ connections are typically handled by the library
+      // If there's a disconnect method, it should be called here
+      
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Error during graceful shutdown:', error);
+      process.exit(1);
+    }
+  });
+  
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error('⚠️ Forcing shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+// Handle graceful shutdown signals
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  gracefulShutdown('uncaughtException');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit on unhandled rejection, just log it
+});
+
+// Initialize services
+const startServer = async () => {
+  try {    
+    // Connect to MongoDB
+    await connectDB();
+    
+    // Initialize Socket.IO
+    initializeSocket(server, JWT_SECRET);
+    
+    // Start Express server
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Notification Service running on port ${PORT}`);
+      console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+
+    try {
+      await connectRabbitMQ();
+      await startConsumers();
+      await startEventCancellationConsumer();
+      await startBookingCancellationUpdateConsumer();
+      await startEventRehostConsumer();
+      await startRefundSuccessConsumer();
+    } catch (rabbitError) {
+      console.error('⚠️ RabbitMQ connection failed, but server will continue running');
+      console.error('⚠️ Notification features requiring auth-service communication will not work');
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Start the server
+startServer();
+
+// Export for testing purposes
+export { app, server };
+export default app;

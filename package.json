@@ -1,0 +1,24 @@
+{
+  "name": "wie-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "mobile",
+    "server/services/*",
+    "server/protos"
+  ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "bcrypt",
+      "core-js",
+      "esbuild",
+      "prisma",
+      "protobufjs",
+      "sharp",
+      "tesseract.js",
+      "unrs-resolver"
+    ]
+  }
+}

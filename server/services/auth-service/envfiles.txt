@@ -1,0 +1,4 @@
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/authdb
+JWT_SECRET=supersecretkey
+RABBITMQ_URL=amqps://regeotot:Zr8L35GkK1R9F8h3xmF_YatDpVbyXhh6@fuji.lmq.cloudamqp.com/regeotot

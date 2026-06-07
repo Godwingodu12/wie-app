@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package booking;
+
+service BookingService {
+  rpc GetBookingStatsByDate(BookingStatsByDateRequest) returns (BookingStatsByDateResponse);
+  rpc GetBookingGrowthStats(BookingGrowthStatsRequest) returns (BookingGrowthStatsResponse);
+  rpc GetMonthlyBookingChart(MonthlyBookingChartRequest) returns (MonthlyBookingChartResponse);
+  rpc GetBookingsForEvent(GetBookingsForEventRequest) returns (GetBookingsForEventResponse);
+  rpc GetRefundStatus(GetRefundStatusRequest) returns (GetRefundStatusResponse);
+  rpc CancelEventBookings(CancelEventBookingsRequest) returns (CancelEventBookingsResponse);
+  rpc GetEventFinancialSummary(EventFinancialSummaryRequest) returns (EventFinancialSummaryResponse);
+  rpc GetEventTransactionList(EventTransactionListRequest) returns (EventTransactionListResponse);
+  rpc VerifyBookingQR(VerifyBookingQRRequest) returns (VerifyBookingQRResponse);
+}
+
+message VerifyBookingQRRequest {
+  string qrData = 1;
+}
+
+message Booking {
+  string bookingId       = 1;
+  string externalId      = 2;
+  string userId          = 3;
+  string ticketId        = 4;
+  string ticketType      = 5;
+  int32  quantity        = 6;
+  string paymentMethod   = 7;
+  string bookingStatus   = 8;
+  string userName        = 9;
+  string userEmail       = 10;
+  string userPhone       = 11;
+}
+
+message VerifyBookingQRResponse {
+  bool   success      = 1;
+  string error        = 2;
+  Booking booking     = 3;
+}
+
+message EventFinancialSummaryRequest {
+  string ticketId = 1;
+}
+
+message EventFinancialSummaryResponse {
+  bool   success              = 1;
+  string error                = 2;
+  double totalRevenue         = 3;   // sum of subtotal (host's share)
+  double totalPlatformFee     = 4;   // WIE keeps (not host's money)
+  double totalConvenienceFee  = 5;   // gateway absorbed by WIE
+  double totalTax             = 6;   // GST collected from users
+  double totalRefunded        = 7;   // money returned to users
+  double netHostPayout        = 8;   // totalRevenue - totalRefunded
+  int32  totalConfirmedBookings = 9;
+  int32  totalCancelledBookings = 10;
+  int32  totalTicketsSold     = 11;
+  repeated TicketTypeSummary  byTicketType = 12;
+  repeated RecentTransaction  recentTransactions = 13;
+}
+
+message TicketTypeSummary {
+  string ticketType    = 1;
+  int32  count         = 2;
+  double revenue       = 3;
+  double refunded      = 4;
+}
+
+message RecentTransaction {
+  string bookingId       = 1;
+  string userName        = 2;
+  string ticketType      = 3;
+  int32  quantity        = 4;
+  double subtotal        = 5;
+  double platformFee     = 6;
+  double totalPaid       = 7;
+  string paymentMethod   = 8;
+  string paymentStatus   = 9;
+  string bookingStatus   = 10;
+  string refundStatus    = 11;
+  double refundAmount    = 12;
+  string createdAt       = 13;
+}
+
+message EventTransactionListRequest {
+  string ticketId  = 1;
+  int32  limit     = 2;
+  int32  offset    = 3;
+  string status    = 4;  // optional filter: CONFIRMED | CANCELLED | all
+}
+
+message EventTransactionListResponse {
+  bool   success               = 1;
+  string error                 = 2;
+  repeated RecentTransaction transactions = 3;
+  int32  total                 = 4;
+}
+message BookingStatsByDateRequest {
+  string ticketId = 1;
+  string selectedDate = 2;
+}
+
+message BookingStatsByDateResponse {
+  int32 totalBookings = 1;
+  double totalRevenue = 2;
+  int32 totalTickets = 3;
+  string bookingDate = 4;
+}
+
+message BookingGrowthStatsRequest {
+  string ticketId = 1;
+  string selectedDate = 2;
+  string comparisonType = 3;
+}
+
+message BookingGrowthStatsResponse {
+  int32 currentPeriodBookings = 1;
+  int32 previousPeriodBookings = 2;
+  string growthPercentage = 3;
+  string comparisonType = 4;
+}
+
+message MonthlyBookingChartRequest {
+  string ticketId = 1;
+  int32 year = 2;
+  int32 month = 3;
+}
+
+message ChartDataPoint {
+  int32 day = 1;
+  int32 bookingCount = 2;
+  double revenue = 3;
+}
+
+message MonthlyBookingChartResponse {
+  repeated ChartDataPoint chartData = 1;
+}
+message BookingUser {
+  string bookingId = 1;
+  string userId    = 2;
+  string subtotal  = 3;
+  string status    = 4;
+}
+
+message GetBookingsForEventRequest {
+  string ticketId = 1;
+}
+
+message GetBookingsForEventResponse {
+  repeated BookingUser bookings = 1;
+  int32               count    = 2;
+  string              error    = 3;
+}
+
+message GetRefundStatusRequest {
+  string bookingId = 1;
+}
+
+message GetRefundStatusResponse {
+  bool   success           = 1;
+  string error             = 2;
+  string bookingId         = 3;
+  string userId            = 4;
+  string ticketId          = 5;
+  string eventName         = 6;
+  string refundStatus      = 7;
+  double refundAmount      = 8;
+  string refundId          = 9;
+  string processedAt       = 10;
+  string refundInitiatedAt = 11;
+}
+message CancelEventBookingsRequest {
+  string eventId             = 1;
+  string cancellationReason  = 2;
+  double refundPercentage    = 3;
+  string cancellationTier    = 4;
+  bool   isHostCancellation  = 5;
+}
+
+message CancelEventBookingsResponse {
+  bool   success      = 1;
+  string error        = 2;
+  int32  updatedCount = 3;
+}

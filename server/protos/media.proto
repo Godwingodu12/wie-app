@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package media;
+
+service MediaService {
+
+  // ── Flux ──────────────────────────────────────────────────
+  rpc GetActiveFluxesByUser(GetFluxesByUserRequest) returns (GetFluxesResponse);
+  rpc CheckUserHasFlux(UserIdRequest) returns (CheckFluxResponse);
+  rpc GetFluxRingStatus(RingStatusRequest) returns (RingStatusResponse);
+  rpc GetBatchFluxRingStatus(BatchRingStatusRequest) returns (BatchRingStatusResponse);
+  rpc GetFluxById(GetFluxByIdRequest) returns (GetFluxByIdResponse);
+  rpc DeleteAllUserFluxes(UserIdRequest) returns (DeleteResponse);
+
+  // ── Diary ─────────────────────────────────────────────────
+  rpc GetUserDiaries(GetDiariesRequest) returns (GetDiariesResponse);
+  rpc DeleteAllUserDiaries(UserIdRequest) returns (DeleteResponse);
+
+  // ── Stats ─────────────────────────────────────────────────
+  rpc GetUserMediaStats(UserIdRequest) returns (MediaStatsResponse);
+}
+
+// ── Shared ────────────────────────────────────────────────
+
+message UserIdRequest {
+  string userId = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  int32 deletedCount = 2;
+  string error = 3;
+}
+
+// ── Flux Messages ─────────────────────────────────────────
+
+message FluxItem {
+  string id = 1;
+  string user_id = 2;
+  string media_url = 3;
+  string media_type = 4;
+  string caption = 5;
+  string visibility = 6;
+  int32 view_count = 7;
+  int32 reaction_count = 8;
+  string expires_at = 9;
+  string created_at = 10;
+  string music_title = 11;
+  string music_artist = 12;
+  double duration = 13;
+  bool is_archived = 14;
+}
+
+message GetFluxesByUserRequest {
+  string userId = 1;
+  string viewerId = 2;
+}
+
+message GetFluxesResponse {
+  repeated FluxItem fluxes = 1;
+  string error = 2;
+}
+
+message CheckFluxResponse {
+  bool hasFlux = 1;
+  int32 fluxCount = 2;
+  string error = 3;
+}
+
+message RingStatusRequest {
+  string viewerId = 1;
+  string ownerId = 2;
+}
+
+message RingStatusResponse {
+  string status = 1; // 'unseen' | 'seen' | 'none'
+  string error = 2;
+}
+
+message BatchRingStatusRequest {
+  string viewerId = 1;
+  repeated string ownerIds = 2;
+}
+
+message OwnerRingStatus {
+  string owner_id = 1;
+  string status = 2; // 'unseen' | 'seen' | 'none'
+}
+
+message BatchRingStatusResponse {
+  repeated OwnerRingStatus statuses = 1;
+  string error = 2;
+}
+
+message GetFluxByIdRequest {
+  string fluxId = 1;
+}
+
+message GetFluxByIdResponse {
+  FluxItem flux = 1;
+  string error = 2;
+}
+
+// ── Diary Messages ────────────────────────────────────────
+
+message DiaryItem {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string cover_image = 4;
+  int32 flux_count = 5;
+  string visibility = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+message GetDiariesRequest {
+  string userId = 1;
+  string viewerId = 2;
+}
+
+message GetDiaries
