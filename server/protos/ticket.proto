@@ -309,11 +309,12 @@ message SubEvent {
   repeated AccommodationDetails accommodation_details = 56;
   bool question_data = 57;
   QuestionDetails question_details = 58;
+  string recurring_type = 59;
 }
 
 message TicketData {
   string id = 1;
-  string _id = 2;
+  string _id = 2; 
   string event_name = 3;
   string event_category = 4;
   string event_subcategory = 5;
@@ -385,6 +386,7 @@ message TicketData {
   repeated AccommodationDetails accommodation_details = 71;
   bool question_data = 72;
   QuestionDetails question_details = 73;
+  string recurring_type = 74;
 }
 message CustomQuestion {
   string question_id = 1;
