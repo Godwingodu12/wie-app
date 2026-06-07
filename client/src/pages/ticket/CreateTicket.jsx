@@ -144,6 +144,7 @@ const CreateTicket = () => {
     hashtag: [],
     event_dates: [],
     event_date_type: "one-day",
+    event_recurring_type: "",
     gatesOpenEarly: false,
     gate_open_time: "",
     gate_open_hour: "", // Initialize as empty
@@ -161,6 +162,18 @@ const CreateTicket = () => {
       address: INITIAL_MAP_LOCATION.address,
     },
     groupId: groupId || "",
+    food_accoum: false,
+    food_accoum_type: "none",
+    food_details: [],
+    accommodation_details: [],
+    question_data: false,
+    question_details: {
+      name: false,
+      email: false,
+      phone_number: false,
+      position: false,
+      custom_questions: [],
+    },
   });
   const showAlert = (alertData) => {
     setAlert({ ...alertData, show: true });
@@ -374,6 +387,7 @@ const CreateTicket = () => {
         hashtag: ticketData.hashtag || [],
         event_dates: event_dates,
         event_date_type: ticketData.event_date_type || "one-day",
+        event_recurring_type: ticketData.recurring_type || "",
         gate_open_time: formatTimeForInput(ticketData.gate_open_time) || "",
         gatesOpenEarly: !!ticketData.gate_open_time,
         // Parse gate opening time into separate fields
@@ -425,6 +439,18 @@ const CreateTicket = () => {
         },
         groupId: ticketData.groupId || groupId || "",
         form_progress: ticketData.form_progress || {},
+        food_accoum: ticketData.food_accoum ?? false,
+        food_accoum_type: ticketData.food_accoum_type ?? "none",
+        food_details: ticketData.food_details ?? [],
+        accommodation_details: ticketData.accommodation_details ?? [],
+        question_data: ticketData.question_data ?? false,
+        question_details: ticketData.question_details ?? {
+          name: false,
+          email: false,
+          phone_number: false,
+          position: false,
+          custom_questions: [],
+        },
       };
 
       setFormData(loadedData);
@@ -519,6 +545,18 @@ const CreateTicket = () => {
               address: INITIAL_MAP_LOCATION.address,
             },
             groupId: groupId || "",
+            food_accoum: false,
+            food_accoum_type: "none",
+            food_details: [],
+            accommodation_details: [],
+            question_data: false,
+            question_details: {
+              name: false,
+              email: false,
+              phone_number: false,
+              position: false,
+              custom_questions: [],
+            },
           });
         }
 
@@ -926,6 +964,15 @@ const CreateTicket = () => {
         "Maximum age cannot be less than minimum age."
       );
     }
+    if (formData.event_date_type === "recurring") {
+      const validRecurringTypes = ["weekly", "monthly", "yearly"];
+      if (!formData.event_recurring_type || !validRecurringTypes.includes(formData.event_recurring_type)) {
+        addError(
+          "event_recurring_type",
+          "Event recurring type is required and must be weekly, monthly, or yearly when event date type is recurring."
+        );
+      }
+    }
     if (formData.event_dates.length === 0) {
       addError(
         "event_dates",
@@ -1316,8 +1363,16 @@ const CreateTicket = () => {
       data.append("min_age_allowed", formData.min_age_allowed);
       data.append("max_age_allowed", formData.max_age_allowed);
       data.append("event_date_type", formData.event_date_type);
+      data.append("event_recurring_type", formData.event_recurring_type || "");
+      data.append("recurring_type", formData.event_recurring_type || "none");
       data.append("kids_friendly", formData.kids_friendly);
       data.append("pet_friendly", formData.pet_friendly);
+      data.append("food_accoum", formData.food_accoum);
+      data.append("food_accoum_type", formData.food_accoum_type);
+      data.append("food_details", JSON.stringify(formData.food_details));
+      data.append("accommodation_details", JSON.stringify(formData.accommodation_details));
+      data.append("question_data", formData.question_data);
+      data.append("question_details", JSON.stringify(formData.question_details));
       if (formData.prohibited_items && formData.prohibited_items.length > 0) {
         data.append(
           "prohibited_items",
@@ -2192,6 +2247,55 @@ const CreateTicket = () => {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Event Recurring Type (conditional on recurring date type) */}
+                  {formData.event_date_type === "recurring" && (
+                    <div
+                      className="animate-fade-in"
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_recurring_type = el)
+                      }
+                    >
+                      <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                        Event recurring type
+                        <InfoTooltip note="Event is anything that happens repeatedly on your set schedule (Dates you selected)." />
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="event_recurring_type"
+                          name="event_recurring_type"
+                          value={formData.event_recurring_type}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 rounded-lg border appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                            ${errors.event_recurring_type ? "border-red-500 focus:ring-red-500/50" : (darkMode ? "border-[#4A4A4A]" : "border-black")}
+                            ${darkMode
+                              ? "bg-[#1E1E1E] text-white"
+                              : "bg-white text-black"
+                            }`}
+                        >
+                          <option value="">select a type</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                        <div className={`pointer-events-none absolute inset-y-0 right-3 flex items-center ${darkMode ? "text-gray-400" : "text-gray-600"
+                          }`}>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                      {errors.event_recurring_type && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_recurring_type}
+                        </p>
+                      )}
+                      <p className={`text-xs mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"
+                        }`}>
+                        Event is anything that happens repeatedly on your set schedule(Dates you selected).
+                      </p>
                     </div>
                   )}
                   {formData.location_type === "offline" && (
