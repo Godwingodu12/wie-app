@@ -153,7 +153,7 @@ export const setPrimaryPhoto = async (publicId: string) => {
 
 // FACE VERIFICATION
 /** Step 1 — register embeddings from already-uploaded profile photos */
-export const registerFaceEmbeddings = async (): Promise<{
+export const registerFaceFromProfile = async (): Promise<{
   success: boolean;
   message: string;
 }> => {
