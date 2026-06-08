@@ -1,63 +1,107 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model Country {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  countryCode String   @unique @map("country_code") @db.VarChar(10)
-  countryName String   @map("country_name") @db.VarChar(100)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-
-  // Relations
-  users WieUser[]
-
-  @@map("countries")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
 }
 
 model WieUser {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email          String?  @unique @db.VarChar(255)
-  contactNo      String?  @unique @map("contact_no") @db.VarChar(20)
-  password       String   @db.VarChar(255)
-  name           String?  @db.VarChar(255) // Made nullable
-  username       String?  @unique @db.VarChar(100)
-  profilePicture String?  @map("profile_picture") @db.Text
-  countryId      String?  @map("country_id") @db.Uuid
-  role           String   @default("user") @db.VarChar(50)
-  status         String   @default("pending") @db.VarChar(20)
-  bio            String?  @db.Text
-  isBlocked      Boolean  @default(false) @map("is_blocked")
-  isVerified     Boolean  @default(false) @map("is_verified")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  // Relations
-  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  otps    Otp[]
+  id                   String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                String?    @unique @db.VarChar(255)
+  contactNo            String?    @unique @map("contact_no") @db.VarChar(20)
+  password             String?    @db.VarChar(255)
+  name                 String?    @db.VarChar(255)
+  profilePicture       String?    @map("profile_picture")
+  role                 String     @default("user") @db.VarChar(50)
+  isBlocked            Boolean    @default(false) @map("is_blocked")
+  isVerified           Boolean    @default(false) @map("is_verified")
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  username             String?    @unique @db.VarChar(100)
+  bio                  String?
+  countryId            String?    @map("country_id") @db.Uuid
+  status               String     @default("pending") @db.VarChar(20)
+  authProvider         String     @default("local") @map("auth_provider") @db.VarChar(20)
+  googleId             String?    @unique @map("google_id") @db.VarChar(255)
+  isOnline             Boolean    @default(false) @map("is_online")
+  latitude             Float?
+  location             String?
+  longitude            Float?
+  followersCount       Int        @default(0) @map("followers_count")
+  followingCount       Int        @default(0) @map("following_count")
+  postsCount           Int        @default(0) @map("posts_count")
+  tokenVersion         Int        @default(0) @map("token_version")
+  allowMessageRequests Boolean    @default(false) @map("allow_message_requests")
+  allowMessagesFrom    String     @default("everyone") @map("allow_messages_from") @db.VarChar(20)
+  lastSeenAt           DateTime?  @map("last_seen_at") @db.Timestamp(6)
+  accountPrivacy       String     @default("public") @map("account_privacy") @db.VarChar(20)
+  dob                  DateTime?  @db.Date
+  gender               String?    @db.VarChar(20)
+  locationSource       String?    @default("none") @map("location_source") @db.VarChar(10)
+  showBadge            Boolean    @default(true) @map("show_badge")
+  showSuggestion       Boolean    @default(true) @map("show_suggestion")
+  website              String?
+  appleId              String?    @unique @map("apple_id") @db.VarChar(255)
+  microsoftId          String?    @unique @map("microsoft_id") @db.VarChar(255)
+  otps                 Otp[]
+  mutedMe              UserMute[] @relation("MutedRelation")
+  mutedByMe            UserMute[] @relation("MuterRelation")
+  country              Country?   @relation(fields: [countryId], references: [id])
 
   @@map("wie_users")
+  @@schema("public")
+}
+
+model Country {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  countryCode String    @unique @map("country_code") @db.VarChar(10)
+  countryName String    @map("country_name") @db.VarChar(100)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  phoneCode   String?   @map("phone_code") @db.VarChar(10)
+  users       WieUser[]
+
+  @@map("countries")
+  @@schema("public")
 }
 
 model Otp {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String?  @map("user_id") @db.Uuid
-  tempId    String?  @map("temp_id") @db.VarChar(255)
   otpValue  String   @map("otp_value") @db.VarChar(6)
-  otpType   String   @default("signup") @map("otp_type") @db.VarChar(20)
   expiresAt DateTime @map("expires_at") @db.Timestamp(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  otpType   String   @default("signup") @map("otp_type") @db.VarChar(20)
+  tempId    String?  @map("temp_id") @db.VarChar(255)
+  userId    String?  @map("user_id") @db.Uuid
+  user      WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId], map: "idx_otps_user_id")
-  @@index([tempId], map: "idx_otps_temp_id")
   @@index([expiresAt], map: "idx_otps_expires_at")
+  @@index([tempId], map: "idx_otps_temp_id")
+  @@index([userId], map: "idx_otps_user_id")
   @@map("otps")
+  @@schema("public")
+}
+
+model UserMute {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  muterId     String   @map("muter_id") @db.Uuid
+  mutedId     String   @map("muted_id") @db.Uuid
+  mutePosts   Boolean  @default(true) @map("mute_posts")
+  muteStories Boolean  @default(true) @map("mute_stories")
+  muteReels   Boolean  @default(false) @map("mute_reels")
+  muteNotes   Boolean  @default(false) @map("mute_notes")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  muted       WieUser  @relation("MutedRelation", fields: [mutedId], references: [id], onDelete: Cascade)
+  muter       WieUser  @relation("MuterRelation", fields: [muterId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedId], name: "unique_mute")
+  @@index([mutedId])
+  @@index([muterId])
+  @@map("user_mutes")
+  @@schema("public")
 }

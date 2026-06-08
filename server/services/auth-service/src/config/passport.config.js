@@ -1,4 +1,4 @@
-// D:\DEVELOP\wie\server\services\auth-service\src\config\passport.config.js
+// D:\projectnew\server\services\auth-service\src\config\passport.config.js
 
 import passport from 'passport';
 import dotenv from 'dotenv';

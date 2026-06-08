@@ -36,12 +36,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 6.19.0
- * Query Engine version: 2ba551f319ab1df4bc874a89965d8b3641056773
+ * Prisma Client JS version: 6.19.3
+ * Query Engine version: c2990dca591cba766e3b7ef5d9e8a84796e47ab7
  */
 Prisma.prismaVersion = {
-  client: "6.19.0",
-  engine: "2ba551f319ab1df4bc874a89965d8b3641056773"
+  client: "6.19.3",
+  engine: "c2990dca591cba766e3b7ef5d9e8a84796e47ab7"
 }
 
 Prisma.PrismaClientKnownRequestError = PrismaClientKnownRequestError;
@@ -93,38 +93,72 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
-exports.Prisma.CountryScalarFieldEnum = {
-  id: 'id',
-  countryCode: 'countryCode',
-  countryName: 'countryName',
-  createdAt: 'createdAt'
-};
-
 exports.Prisma.WieUserScalarFieldEnum = {
   id: 'id',
   email: 'email',
   contactNo: 'contactNo',
   password: 'password',
   name: 'name',
-  username: 'username',
   profilePicture: 'profilePicture',
-  countryId: 'countryId',
   role: 'role',
-  status: 'status',
-  bio: 'bio',
   isBlocked: 'isBlocked',
   isVerified: 'isVerified',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  username: 'username',
+  bio: 'bio',
+  countryId: 'countryId',
+  status: 'status',
+  authProvider: 'authProvider',
+  googleId: 'googleId',
+  isOnline: 'isOnline',
+  latitude: 'latitude',
+  location: 'location',
+  longitude: 'longitude',
+  followersCount: 'followersCount',
+  followingCount: 'followingCount',
+  postsCount: 'postsCount',
+  tokenVersion: 'tokenVersion',
+  allowMessageRequests: 'allowMessageRequests',
+  allowMessagesFrom: 'allowMessagesFrom',
+  lastSeenAt: 'lastSeenAt',
+  accountPrivacy: 'accountPrivacy',
+  dob: 'dob',
+  gender: 'gender',
+  locationSource: 'locationSource',
+  showBadge: 'showBadge',
+  showSuggestion: 'showSuggestion',
+  website: 'website',
+  appleId: 'appleId',
+  microsoftId: 'microsoftId'
+};
+
+exports.Prisma.CountryScalarFieldEnum = {
+  id: 'id',
+  countryCode: 'countryCode',
+  countryName: 'countryName',
+  createdAt: 'createdAt',
+  phoneCode: 'phoneCode'
 };
 
 exports.Prisma.OtpScalarFieldEnum = {
   id: 'id',
-  userId: 'userId',
-  tempId: 'tempId',
   otpValue: 'otpValue',
-  otpType: 'otpType',
   expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  otpType: 'otpType',
+  tempId: 'tempId',
+  userId: 'userId'
+};
+
+exports.Prisma.UserMuteScalarFieldEnum = {
+  id: 'id',
+  muterId: 'muterId',
+  mutedId: 'mutedId',
+  mutePosts: 'mutePosts',
+  muteStories: 'muteStories',
+  muteReels: 'muteReels',
+  muteNotes: 'muteNotes',
   createdAt: 'createdAt'
 };
 
@@ -145,9 +179,10 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  Country: 'Country',
   WieUser: 'WieUser',
-  Otp: 'Otp'
+  Country: 'Country',
+  Otp: 'Otp',
+  UserMute: 'UserMute'
 };
 /**
  * Create the Client
@@ -160,7 +195,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "D:\\DEVELOP\\wie\\server\\services\\wie-user-service\\src\\generated\\prisma",
+      "value": "D:\\projectnew\\server\\services\\wie-user-service\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -173,8 +208,10 @@ const config = {
         "native": true
       }
     ],
-    "previewFeatures": [],
-    "sourceFilePath": "D:\\DEVELOP\\wie\\server\\services\\wie-user-service\\prisma\\schema.prisma",
+    "previewFeatures": [
+      "multiSchema"
+    ],
+    "sourceFilePath": "D:\\projectnew\\server\\services\\wie-user-service\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -182,8 +219,8 @@ const config = {
     "schemaEnvPath": "../../../.env"
   },
   "relativePath": "../../../prisma",
-  "clientVersion": "6.19.0",
-  "engineVersion": "2ba551f319ab1df4bc874a89965d8b3641056773",
+  "clientVersion": "6.19.3",
+  "engineVersion": "c2990dca591cba766e3b7ef5d9e8a84796e47ab7",
   "datasourceNames": [
     "db"
   ],
@@ -197,13 +234,13 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Country {\n  id          String   @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  countryCode String   @unique @map(\"country_code\") @db.VarChar(10)\n  countryName String   @map(\"country_name\") @db.VarChar(100)\n  createdAt   DateTime @default(now()) @map(\"created_at\") @db.Timestamp(6)\n\n  // Relations\n  users WieUser[]\n\n  @@map(\"countries\")\n}\n\nmodel WieUser {\n  id             String   @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  email          String?  @unique @db.VarChar(255)\n  contactNo      String?  @unique @map(\"contact_no\") @db.VarChar(20)\n  password       String   @db.VarChar(255)\n  name           String?  @db.VarChar(255) // Made nullable\n  username       String?  @unique @db.VarChar(100)\n  profilePicture String?  @map(\"profile_picture\") @db.Text\n  countryId      String?  @map(\"country_id\") @db.Uuid\n  role           String   @default(\"user\") @db.VarChar(50)\n  status         String   @default(\"pending\") @db.VarChar(20)\n  bio            String?  @db.Text\n  isBlocked      Boolean  @default(false) @map(\"is_blocked\")\n  isVerified     Boolean  @default(false) @map(\"is_verified\")\n  createdAt      DateTime @default(now()) @map(\"created_at\") @db.Timestamp(6)\n  updatedAt      DateTime @default(now()) @updatedAt @map(\"updated_at\") @db.Timestamp(6)\n\n  // Relations\n  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)\n  otps    Otp[]\n\n  @@map(\"wie_users\")\n}\n\nmodel Otp {\n  id        String   @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  userId    String?  @map(\"user_id\") @db.Uuid\n  tempId    String?  @map(\"temp_id\") @db.VarChar(255)\n  otpValue  String   @map(\"otp_value\") @db.VarChar(6)\n  otpType   String   @default(\"signup\") @map(\"otp_type\") @db.VarChar(20)\n  expiresAt DateTime @map(\"expires_at\") @db.Timestamp(6)\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamp(6)\n\n  // Relations\n  user WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@index([userId], map: \"idx_otps_user_id\")\n  @@index([tempId], map: \"idx_otps_temp_id\")\n  @@index([expiresAt], map: \"idx_otps_expires_at\")\n  @@map(\"otps\")\n}\n",
-  "inlineSchemaHash": "764421b366a1cd18ee647bd0ca82d4b840dc1ad88c150b48a1f54dd30ffdb583",
+  "inlineSchema": "generator client {\n  provider        = \"prisma-client-js\"\n  output          = \"../src/generated/prisma\"\n  previewFeatures = [\"multiSchema\"]\n}\n\ndatasource db {\n  provider  = \"postgresql\"\n  url       = env(\"DATABASE_URL\")\n  directUrl = env(\"DIRECT_URL\")\n  schemas   = [\"public\"]\n}\n\nmodel WieUser {\n  id                   String     @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  email                String?    @unique @db.VarChar(255)\n  contactNo            String?    @unique @map(\"contact_no\") @db.VarChar(20)\n  password             String?    @db.VarChar(255)\n  name                 String?    @db.VarChar(255)\n  profilePicture       String?    @map(\"profile_picture\")\n  role                 String     @default(\"user\") @db.VarChar(50)\n  isBlocked            Boolean    @default(false) @map(\"is_blocked\")\n  isVerified           Boolean    @default(false) @map(\"is_verified\")\n  createdAt            DateTime   @default(now()) @map(\"created_at\") @db.Timestamp(6)\n  updatedAt            DateTime   @default(now()) @updatedAt @map(\"updated_at\") @db.Timestamp(6)\n  username             String?    @unique @db.VarChar(100)\n  bio                  String?\n  countryId            String?    @map(\"country_id\") @db.Uuid\n  status               String     @default(\"pending\") @db.VarChar(20)\n  authProvider         String     @default(\"local\") @map(\"auth_provider\") @db.VarChar(20)\n  googleId             String?    @unique @map(\"google_id\") @db.VarChar(255)\n  isOnline             Boolean    @default(false) @map(\"is_online\")\n  latitude             Float?\n  location             String?\n  longitude            Float?\n  followersCount       Int        @default(0) @map(\"followers_count\")\n  followingCount       Int        @default(0) @map(\"following_count\")\n  postsCount           Int        @default(0) @map(\"posts_count\")\n  tokenVersion         Int        @default(0) @map(\"token_version\")\n  allowMessageRequests Boolean    @default(false) @map(\"allow_message_requests\")\n  allowMessagesFrom    String     @default(\"everyone\") @map(\"allow_messages_from\") @db.VarChar(20)\n  lastSeenAt           DateTime?  @map(\"last_seen_at\") @db.Timestamp(6)\n  accountPrivacy       String     @default(\"public\") @map(\"account_privacy\") @db.VarChar(20)\n  dob                  DateTime?  @db.Date\n  gender               String?    @db.VarChar(20)\n  locationSource       String?    @default(\"none\") @map(\"location_source\") @db.VarChar(10)\n  showBadge            Boolean    @default(true) @map(\"show_badge\")\n  showSuggestion       Boolean    @default(true) @map(\"show_suggestion\")\n  website              String?\n  appleId              String?    @unique @map(\"apple_id\") @db.VarChar(255)\n  microsoftId          String?    @unique @map(\"microsoft_id\") @db.VarChar(255)\n  otps                 Otp[]\n  mutedMe              UserMute[] @relation(\"MutedRelation\")\n  mutedByMe            UserMute[] @relation(\"MuterRelation\")\n  country              Country?   @relation(fields: [countryId], references: [id])\n\n  @@map(\"wie_users\")\n  @@schema(\"public\")\n}\n\nmodel Country {\n  id          String    @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  countryCode String    @unique @map(\"country_code\") @db.VarChar(10)\n  countryName String    @map(\"country_name\") @db.VarChar(100)\n  createdAt   DateTime  @default(now()) @map(\"created_at\") @db.Timestamp(6)\n  phoneCode   String?   @map(\"phone_code\") @db.VarChar(10)\n  users       WieUser[]\n\n  @@map(\"countries\")\n  @@schema(\"public\")\n}\n\nmodel Otp {\n  id        String   @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  otpValue  String   @map(\"otp_value\") @db.VarChar(6)\n  expiresAt DateTime @map(\"expires_at\") @db.Timestamp(6)\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamp(6)\n  otpType   String   @default(\"signup\") @map(\"otp_type\") @db.VarChar(20)\n  tempId    String?  @map(\"temp_id\") @db.VarChar(255)\n  userId    String?  @map(\"user_id\") @db.Uuid\n  user      WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@index([expiresAt], map: \"idx_otps_expires_at\")\n  @@index([tempId], map: \"idx_otps_temp_id\")\n  @@index([userId], map: \"idx_otps_user_id\")\n  @@map(\"otps\")\n  @@schema(\"public\")\n}\n\nmodel UserMute {\n  id          String   @id @default(dbgenerated(\"gen_random_uuid()\")) @db.Uuid\n  muterId     String   @map(\"muter_id\") @db.Uuid\n  mutedId     String   @map(\"muted_id\") @db.Uuid\n  mutePosts   Boolean  @default(true) @map(\"mute_posts\")\n  muteStories Boolean  @default(true) @map(\"mute_stories\")\n  muteReels   Boolean  @default(false) @map(\"mute_reels\")\n  muteNotes   Boolean  @default(false) @map(\"mute_notes\")\n  createdAt   DateTime @default(now()) @map(\"created_at\") @db.Timestamp(6)\n  muted       WieUser  @relation(\"MutedRelation\", fields: [mutedId], references: [id], onDelete: Cascade)\n  muter       WieUser  @relation(\"MuterRelation\", fields: [muterId], references: [id], onDelete: Cascade)\n\n  @@unique([muterId, mutedId], name: \"unique_mute\")\n  @@index([mutedId])\n  @@index([muterId])\n  @@map(\"user_mutes\")\n  @@schema(\"public\")\n}\n",
+  "inlineSchemaHash": "2f8ec8b7699e404e577a2e27251c44caa8778700b1dc958179dd350365791dec",
   "copyEngine": true
 }
 config.dirname = '/'
 
-config.runtimeDataModel = JSON.parse("{\"models\":{\"Country\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"countryCode\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_code\"},{\"name\":\"countryName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_name\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"users\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"CountryToWieUser\"}],\"dbName\":\"countries\"},\"WieUser\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"contactNo\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"contact_no\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"username\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"profilePicture\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"profile_picture\"},{\"name\":\"countryId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_id\"},{\"name\":\"role\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"status\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"bio\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"isBlocked\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_blocked\"},{\"name\":\"isVerified\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_verified\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"country\",\"kind\":\"object\",\"type\":\"Country\",\"relationName\":\"CountryToWieUser\"},{\"name\":\"otps\",\"kind\":\"object\",\"type\":\"Otp\",\"relationName\":\"OtpToWieUser\"}],\"dbName\":\"wie_users\"},\"Otp\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"tempId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"temp_id\"},{\"name\":\"otpValue\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"otp_value\"},{\"name\":\"otpType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"otp_type\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"OtpToWieUser\"}],\"dbName\":\"otps\"}},\"enums\":{},\"types\":{}}")
+config.runtimeDataModel = JSON.parse("{\"models\":{\"WieUser\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"contactNo\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"contact_no\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"profilePicture\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"profile_picture\"},{\"name\":\"role\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"isBlocked\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_blocked\"},{\"name\":\"isVerified\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_verified\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"username\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"bio\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"countryId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_id\"},{\"name\":\"status\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"authProvider\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"auth_provider\"},{\"name\":\"googleId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"google_id\"},{\"name\":\"isOnline\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_online\"},{\"name\":\"latitude\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"location\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"longitude\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"followersCount\",\"kind\":\"scalar\",\"type\":\"Int\",\"dbName\":\"followers_count\"},{\"name\":\"followingCount\",\"kind\":\"scalar\",\"type\":\"Int\",\"dbName\":\"following_count\"},{\"name\":\"postsCount\",\"kind\":\"scalar\",\"type\":\"Int\",\"dbName\":\"posts_count\"},{\"name\":\"tokenVersion\",\"kind\":\"scalar\",\"type\":\"Int\",\"dbName\":\"token_version\"},{\"name\":\"allowMessageRequests\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"allow_message_requests\"},{\"name\":\"allowMessagesFrom\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"allow_messages_from\"},{\"name\":\"lastSeenAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"last_seen_at\"},{\"name\":\"accountPrivacy\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"account_privacy\"},{\"name\":\"dob\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"gender\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"locationSource\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"location_source\"},{\"name\":\"showBadge\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"show_badge\"},{\"name\":\"showSuggestion\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"show_suggestion\"},{\"name\":\"website\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"appleId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"apple_id\"},{\"name\":\"microsoftId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"microsoft_id\"},{\"name\":\"otps\",\"kind\":\"object\",\"type\":\"Otp\",\"relationName\":\"OtpToWieUser\"},{\"name\":\"mutedMe\",\"kind\":\"object\",\"type\":\"UserMute\",\"relationName\":\"MutedRelation\"},{\"name\":\"mutedByMe\",\"kind\":\"object\",\"type\":\"UserMute\",\"relationName\":\"MuterRelation\"},{\"name\":\"country\",\"kind\":\"object\",\"type\":\"Country\",\"relationName\":\"CountryToWieUser\"}],\"dbName\":\"wie_users\"},\"Country\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"countryCode\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_code\"},{\"name\":\"countryName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"country_name\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"phoneCode\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"phone_code\"},{\"name\":\"users\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"CountryToWieUser\"}],\"dbName\":\"countries\"},\"Otp\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"otpValue\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"otp_value\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"otpType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"otp_type\"},{\"name\":\"tempId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"temp_id\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"OtpToWieUser\"}],\"dbName\":\"otps\"},\"UserMute\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"muterId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"muter_id\"},{\"name\":\"mutedId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"muted_id\"},{\"name\":\"mutePosts\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"mute_posts\"},{\"name\":\"muteStories\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"mute_stories\"},{\"name\":\"muteReels\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"mute_reels\"},{\"name\":\"muteNotes\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"mute_notes\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"muted\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"MutedRelation\"},{\"name\":\"muter\",\"kind\":\"object\",\"type\":\"WieUser\",\"relationName\":\"MuterRelation\"}],\"dbName\":\"user_mutes\"}},\"enums\":{},\"types\":{}}")
 defineDmmfProperty(exports.Prisma, config.runtimeDataModel)
 config.engineWasm = {
   getRuntime: async () => require('./query_engine_bg.js'),

@@ -1,5 +1,5 @@
 # WIE Face Verification Service — Complete Python Dependencies
-# File: D:\DEVELOP\wie\server\services\wie-face-service\requirements.txt
+# File: D:\projectnew\server\services\wie-face-service\requirements.txt
 #
 # Python version: 3.11 ONLY
 # Install: pip install -r requirements.txt
@@ -24,10 +24,6 @@ aiofiles==23.2.1
 # dlib must be installed separately before this (see setup order above)
 face-recognition==1.3.0
 face-recognition-models==0.3.0
-
-
-# ── Head pose / liveness detection 
-mediapipe==0.10.14
 
 
 # ── Image processing 

@@ -52,13 +52,16 @@ foreach ($file in $filesToUpdate) {
 
 # 3.1 Ensure all services listen on 0.0.0.0
 Write-Host "`nEnsuring all services listen on 0.0.0.0..." -ForegroundColor Cyan
-# Target specific service directories and avoid node_modules
 $services = Get-ChildItem -Path "server/services" -Directory
-$entryPoints = foreach ($service in $services) {
-    # Check root of service and src folder only, avoiding node_modules
-    Get-ChildItem -Path $service.FullName -Include "index.ts", "server.ts", "index.js", "server.js" -File -ErrorAction SilentlyContinue
-    if (Test-Path "$($service.FullName)/src") {
-        Get-ChildItem -Path "$($service.FullName)/src" -Include "index.ts", "server.ts", "index.js", "server.js" -File -ErrorAction SilentlyContinue
+$entryPoints = New-Object System.Collections.Generic.List[PSObject]
+
+foreach ($service in $services) {
+    $searchPaths = @($service.FullName, "$($service.FullName)\src")
+    foreach ($path in $searchPaths) {
+        if (Test-Path $path) {
+            $files = Get-ChildItem -Path $path -File | Where-Object { $_.Name -match '^(index|server)\.(js|ts)$' }
+            foreach ($f in $files) { $entryPoints.Add($f) }
+        }
     }
 }
 
@@ -71,9 +74,52 @@ foreach ($ep in $entryPoints) {
     }
 }
 
-# 4. Clean old processes
-Write-Host "`nStopping any old processes..."
-Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue
+# 3.2 Add DNS fix for MongoDB
+Write-Host "`nAdding DNS fix for MongoDB to Node.js services..." -ForegroundColor Cyan
+foreach ($ep in $entryPoints) {
+    $content = Get-Content $ep.FullName -Raw
+    if ($content -notmatch "import dns from 'node:dns'") {
+        $dnsFix = "import dns from 'node:dns';`ndns.setServers(['8.8.8.8', '8.8.4.4']);`n"
+        $newContent = $dnsFix + $content
+        $newContent | Set-Content $ep.FullName -NoNewline
+        Write-Host "✅ Added DNS fix to $($ep.FullName)" -ForegroundColor Green
+    }
+}
+
+# 3.3 Fix invalid dev scripts in package.json files
+Write-Host "`nEnsuring all package.json 'dev' scripts are valid..." -ForegroundColor Cyan
+$packageFiles = Get-ChildItem -Path "server/services" -Filter "package.json" -Recurse -ErrorAction SilentlyContinue
+foreach ($pkg in $packageFiles) {
+    $content = Get-Content $pkg.FullName -Raw
+    if ($content -match 'node --import tsx --exec tsx') {
+        $newContent = $content -replace 'node --import tsx --exec tsx', 'tsx watch'
+        $newContent | Set-Content $pkg.FullName -NoNewline
+        Write-Host "✅ Fixed dev script in $($pkg.FullName)" -ForegroundColor Green
+    }
+}
+
+# 3.4 Retrain screenshot-detect-service model
+if (Test-Path "server/services/screenshot-detect-service/train_model.py") {
+    Write-Host "`nRetraining screenshot-detect-service model..." -ForegroundColor Cyan
+    Push-Location "server/services/screenshot-detect-service"; python train_model.py; Pop-Location
+}
+
+# 4. Clean old processes (Selective cleanup to avoid killing Gemini CLI)
+Write-Host "`nStopping old service processes..."
+$currentPid = $PID
+
+# Identify node processes to kill, excluding Gemini CLI and the current script
+$nodeProcesses = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"
+foreach ($p in $nodeProcesses) {
+    $cmdLine = $p.CommandLine
+    # Skip if it's the current script or looks like Gemini CLI
+    if ($p.ProcessId -eq $currentPid -or $cmdLine -like "*gemini-cli*" -or $cmdLine -like "*@google/gemini-cli*") {
+        Write-Host "Skipping protected process: $($p.ProcessId)" -ForegroundColor Yellow
+        continue
+    }
+    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+}
+
 Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue
 
 $nodeServices = @(
@@ -110,7 +156,7 @@ foreach ($s in $nodeServices) {
 Write-Host "`nStarting Python Services..." -ForegroundColor Cyan
 if (Test-Path "server/services/wie-face-service") {
     Write-Host "Starting face-service on port 8002..."
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd server/services/wie-face-service; python main.py"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd server/services/wie-face-service; python -m uvicorn main:app --host 0.0.0.0 --port 8002"
 }
 if (Test-Path "server/services/seat-detector") {
     Write-Host "Starting seat-detector on port 8001..."

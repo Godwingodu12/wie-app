@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import dotenv from "dotenv";
 dotenv.config();
 import express, { Application } from "express";
@@ -145,7 +147,7 @@ async function startServer() {
     startGrpcServer(GRPC_PORT);
     console.log(`✅ gRPC server running on ${GRPC_PORT}`);
 
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ HTTP server running on port ${PORT}`);
     });
 

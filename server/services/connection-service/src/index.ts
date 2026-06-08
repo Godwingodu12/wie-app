@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express, { Express, Request, Response } from "express";
 import "./config/env"; // Load and validate environment variables
 import cors from "cors";
@@ -105,7 +107,7 @@ const startServer = async (): Promise<void> => {
     console.log("⏳ Connecting to MongoDB...");
     await connectDB();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Connection Service HTTP  → http://localhost:${PORT}`);
     });
     console.log(`🔗 Face detector URL: ${process.env.FACE_DETECTOR_URL}`);

@@ -82,6 +82,9 @@ const formatUser = (user: any) => {
     created_at: createdAt,
     updated_at: updatedAt,
     last_seen_at: lastSeenAt,
+    followers_count: user.followersCount ?? user.followers_count ?? 0,
+    following_count: user.followingCount ?? user.following_count ?? 0,
+    posts_count: user.postsCount ?? user.posts_count ?? 0,
   };
 };
 

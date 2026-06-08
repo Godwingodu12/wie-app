@@ -1,40 +1,42 @@
 {
-  "name": "auth-service",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@grpc/grpc-js": "^1.14.3",
-    "amqplib": "^0.10.8",
-    "bcryptjs": "^3.0.2",
-    "cloudinary": "^2.8.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.0.0",
-    "express": "^5.1.0",
-    "express-session": "^1.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.16.1",
-    "multer": "^2.0.1",
-    "nodemailer": "^7.0.4",
-    "passport": "^0.7.0",
-    "passport-facebook": "^3.0.0",
-    "passport-google-oauth20": "^2.0.0",
-    "passport-instagram": "^1.0.0",
-    "passport-linkedin-oauth2": "^2.0.0",
-    "passport-twitter": "^1.0.4",
-    "streamifier": "^0.1.1",
-    "twilio": "^5.7.2",
-    "uuid": "^13.0.0",
-    "winston": "^3.19.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
-  }
+    "name": "auth-service",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "node src/index.js",
+        "start": "node src/index.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "@grpc/grpc-js": "^1.14.3",
+        "@grpc/proto-loader": "^0.8.1",
+        "amqplib": "^0.10.8",
+        "bcryptjs": "^3.0.2",
+        "cloudinary": "^2.8.0",
+        "cors": "^2.8.5",
+        "dotenv": "^17.0.0",
+        "express": "^5.1.0",
+        "express-session": "^1.18.2",
+        "jsonwebtoken": "^9.0.2",
+        "mongoose": "^8.16.1",
+        "multer": "^2.0.1",
+        "nodemailer": "^7.0.4",
+        "passport": "^0.7.0",
+        "passport-facebook": "^3.0.0",
+        "passport-google-oauth20": "^2.0.0",
+        "passport-instagram": "^1.0.0",
+        "passport-linkedin-oauth2": "^2.0.0",
+        "passport-twitter": "^1.0.4",
+        "streamifier": "^0.1.1",
+        "tsx": "^4.22.4",
+        "twilio": "^5.7.2",
+        "uuid": "^14.0.0",
+        "winston": "^3.19.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.10"
+    }
 }

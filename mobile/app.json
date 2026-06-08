@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "figma-native-js",
+    "slug": "figma-native-js",
+    "scheme": "figma-native-js",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/images/icon.png",
+    "userInterfaceStyle": "dark",
+    "updates": {
+      "enabled": false
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.figmanativejs",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to help you select travel destinations.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to help you select travel destinations."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/images/icon.png",
+        "backgroundColor": "#000000"
+      },
+      "userInterfaceStyle": "dark",
+      "edgeToEdgeEnabled": true,
+      "backgroundColor": "#000000",
+      "package": "com.anonymous.figmanativejs",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "splash": {
+      "image": "./src/assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "web": {
+      "favicon": "./src/assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Show current location on map."
+        }
+      ],
+      "expo-video",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

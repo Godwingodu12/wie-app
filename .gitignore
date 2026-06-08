@@ -1,5 +1,8 @@
 node_modules/
-mobile/
 .expo/
 dist/
 *.log
+.next/
+.git_backup/
+.env.bak
+*.bak

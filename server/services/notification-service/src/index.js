@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -187,7 +189,7 @@ const startServer = async () => {
     initializeSocket(server, JWT_SECRET);
     
     // Start Express server
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Notification Service running on port ${PORT}`);
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
     });

@@ -1,0 +1,4 @@
+Starting project at D:\new 3\figma-native-js
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)

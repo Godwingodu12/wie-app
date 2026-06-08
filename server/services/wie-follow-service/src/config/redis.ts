@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE 1: D:\DEVELOP\wie\server\services\wie-follow-service\src\config\redis.ts
+// FILE 1: D:\projectnew\server\services\wie-follow-service\src\config\redis.ts
 // ============================================================================
 import Redis from 'ioredis';
 import dotenv from 'dotenv';

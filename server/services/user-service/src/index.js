@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -25,7 +27,7 @@ const startServer = async () => {
   try {
     // await connectDB();
     await connectRabbitMQ();
-    app.listen(PORT, () => console.log(`User service running on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => console.log(`User service running on port ${PORT}`));
   } catch (err) {
     console.error('Failed to start user service:', err);
     process.exit(1);

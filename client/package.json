@@ -17,6 +17,7 @@
     "axios": "^1.10.0",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
+    "jsqr": "^1.4.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.553.0",
     "ogl": "^1.0.11",
@@ -31,9 +32,11 @@
     "react-select": "^5.10.2",
     "react-slick": "^0.31.0",
     "react-toastify": "^11.0.5",
+    "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "slick-carousel": "^1.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

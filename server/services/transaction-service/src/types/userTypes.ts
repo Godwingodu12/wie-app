@@ -1,4 +1,4 @@
-// D:\DEVELOP\wie\server\services\transaction-service\src\types\userTypes.ts
+// D:\projectnew\server\services\transaction-service\src\types\userTypes.ts
 /**
  * User interface matching the WieUser proto definition
  * This is shared across the transaction service

@@ -2,3 +2,5 @@ packages:
   - 'mobile'
   - 'server/services/*'
   - 'server/protos'
+  - 'client'
+  - 'client-user'

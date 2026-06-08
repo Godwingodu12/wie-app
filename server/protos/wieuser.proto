@@ -97,4 +97,7 @@ message WieUser {
   string account_privacy = 22;
   string allow_messages_from = 23;
   bool allow_message_requests = 24;
+  int32 followers_count = 25;
+  int32 following_count = 26;
+  int32 posts_count = 27;
 }

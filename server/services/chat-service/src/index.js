@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
@@ -82,7 +84,7 @@ const startServer = async () => {
     initializeSocket(server);
     initializeWieSocket(server);
 
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Chat Service running on port ${PORT}`);
       console.log(`📍 HTTP:         http://localhost:${PORT}`);
       console.log(`📍 Admin Socket: /socket.io`);

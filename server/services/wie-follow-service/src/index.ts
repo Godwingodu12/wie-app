@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express, { Application } from "express";
 import dotenv from "dotenv";
 dotenv.config();
@@ -79,7 +81,7 @@ async function startServer() {
     }
 
     // Start HTTP server
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`📍 HTTP: http://localhost:${PORT}`);
       console.log(`📍 gRPC: localhost:${GRPC_PORT}`);
     });

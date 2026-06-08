@@ -1316,6 +1316,9 @@ export const getProfile = async (
         auth_provider: user.auth_provider,
         showBadge: user.showBadge,
         showSuggestion: user.showSuggestion,
+        followers_count: user.followers_count ?? 0,
+        following_count: user.following_count ?? 0,
+        posts_count: user.posts_count ?? 0,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -1367,6 +1370,9 @@ export const getUserProfile = async (userId: string) => {
       status: user.status,
       is_blocked: user.is_blocked,
       is_verified: user.is_verified,
+      followers_count: user.followers_count ?? 0,
+      following_count: user.following_count ?? 0,
+      posts_count: user.posts_count ?? 0,
       created_at: user.created_at,
       updated_at: user.updated_at,
     };
@@ -1898,6 +1904,7 @@ export const getSuggestedUsers = async (
         bio: u.bio,
         is_verified: u.is_verified,
         followers_count: u.followers_count,
+        following_count: u.following_count,
       })),
     });
   } catch (error: any) {

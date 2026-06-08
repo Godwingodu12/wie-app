@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -56,7 +58,7 @@ const bootstrap = async () => {
     await connectDB();
     await redisClient.connect();
     await initRabbit();
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ wie-media-service running on port ${PORT}`);
     });
 
