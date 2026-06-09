@@ -230,6 +230,41 @@ export const mediaService = {
       throw error.response?.data || error.message;
     }
   },
+
+  // Music APIs (Flux Media)
+  async getMusic(params: { page?: number; limit?: number; search?: string; type?: 'for-you' | 'trending' | 'liked' } = {}) {
+    try {
+      const response = await mediaApi.get('flux/music', { params });
+      return response.data;
+    } catch (error: any) {
+      console.error('getMusic error:', error.message);
+      return { data: [], pagination: { total: 0 } };
+    }
+  },
+
+  async getLikedMusic(page: number = 1, limit: number = 20) {
+    try {
+      const response = await mediaApi.get('flux/music/liked', { params: { page, limit } });
+      return response.data;
+    } catch (error: any) {
+      console.error('getLikedMusic error:', error.message);
+      return { data: [], pagination: { total: 0 } };
+    }
+  },
+
+  async toggleMusicLike(track: any) {
+    try {
+      const response = await mediaApi.post(`flux/music/${track.id}/like`, {
+        title: track.title || track.trackName,
+        artist: track.artist || track.artistName,
+        previewUrl: track.audioUrl || track.previewUrl,
+        albumArt: track.coverUrl || track.artworkUrl100 || track.albumArt
+      });
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
 };
 
 export const getPostFeed = mediaService.getPostFeed;
@@ -250,4 +285,7 @@ export const getReelsFeed = mediaService.getReelsFeed;
 export const getFluxFeed = mediaService.getFluxFeed;
 export const toggleFluxLike = mediaService.toggleFluxLike;
 export const togglePostComments = mediaService.togglePostComments;
+export const getMusic = mediaService.getMusic;
+export const getLikedMusic = mediaService.getLikedMusic;
+export const toggleMusicLike = mediaService.toggleMusicLike;
 

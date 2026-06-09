@@ -21,6 +21,14 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// Add extraNodeModules for monorepo consistency
+config.resolver.extraNodeModules = {
+  'expo-media-library': path.resolve(projectRoot, 'node_modules/expo-media-library'),
+  'expo-image': path.resolve(projectRoot, 'node_modules/expo-image'),
+  'expo-blur': path.resolve(projectRoot, 'node_modules/expo-blur'),
+  'expo-linear-gradient': path.resolve(projectRoot, 'node_modules/expo-linear-gradient'),
+};
+
 // 3. Enable Symlinks and Package Exports
 config.resolver.unstable_enableSymlinks = true;
 config.resolver.unstable_enablePackageExports = true;
@@ -52,6 +60,26 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
 
+  // Explicit resolution for expo packages that often fail in pnpm monorepos
+  const expoPackages = ['expo-media-library', 'expo-image', 'expo-blur', 'expo-linear-gradient'];
+  if (expoPackages.includes(moduleName)) {
+    try {
+      const packageJsonPath = path.resolve(projectRoot, 'node_modules', moduleName, 'package.json');
+      const pkg = require(packageJsonPath);
+      const main = pkg.main || 'index.js';
+      const targetPath = path.resolve(projectRoot, 'node_modules', moduleName, main);
+      
+      console.log(`[Metro Resolver] Manually resolving ${moduleName} to ${targetPath}`);
+      
+      return {
+        filePath: targetPath,
+        type: 'sourceFile',
+      };
+    } catch (e) {
+      console.log(`[Metro Resolver] Failed to manually resolve ${moduleName}: ${e.message}`);
+    }
+  }
+
   return context.resolveRequest(context, moduleName, platform);
 };
 
@@ -64,10 +92,15 @@ config.resolver.blockList = [
   /[\\/]android[\\/].*/,
   /[\\/]ios[\\/].*/,
   /[\\/]web-build[\\/].*/,
+  /.*_tmp_.*/, // Block temporary folders that pnpm creates
+  
   // Use more specific patterns for project-level folders to avoid blocking node_modules
   new RegExp(path.resolve(projectRoot, 'dist').replace(/\\/g, '\\\\')),
   new RegExp(path.resolve(projectRoot, 'glassProfile').replace(/\\/g, '\\\\')),
   new RegExp(path.resolve(workspaceRoot, 'server').replace(/\\/g, '\\\\')),
+  new RegExp(path.resolve(workspaceRoot, 'client').replace(/\\/g, '\\\\')),
+  new RegExp(path.resolve(workspaceRoot, 'client-user').replace(/\\/g, '\\\\')),
+  new RegExp(path.resolve(workspaceRoot, 'nginx').replace(/\\/g, '\\\\')),
 ];
 
 module.exports = withNativeWind(config, { 

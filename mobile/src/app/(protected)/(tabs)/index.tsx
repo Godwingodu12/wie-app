@@ -289,7 +289,7 @@ export default function Home() {
         return (
           <View className="mb-6">
             <View className="flex-row justify-between items-center px-4 mb-3">
-              <Text className="text-white font-rubik-bold text-lg">Suggested profiles</Text>
+              <Text className="text-white font-semibold text-[14px]">Suggested profiles</Text>
               <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/explore')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
             <HorizontalUserList users={item.data} />
@@ -305,7 +305,7 @@ export default function Home() {
         return (
           <View className="mb-6">
             <View className="flex-row justify-between items-center px-4 mb-3">
-              <Text className="text-white font-rubik-bold text-lg">Nearby events</Text>
+              <Text className="text-white font-semibold text-[14px]">Nearby events</Text>
               <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/events')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
             <HorizontalEventList events={item.data} />
@@ -315,7 +315,7 @@ export default function Home() {
         return (
           <View className="mb-6">
             <View className="flex-row justify-between items-center px-4 mb-3">
-              <Text className="text-white font-rubik-bold text-lg">Suggested reels</Text>
+              <Text className="text-white font-semibold text-[14px]">Suggested reels</Text>
               <TouchableOpacity><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
             <ReelsList reels={item.data} />
@@ -369,8 +369,8 @@ export default function Home() {
           <View className="pt-2">
             <View className="pl-4"><StoryList stories={stories} /></View>
             <View className="px-4 mt-6">
-              <View className="flex-row justify-between items-center">
-                <Text className="text-white font-rubik-bold text-xl">Event categories</Text>
+              <View className="flex-row justify-between items-center mb-3">
+                <Text className="text-white font-semibold text-[14px]">Event categories</Text>
                 <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/events')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
               </View>
             </View>

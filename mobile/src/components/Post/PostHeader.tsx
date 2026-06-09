@@ -78,20 +78,20 @@ const PostHeader: React.FC<Props> = ({ userId, isFollowing: initialIsFollowing =
           </View>
         </TouchableOpacity>
         <View className='flex-row items-center'>
-          {!isSelf && userId && (
+          {!isSelf && userId && !isFollowing && (
             <TouchableOpacity 
               activeOpacity={0.8}
               onPress={toggleFollow}
               disabled={isLoading}
               className={`px-4 py-1.5 rounded-full mr-3 min-w-[70px] items-center justify-center ${
-                isFollowing || isRequested ? 'bg-[#1C2024] border border-zinc-800' : 'bg-[#3b82f6]'
+                isRequested ? 'bg-[#1C2024] border border-zinc-800' : 'bg-[#3b82f6]'
               }`}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <Text className="text-white text-xs font-bold">
-                  {isRequested ? 'Requested' : (isFollowing ? 'Following' : 'Follow')}
+                <Text className="text-white text-[12px] font-normal">
+                  {isRequested ? 'Requested' : 'Follow'}
                 </Text>
               )}
             </TouchableOpacity>
@@ -102,7 +102,7 @@ const PostHeader: React.FC<Props> = ({ userId, isFollowing: initialIsFollowing =
         </View>
       </View>
 
-      <Text className='text-black_secondary_text text-[12px] font-normal mt-1 ml-[52px]'>
+      <Text className='text-gray-400 text-[12px] font-normal mt-1 ml-[52px]'>
         {timestamp}
       </Text>
     </View>

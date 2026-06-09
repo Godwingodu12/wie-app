@@ -2,6 +2,7 @@ import { Response }                  from 'express';
 import { AuthRequest }               from '../middlewares/auth';
 import { itunesSearch, itunesTrending, formatItunesTrack } from '../config/itunes';
 import redisClient from '../config/redis';
+import MusicLikeModel from '../models/music-like.model';
 
 const buildErrorResponse = (error: any) => ({
   success: false,
@@ -11,7 +12,7 @@ const buildErrorResponse = (error: any) => ({
 // ── Search ────────────────────────────────────────────────────────────────────
 export const searchMusic = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const query = (req.query.q as string)?.trim();
+    const query = ((req.query.q || req.query.search) as string)?.trim();
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
     if (!query) {
@@ -77,6 +78,65 @@ export const getTrack = async (req: AuthRequest, res: Response): Promise<void> =
     res.json({ success: true, data: formatItunesTrack(track) });
   } catch (error: any) {
     console.error('Get track error:', error.message);
+    res.status(500).json(buildErrorResponse(error));
+  }
+};
+
+// ── Generic getMusic (Trending or Search) ─────────────────────────────────────
+export const getMusic = async (req: AuthRequest, res: Response): Promise<void> => {
+  const query = ((req.query.q || req.query.search) as string)?.trim();
+  if (query) {
+    return searchMusic(req, res);
+  }
+  return getTrending(req, res);
+};
+
+// ── Liked Music ───────────────────────────────────────────────────────────────
+export const toggleMusicLike = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { musicId } = req.params;
+    const userId = req.userId!;
+    const { title, artist, previewUrl, albumArt } = req.body;
+
+    const existing = await MusicLikeModel.findOne({ musicId, userId });
+
+    if (existing) {
+      await MusicLikeModel.deleteOne({ _id: existing._id });
+      res.json({ success: true, liked: false, message: 'Removed from liked music' });
+    } else {
+      await MusicLikeModel.create({
+        musicId,
+        userId,
+        title,
+        artist,
+        previewUrl,
+        albumArt
+      });
+      res.json({ success: true, liked: true, message: 'Added to liked music' });
+    }
+  } catch (error: any) {
+    console.error('Toggle music like error:', error.message);
+    res.status(500).json(buildErrorResponse(error));
+  }
+};
+
+export const getLikedMusic = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const likes = await MusicLikeModel.find({ userId }).sort({ createdAt: -1 });
+
+    const formatted = likes.map(l => ({
+      id: l.musicId,
+      title: l.title,
+      artist: l.artist,
+      previewUrl: l.previewUrl,
+      albumArt: l.albumArt,
+      isLiked: true
+    }));
+
+    res.json({ success: true, data: formatted });
+  } catch (error: any) {
+    console.error('Get liked music error:', error.message);
     res.status(500).json(buildErrorResponse(error));
   }
 };

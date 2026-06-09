@@ -25,9 +25,13 @@ interface HorizontalUserListProps {
 const HorizontalUserList = ({ users }: HorizontalUserListProps) => {
   if (!users || users.length === 0) return null;
 
+  const suggestedUsers = users.filter(user => !user.isFollowing);
+
+  if (suggestedUsers.length === 0) return null;
+
   return (
     <FlatList
-      data={users}
+      data={suggestedUsers}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 16 }}

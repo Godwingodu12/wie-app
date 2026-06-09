@@ -180,9 +180,8 @@ const Profile = () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [3, 4],
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: false,
       quality: 1,
     });
 

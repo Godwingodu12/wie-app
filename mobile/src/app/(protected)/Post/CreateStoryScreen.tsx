@@ -7,7 +7,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   StatusBar,
@@ -15,6 +14,8 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -22,22 +23,43 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { mediaService } from '@/services/mediaService';
 import { wieUserService } from '@/services/wieUserService';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS, withRepeat, withTiming, withSequence, interpolate, useAnimatedReaction, cancelAnimation } from 'react-native-reanimated';
 import { useToast } from '@/context/ToastContext';
 
 const { width, height } = Dimensions.get('window');
 const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 // --- ADJUSTABLE BACKGROUND COMPONENT ---
-const AdjustableBackground = ({ children }: { children: React.ReactNode }) => {
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const scale = useSharedValue(1);
-  const rotate = useSharedValue(0);
+const AdjustableBackground = ({ children, transformState, onTransformEnd }: { children: React.ReactNode, transformState: any, onTransformEnd: (state: any) => void }) => {
+  const translateX = useSharedValue(transformState?.translateX || 0);
+  const translateY = useSharedValue(transformState?.translateY || 0);
+  const scale = useSharedValue(transformState?.scale || 1);
+  const rotate = useSharedValue(transformState?.rotate || 0);
+
+  // Sync when prop changes (Undo/Redo)
+  useEffect(() => {
+    if (transformState) {
+      translateX.value = withSpring(transformState.translateX);
+      translateY.value = withSpring(transformState.translateY);
+      scale.value = withSpring(transformState.scale);
+      rotate.value = withSpring(transformState.rotate);
+    }
+  }, [transformState]);
 
   const context = useSharedValue({ x: 0, y: 0 });
   const startScale = useSharedValue(1);
   const startRotate = useSharedValue(0);
+
+  const handleEnd = () => {
+    runOnJS(onTransformEnd)({
+      translateX: translateX.value,
+      translateY: translateY.value,
+      scale: scale.value,
+      rotate: rotate.value,
+    });
+  };
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
@@ -46,7 +68,8 @@ const AdjustableBackground = ({ children }: { children: React.ReactNode }) => {
     .onUpdate((event) => {
       translateX.value = event.translationX + context.value.x;
       translateY.value = event.translationY + context.value.y;
-    });
+    })
+    .onEnd(handleEnd);
 
   const pinchGesture = Gesture.Pinch()
     .onStart(() => {
@@ -54,7 +77,8 @@ const AdjustableBackground = ({ children }: { children: React.ReactNode }) => {
     })
     .onUpdate((event) => {
       scale.value = startScale.value * event.scale;
-    });
+    })
+    .onEnd(handleEnd);
 
   const rotateGesture = Gesture.Rotation()
     .onStart(() => {
@@ -62,7 +86,8 @@ const AdjustableBackground = ({ children }: { children: React.ReactNode }) => {
     })
     .onUpdate((event) => {
       rotate.value = startRotate.value + event.rotation;
-    });
+    })
+    .onEnd(handleEnd);
 
   const composedGesture = Gesture.Simultaneous(panGesture, Gesture.Simultaneous(pinchGesture, rotateGesture));
 
@@ -79,7 +104,7 @@ const AdjustableBackground = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[{ width: width, height: height }, animatedStyle]}>
+      <Animated.View style={[{ width: '100%', height: '100%' }, animatedStyle]}>
         {children}
       </Animated.View>
     </GestureDetector>
@@ -210,18 +235,22 @@ const DeleteZone = ({ isDragging, deleteActive }: any) => {
 
 const CreateStoryScreen = () => {
   const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
+
+  // --- STATE ---
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'none' | 'music' | 'music_trimmer' | 'stickers' | 'text' | 'location' | 'mention' | 'options' | 'ai_label' | 'filters'>('none');
-  const { showToast } = useToast();
-
-  // Shared values for Delete Zone
-  const isDragging = useSharedValue(false);
-  const deleteActive = useSharedValue(false);
-
   const [activeFilterCategory, setActiveFilterCategory] = useState('Patterns');
   const [selectedFilter, setSelectedFilter] = useState(0);
   const [text, setText] = useState('');
   const [textColor, setTextColor] = useState('#ffffff');
+  const [selectedFont, setSelectedFont] = useState('SF Pro');
+  const [textAlign, setTextAlign] = useState<'center' | 'left' | 'right'>('center');
+  const [hasTextBackground, setHasTextBackground] = useState(false);
+  const [selectedEffect, setSelectedEffect] = useState('None');
+  const [selectedAnimation, setSelectedAnimation] = useState('None');
+  const [activeTextTool, setActiveTextTool] = useState<'font' | 'color' | 'effects' | 'animations' | 'none'>('font');
   const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<any[]>([]);
@@ -231,10 +260,93 @@ const CreateStoryScreen = () => {
   const [isAiLabelEnabled, setIsAiLabelEnabled] = useState(false);
   const [isCommentingEnabled, setIsCommentingEnabled] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [songs, setSongs] = useState<any[]>([]);
+  const [isLoadingMusic, setIsLoadingMusic] = useState(false);
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null);
+  const [musicDuration, setMusicDuration] = useState(15);
+  const [musicStartTime, setMusicStartTime] = useState(0);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+  // Undo/Redo State
+  const initialTransform = { translateX: 0, translateY: 0, scale: 1, rotate: 0 };
+  const [history, setHistory] = useState<any[]>([initialTransform]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  // --- SHARED VALUES ---
+  const isDragging = useSharedValue(false);
+  const deleteActive = useSharedValue(false);
+  const textAnimationProgress = useSharedValue(0);
+  const selectedEffectSV = useSharedValue('None');
+  const selectedAnimationSV = useSharedValue('None');
+  const textColorSV = useSharedValue('#ffffff');
+  const durationScale = useSharedValue(1);
+  const bubbleY = useSharedValue(0);
+  const trackPanX = useSharedValue(0);
+  const trackContextX = useSharedValue(0);
+
+  // --- REFS ---
+  const soundRef = React.useRef<Audio.Sound | null>(null);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // --- FUNCTIONS ---
+  const fetchUserProfile = async () => {
+    try {
+      const profile = await wieUserService.getProfile();
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  const fetchMusic = async () => {
+    setIsLoadingMusic(true);
+    try {
+      let response;
+      if (musicTab === 'liked') {
+        response = await mediaService.getLikedMusic();
+      } else {
+        response = await mediaService.getMusic({ type: musicTab, search: musicSearch, limit: 20 });
+      }
+
+      if (response && response.data) {
+        const mappedMusic = response.data.map((item: any) => ({
+          id: item.id || item._id || String(item.trackId),
+          title: item.title || item.trackName || 'Unknown Title',
+          artist: item.artist || item.artistName || 'Unknown Artist',
+          duration: item.duration || '0:00',
+          cover: item.coverUrl || item.albumArt || item.artworkUrl100 || item.thumbnail || 'https://i.pravatar.cc/150?u=music',
+          audioUrl: item.audioUrl || item.previewUrl || item.url,
+          isLiked: item.isLiked || musicTab === 'liked'
+        }));
+        setSongs(mappedMusic);
+      } else {
+        setSongs([]);
+      }
+    } catch (error: any) {
+      console.error("Music fetch error:", error);
+      setSongs([]);
+    } finally {
+      setIsLoadingMusic(false);
+    }
+  };
+
+  const handleTransformEnd = (newState: any) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newState);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+    }
+  };
 
   const handleDraw = () => {
     showToast({ message: 'Drawing tool activated.', type: 'info' });
@@ -258,25 +370,37 @@ const CreateStoryScreen = () => {
     }
   };
 
-  const fetchUserProfile = async () => {
+  const handlePlayPause = async (track: any) => {
     try {
-      const profile = await wieUserService.getProfile();
-      setUserProfile(profile);
+      if (playingSongId === track.id) {
+        if (soundRef.current) {
+          const status = await soundRef.current.getStatusAsync();
+          if (status.isLoaded) await soundRef.current.pauseAsync();
+        }
+        setPlayingSongId(null);
+      } else {
+        if (soundRef.current) {
+          try {
+            const status = await soundRef.current.getStatusAsync();
+            if (status.isLoaded) await soundRef.current.unloadAsync();
+          } catch (e) {}
+          soundRef.current = null;
+        }
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: track.audioUrl },
+          { shouldPlay: true, isLooping: true }
+        );
+        soundRef.current = sound;
+        setPlayingSongId(track.id);
+        
+        sound.setOnPlaybackStatusUpdate((status) => {
+           if (status.isLoaded && status.didJustFinish) sound.replayAsync();
+        });
+      }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.log("Audio playback note:", error);
     }
   };
-
-  const FILTER_CATEGORIES = ['Patterns', 'Colours', 'Gradient', 'Gradient', 'Gradient'];
-  const MOCK_FILTERS = [
-    { id: 0, type: 'none' },
-    { id: 1, type: 'gradient', colors: ['#8B5CF6', '#D946EF'] },
-    { id: 2, type: 'gradient', colors: ['#3B82F6', '#2DD4BF'] },
-    { id: 3, type: 'gradient', colors: ['#F59E0B', '#EF4444'] },
-    { id: 4, type: 'gradient', colors: ['#10B981', '#3B82F6'] },
-  ];
-
-  const [songs, setSongs] = useState<any[]>([]); // Future API integration
 
   const handleShare = async () => {
     if (!imageUri) {
@@ -311,6 +435,155 @@ const CreateStoryScreen = () => {
       setIsUploading(false);
     }
   };
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  useEffect(() => {
+    selectedEffectSV.value = selectedEffect;
+    selectedAnimationSV.value = selectedAnimation;
+    textColorSV.value = textColor;
+  }, [selectedEffect, selectedAnimation, textColor]);
+
+  useEffect(() => {
+    if (selectedEffect !== 'None' || selectedAnimation !== 'None') {
+      cancelAnimation(textAnimationProgress);
+      textAnimationProgress.value = 0;
+      textAnimationProgress.value = withRepeat(
+        withTiming(1, { duration: 1500 }),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(textAnimationProgress);
+      textAnimationProgress.value = 0;
+    }
+  }, [selectedEffect, selectedAnimation]);
+
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) soundRef.current.unloadAsync();
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'music') {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchMusic();
+      }, 500);
+    }
+  }, [activeTab, musicTab, musicSearch]);
+
+  // --- ANIMATED STYLES ---
+  const animatedTextStyle = useAnimatedStyle(() => {
+    let transform: any[] = [];
+    let opacity = 1;
+    let textShadowRadius = 0;
+    let textShadowOffset = { width: 0, height: 0 };
+    let textShadowColor = 'transparent';
+
+    const effect = selectedEffectSV.value;
+    const anim = selectedAnimationSV.value;
+    const progress = textAnimationProgress.value;
+
+    // Effects logic (using directions from icons)
+    if (effect === 'Left') {
+      transform.push({ translateX: interpolate(progress, [0, 1], [-15, 15]) });
+      textShadowColor = 'rgba(0, 0, 0, 0.5)';
+      textShadowOffset = { width: -3, height: 0 };
+      textShadowRadius = 10;
+    } else if (effect === 'Right') {
+      transform.push({ translateX: interpolate(progress, [0, 1], [15, -15]) });
+      textShadowColor = 'rgba(0, 0, 0, 0.5)';
+      textShadowOffset = { width: 3, height: 0 };
+      textShadowRadius = 10;
+    } else if (effect === 'Top') {
+      transform.push({ translateY: interpolate(progress, [0, 1], [-15, 15]) });
+      textShadowColor = 'rgba(0, 0, 0, 0.5)';
+      textShadowOffset = { width: 0, height: -3 };
+      textShadowRadius = 10;
+    } else if (effect === 'Bottom') {
+      transform.push({ translateY: interpolate(progress, [0, 1], [15, -15]) });
+      textShadowColor = 'rgba(0, 0, 0, 0.5)';
+      textShadowOffset = { width: 0, height: 3 };
+      textShadowRadius = 10;
+    }
+
+    // Animations logic
+    if (anim === 'Faded') {
+      opacity = interpolate(progress, [0, 1], [0.3, 1]);
+    } else if (anim === 'Shine') {
+      textShadowColor = textColorSV.value;
+      textShadowRadius = interpolate(progress, [0, 1], [2, 30]);
+    } else if (anim === 'Multiple') {
+      transform.push({ scale: interpolate(progress, [0, 1], [1, 1.15]) });
+      transform.push({ rotate: `${interpolate(progress, [0, 1], [-0.08, 0.08])}rad` });
+      textShadowColor = 'rgba(255,255,255,0.4)';
+      textShadowRadius = 15;
+    }
+
+    return {
+      transform: transform.length > 0 ? transform : undefined,
+      opacity,
+      textShadowRadius,
+      textShadowOffset,
+      textShadowColor,
+    };
+  });
+
+  const animatedBubbleStyle = useAnimatedStyle(() => {
+     return {
+       transform: [
+         { scale: durationScale.value },
+         { translateY: bubbleY.value }
+       ]
+     };
+  });
+
+  const animatedTrackStyle = useAnimatedStyle(() => {
+     return { transform: [{ translateX: trackPanX.value }] };
+  });
+
+  // --- GESTURES ---
+  const durationGesture = Gesture.Pan()
+    .onStart(() => {
+       durationScale.value = withSpring(1.2);
+    })
+    .onUpdate((event) => {
+       bubbleY.value = event.translationY;
+    })
+    .onEnd((event) => {
+       durationScale.value = withSpring(1);
+       bubbleY.value = withSpring(0);
+       
+       const change = Math.round(event.translationY / -10);
+       runOnJS(setMusicDuration)(Math.min(60, Math.max(5, musicDuration + change)));
+    });
+
+  const trackGesture = Gesture.Pan()
+    .onStart(() => {
+       trackContextX.value = trackPanX.value;
+    })
+    .onUpdate((event) => {
+       trackPanX.value = Math.max(-200, Math.min(200, trackContextX.value + event.translationX));
+    })
+    .onEnd(() => {
+       runOnJS(setMusicStartTime)(Math.abs(trackPanX.value));
+    });
+
+  // --- CONSTANTS ---
+  const FILTER_CATEGORIES = ['Patterns', 'Colours', 'Gradient', 'Gradient', 'Gradient'];
+  const MOCK_FILTERS = [
+    { id: 0, type: 'none' },
+    { id: 1, type: 'gradient', colors: ['#8B5CF6', '#D946EF'] },
+    { id: 2, type: 'gradient', colors: ['#3B82F6', '#2DD4BF'] },
+    { id: 3, type: 'gradient', colors: ['#F59E0B', '#EF4444'] },
+    { id: 4, type: 'gradient', colors: ['#10B981', '#3B82F6'] },
+  ];
 
   const renderSideButton = (icon: any, tab: any, type: 'ionic' | 'material' | 'community' = 'ionic') => (
     <TouchableOpacity 
@@ -351,20 +624,38 @@ const CreateStoryScreen = () => {
           <ScrollView showsVerticalScrollIndicator={false}>
             {songs.length === 0 ? (
               <View className="items-center justify-center py-10">
-                <Ionicons name="musical-notes-outline" size={48} color="#555" />
-                <Text className="text-gray-500 mt-4 text-center">Music integration coming soon.</Text>
+                {isLoadingMusic ? <ActivityIndicator size="large" color="white" /> : (
+                  <>
+                    <Ionicons name="musical-notes-outline" size={48} color="#555" />
+                    <Text className="text-gray-500 mt-4 text-center">No music found.</Text>
+                  </>
+                )}
               </View>
             ) : (
               songs.map((song) => (
-                <TouchableOpacity key={song.id} onPress={() => { setSelectedSong(song); setActiveTab('music_trimmer'); }} className="flex-row items-center justify-between mb-6">
+                <TouchableOpacity key={song.id} onPress={() => { setSelectedSong(song); setActiveTab('music_trimmer'); }} className="flex-row items-center justify-between mb-6 p-2 rounded-2xl">
                   <View className="flex-row items-center flex-1">
-                    <Image source={{ uri: song.cover }} className="w-16 h-16 rounded-2xl" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover }} className="w-16 h-16 rounded-2xl" />
+                      <TouchableOpacity 
+                        onPress={(e) => { e.stopPropagation(); handlePlayPause(song); }}
+                        className="absolute inset-0 items-center justify-center bg-black/20 rounded-2xl"
+                      >
+                        <Ionicons 
+                          name={playingSongId === song.id ? "pause" : "play"} 
+                          size={24} 
+                          color="white" 
+                        />
+                      </TouchableOpacity>
+                    </View>
                     <View className="ml-4 flex-1">
                       <Text className="text-white font-bold text-lg" numberOfLines={1}>{song.title}</Text>
                       <Text className="text-gray-400 text-sm mt-0.5">{song.artist} • {song.duration}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity className="p-2"><Ionicons name="heart-outline" size={26} color="white" /></TouchableOpacity>
+                  <TouchableOpacity className="p-2">
+                    <Ionicons name={song.isLiked ? "heart" : "heart-outline"} size={26} color={song.isLiked ? "#3b82f6" : "white"} />
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))
             )}
@@ -404,31 +695,196 @@ const CreateStoryScreen = () => {
   );
 
   const renderTextEditor = (onClose: () => void) => (
-    <View style={StyleSheet.absoluteFill} className="z-[70] bg-black/85">
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} 
+      style={[StyleSheet.absoluteFill, { zIndex: 100 }]} 
+      className="bg-black/60"
+      keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0}
+    >
       <SafeAreaView className="flex-1">
-        <View className="flex-row justify-between items-center px-4 py-4">
-           <TouchableOpacity onPress={onClose}><Ionicons name="close" size={32} color="white" /></TouchableOpacity>
-           <TouchableOpacity onPress={onClose} className="bg-white px-8 py-2 rounded-full"><Text className="font-bold text-black text-base">Done</Text></TouchableOpacity>
+        {/* Top Bar */}
+          <View className="flex-row items-center justify-between px-4 py-4">
+            <TouchableOpacity onPress={onClose} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
+              <Ionicons name="close" size={30} color="white" />
+            </TouchableOpacity>
+
+            <View className="flex-row items-center gap-x-2">
+              <TouchableOpacity onPress={() => {}} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
+                <MaterialCommunityIcons name="at" size={20} color="white" />
+                <Text className="text-white font-bold ml-1.5 text-sm">Mention</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => {}} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
+                <Ionicons name="location-outline" size={20} color="white" />
+                <Text className="text-white font-bold ml-1.5 text-sm">Location</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => {}} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
+                <Ionicons name="ellipsis-horizontal" size={26} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Main Content Area (Input + Slider) */}
+          <View className="flex-1 flex-row">
+            {/* Left Vertical Slider Placeholder */}
+            <View className="w-12 items-center justify-center py-10">
+               <View className="w-1 h-64 bg-white/30 rounded-full items-center">
+                  <View className="w-5 h-5 bg-white rounded-full absolute top-[40%] -mt-2.5 shadow-md" />
+               </View>
+            </View>
+
+          {/* Text Input */}
+          <View className="flex-1 justify-center pr-12">
+            <AnimatedTextInput 
+              autoFocus 
+              multiline 
+              value={text} 
+              onChangeText={setText} 
+              placeholder="Type something..." 
+              placeholderTextColor="#ffffff80" 
+              style={[
+                { 
+                  color: textColor, 
+                  textAlign: textAlign, 
+                  backgroundColor: hasTextBackground ? 'rgba(0,0,0,0.6)' : 'transparent',
+                  borderRadius: 15,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  fontFamily: selectedFont === 'SF Pro' ? undefined : selectedFont,
+                },
+                animatedTextStyle
+              ]}
+              className="text-5xl font-bold w-full" 
+            />
+          </View>
         </View>
-        <View className="flex-1 items-center justify-center px-6">
-          <TextInput autoFocus multiline value={text} onChangeText={setText} placeholder="Type something..." placeholderTextColor="#666" className="text-white text-4xl font-bold text-center w-full" />
-        </View>
-        <View className="pb-12 px-4">
-           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-8">
-             {['SF Pro', 'Roboto', 'Arial', 'Courier', 'Inter', 'Serif'].map(f => (
-               <TouchableOpacity key={f} className="bg-zinc-800/90 px-6 py-2.5 rounded-full mr-2.5 border border-white/10">
-                 <Text className="text-white font-bold text-base">{f}</Text>
+
+        {/* Bottom Tools (Keyboard attached) */}
+        <View className="pb-2">
+           {/* Dynamic Tool Rows */}
+           {activeTextTool === 'font' && (
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-4">
+               {[
+                 { label: 'Classic', family: 'SF Pro', icon: 'text' },
+                 { label: 'Modern', family: 'Roboto', icon: 'flash' },
+                 { label: 'Brush', family: 'Road Rage', icon: 'brush' },
+                 { label: 'Strong', family: 'Inter', icon: 'barbell' },
+                 { label: 'Serif', family: 'Serif', icon: 'print' },
+               ].map((f) => (
+                 <TouchableOpacity 
+                   key={f.label} 
+                   onPress={() => setSelectedFont(f.family)}
+                   className={`h-12 flex-row items-center px-6 rounded-full mr-3 border ${selectedFont === f.family ? 'border-white bg-black/60' : 'border-white/20 bg-black/40'}`}
+                 >
+                   <Ionicons name={f.icon as any} size={18} color="white" />
+                   <Text className="text-white font-bold text-sm ml-2">{f.label}</Text>
+                 </TouchableOpacity>
+               ))}<View className="w-4" />
+             </ScrollView>
+           )}
+
+           {activeTextTool === 'color' && (
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-4">
+               <TouchableOpacity className="w-10 h-10 rounded-full bg-white/10 items-center justify-center mr-3 border border-white/20">
+                  <Ionicons name="eyedropper-outline" size={18} color="white" />
                </TouchableOpacity>
-             ))}
-           </ScrollView>
-           <View className="flex-row justify-between px-1">
-             {['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500'].map(c => (
-               <TouchableOpacity key={c} style={{ backgroundColor: c }} className="w-9 h-9 rounded-full border-2 border-white/50 shadow-xl" />
-             ))}
+               {['#FF0000', '#3B82F6', '#10B981', '#FBBF24', '#F472B6', '#8B5CF6', '#ffffff', '#000000'].map((c) => (
+                 <TouchableOpacity 
+                   key={c} 
+                   onPress={() => setTextColor(c)}
+                   style={{ backgroundColor: c }}
+                   className={`w-10 h-10 rounded-full mr-3 border-2 ${textColor === c ? 'border-white' : 'border-transparent'}`}
+                 />
+               ))}<View className="w-4" />
+             </ScrollView>
+           )}
+
+           {activeTextTool === 'effects' && (
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-4">
+               {[
+                 { label: 'None', icon: 'circle-off-outline' },
+                 { label: 'Left', icon: 'format-horizontal-align-left' },
+                 { label: 'Right', icon: 'format-horizontal-align-right' },
+                 { label: 'Top', icon: 'format-vertical-align-top' },
+                 { label: 'Bottom', icon: 'format-vertical-align-bottom' },
+               ].map((e) => (
+                 <TouchableOpacity 
+                   key={e.label} 
+                   onPress={() => setSelectedEffect(e.label)}
+                   className={`h-12 flex-row items-center px-6 rounded-full mr-3 border ${selectedEffect === e.label ? 'border-white bg-black/60' : 'border-white/20 bg-black/40'}`}
+                 >
+                   <MaterialCommunityIcons name={e.icon as any} size={20} color="white" />
+                   <Text className="text-white font-bold text-sm ml-2">{e.label}</Text>
+                 </TouchableOpacity>
+               ))}<View className="w-4" />
+             </ScrollView>
+           )}
+
+           {activeTextTool === 'animations' && (
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-4">
+               {[
+                 { label: 'None', icon: 'circle-off-outline' },
+                 { label: 'Shine', icon: 'auto-fix' },
+                 { label: 'Multiple', icon: 'layers-outline' },
+                 { label: 'Faded', icon: 'contrast-circle' },
+               ].map((a) => (
+                 <TouchableOpacity 
+                   key={a.label} 
+                   onPress={() => setSelectedAnimation(a.label)}
+                   className={`h-12 flex-row items-center px-6 rounded-full mr-3 border ${selectedAnimation === a.label ? 'border-white bg-black/60' : 'border-white/20 bg-black/40'}`}
+                 >
+                   <MaterialCommunityIcons name={a.icon as any} size={20} color="white" />
+                   <Text className="text-white font-bold text-sm ml-2">{a.label}</Text>
+                 </TouchableOpacity>
+               ))}<View className="w-4" />
+             </ScrollView>
+           )}
+           
+           {/* Styling Toolbar */}
+           <View className="bg-[#2A2A2A] mx-4 h-14 rounded-full flex-row items-center justify-between px-2 border border-white/5 mb-2 shadow-xl">
+             <TouchableOpacity 
+               onPress={() => setActiveTextTool(activeTextTool === 'font' ? 'none' : 'font')}
+               className={`w-10 h-10 items-center justify-center rounded-full ${activeTextTool === 'font' ? 'bg-white/20' : 'bg-transparent'}`}
+             >
+                <MaterialCommunityIcons name="format-text" size={20} color="white" />
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTextTool(activeTextTool === 'color' ? 'none' : 'color')}
+               className={`w-8 h-8 rounded-full overflow-hidden border-2 ${activeTextTool === 'color' ? 'border-white' : 'border-transparent'}`}
+             >
+                <LinearGradient colors={['#FF0000', '#00FF00', '#0000FF']} start={{x:0, y:0}} end={{x:1, y:1}} className="flex-1" />
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTextTool(activeTextTool === 'effects' ? 'none' : 'effects')}
+               className={`w-10 h-10 items-center justify-center rounded-full ${activeTextTool === 'effects' ? 'bg-white/20' : 'bg-transparent'}`}
+             >
+                <Ionicons name="color-filter-outline" size={22} color="white" />
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTextTool(activeTextTool === 'animations' ? 'none' : 'animations')}
+               className={`w-10 h-10 items-center justify-center rounded-full ${activeTextTool === 'animations' ? 'bg-white/20' : 'bg-transparent'}`}
+             >
+                <Ionicons name="sparkles-outline" size={22} color="white" />
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setTextAlign(textAlign === 'center' ? 'left' : textAlign === 'left' ? 'right' : 'center')}
+               className="w-10 h-10 items-center justify-center"
+             >
+                <MaterialCommunityIcons 
+                  name={textAlign === 'center' ? "format-align-center" : textAlign === 'left' ? "format-align-left" : "format-align-right"} 
+                  size={22} 
+                  color="white" 
+                />
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setHasTextBackground(!hasTextBackground)}
+               className={`w-8 h-8 items-center justify-center rounded-lg mx-1 ${hasTextBackground ? 'bg-white' : 'bg-white/20'}`}
+             >
+                <Text className={`font-bold ${hasTextBackground ? 'text-black' : 'text-white'}`}>T</Text>
+             </TouchableOpacity>
            </View>
         </View>
       </SafeAreaView>
-    </View>
+    </KeyboardAvoidingView>
   );
 
   const renderLocationSheet = (onClose: () => void) => (
@@ -580,18 +1036,46 @@ const CreateStoryScreen = () => {
                   <Ionicons name="trash-outline" size={22} color="white" />
                 </TouchableOpacity>
               </View>
-              <View className="flex-row justify-between mb-6">
-                {['15sec', '30sec', '1min'].map((d) => (
-                  <TouchableOpacity key={d} className="bg-zinc-800/90 px-8 py-2 rounded-2xl border border-white/5">
-                    <Text className="text-white text-sm font-bold">{d}</Text>
-                  </TouchableOpacity>
-                ))}
+
+              {/* Duration Bubble */}
+              <View className="items-center mb-8">
+                <GestureDetector gesture={durationGesture}>
+                   <Animated.View style={animatedBubbleStyle} className="bg-white w-20 h-20 rounded-full items-center justify-center shadow-xl">
+                      <Text className="text-black font-bold text-2xl">{musicDuration}</Text>
+                      <Text className="text-gray-500 font-bold text-xs -mt-1">SEC</Text>
+                      <View className="absolute -top-3"><Ionicons name="chevron-up" size={16} color="white" /></View>
+                      <View className="absolute -bottom-3"><Ionicons name="chevron-down" size={16} color="white" /></View>
+                   </Animated.View>
+                </GestureDetector>
+                <Text className="text-gray-400 text-xs mt-4">Swipe up/down to adjust</Text>
               </View>
-              <View className="h-14 flex-row items-end justify-between px-2 mb-2">
-                {Array.from({ length: 50 }).map((_, i) => (
-                  <View key={i} style={{ height: Math.random() * 45 + 5, width: 3.5, backgroundColor: i > 15 && i < 35 ? '#8B5CF6' : '#555', borderRadius: 2 }} />
-                ))}
-              </View>
+
+              {/* Draggable Waveform Track */}
+              <GestureDetector gesture={trackGesture}>
+                <View className="h-16 overflow-hidden bg-black/20 rounded-2xl relative border border-white/5 justify-center">
+                  <Animated.View style={animatedTrackStyle} className="flex-row items-center px-4 w-[200%]">
+                    {Array.from({ length: 100 }).map((_, i) => {
+                       const isPopular = i > 40 && i < 60; // Simulate popular section
+                       return (
+                         <View 
+                           key={i} 
+                           style={{ 
+                             height: Math.random() * 40 + 10, 
+                             width: 4, 
+                             backgroundColor: isPopular ? '#D946EF' : '#555', 
+                             borderRadius: 2,
+                             marginHorizontal: 2
+                           }} 
+                         />
+                       );
+                    })}
+                  </Animated.View>
+                  
+                  {/* Selection Highlight Window */}
+                  <View pointerEvents="none" className="absolute top-0 bottom-0 self-center border-2 border-white bg-white/10 rounded-xl" style={{ width: (musicDuration / 60) * 100 + '%' }} />
+                </View>
+              </GestureDetector>
+
             </View>
           </View>
         </SafeAreaView>
@@ -601,53 +1085,56 @@ const CreateStoryScreen = () => {
 
   return (
     <View className="flex-1 bg-black overflow-hidden">
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent={false} />
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Adjustable Background */}
-      <View className="absolute inset-0">
-        <AdjustableBackground>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={{ width: width, height: height }} resizeMode="cover" />
-          ) : (
-            <View className="flex-1 bg-zinc-900" />
-          )}
-        </AdjustableBackground>
-        
-        {/* Filter Overlay */}
-        {selectedFilter !== 0 && MOCK_FILTERS[selectedFilter].type === 'gradient' && (
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}>
-            <LinearGradient
-              colors={MOCK_FILTERS[selectedFilter].colors as any}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          </View>
-        )}
-      </View>
+      <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+        {/* Media Card */}
+        <View className="flex-1 mx-2 mb-6 rounded-[40px] overflow-hidden bg-zinc-900 relative border border-white/5 shadow-2xl">
+        {/* Adjustable Background */}
+        <View className="absolute inset-0">
+          <AdjustableBackground 
+            transformState={history[historyIndex]} 
+            onTransformEnd={handleTransformEnd}
+          >
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <View className="flex-1 bg-zinc-900" />
+            )}
+          </AdjustableBackground>
 
-      <SafeAreaView className="flex-1" pointerEvents="box-none">
-        <View className="flex-1 px-4 py-2 justify-between" pointerEvents="box-none">
+          {/* Filter Overlay */}
+          {selectedFilter !== 0 && MOCK_FILTERS[selectedFilter].type === 'gradient' && (
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}>
+              <LinearGradient
+                colors={MOCK_FILTERS[selectedFilter].colors as any}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Top/Bottom Protection Gradients */}
+        <View pointerEvents="none" className="absolute top-0 w-full h-32">
+          <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} className="flex-1" />
+        </View>
+        <View pointerEvents="none" className="absolute bottom-0 w-full h-40">
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} className="flex-1" />
+        </View>
+
+        <View className="flex-1 px-4 py-4 justify-between" pointerEvents="box-none">
           {/* Top Bar */}
-          <View className="flex-row justify-between items-center mt-3">
+          <View className="flex-row items-center justify-between">
             <TouchableOpacity onPress={() => router.back()} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
               <Ionicons name="close" size={30} color="white" />
             </TouchableOpacity>
-            
-            <View className="flex-row items-center">
-              <TouchableOpacity onPress={() => setActiveTab('mention')} className="flex-row items-center bg-black/40 px-5 h-12 rounded-full mr-2.5 border border-white/10">
-                <MaterialCommunityIcons name="at" size={20} color="white" />
-                <Text className="text-white font-bold ml-1.5 text-base">Mention</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setActiveTab('location')} className="flex-row items-center bg-black/40 px-5 h-12 rounded-full mr-2.5 border border-white/10">
-                <Ionicons name="location-outline" size={20} color="white" />
-                <Text className="text-white font-bold ml-1.5 text-base">Location</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setActiveTab('options')} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
-                <Ionicons name="ellipsis-horizontal" size={26} color="white" />
-              </TouchableOpacity>
-            </View>
+
+            <TouchableOpacity onPress={() => setActiveTab('options')} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
+              <Ionicons name="ellipsis-horizontal" size={26} color="white" />
+            </TouchableOpacity>
           </View>
 
           {/* Canvas for Adjustable Stickers */}
@@ -659,9 +1146,31 @@ const CreateStoryScreen = () => {
                  isDragging={isDragging} 
                  deleteActive={deleteActive}
                >
-                 <View className="bg-black/50 px-8 py-4 rounded-3xl border border-white/10 shadow-2xl">
-                   <Text className="text-white text-4xl font-bold text-center">{text}</Text>
-                 </View>
+                 <Animated.View 
+                   style={[
+                     { 
+                       backgroundColor: hasTextBackground ? 'rgba(0,0,0,0.6)' : 'transparent',
+                       borderRadius: 20,
+                       paddingHorizontal: 20,
+                       paddingVertical: 10,
+                       borderWidth: hasTextBackground ? 1 : 0,
+                       borderColor: 'rgba(255,255,255,0.1)'
+                     },
+                     animatedTextStyle
+                   ]}
+                   className="shadow-2xl"
+                 >
+                   <AnimatedText 
+                     style={{ 
+                        color: textColor, 
+                        textAlign: textAlign,
+                        fontFamily: selectedFont === 'SF Pro' ? undefined : selectedFont
+                     }}
+                     className="text-4xl font-bold"
+                   >
+                     {text}
+                   </AnimatedText>
+                 </Animated.View>
                </DraggableSticker>
              )}
 
@@ -700,7 +1209,7 @@ const CreateStoryScreen = () => {
 
           {/* Center Content / Side Bar */}
           <View className="flex-1 flex-row" pointerEvents="box-none">
-            <View className="justify-center mt-10">
+            <View className="justify-center">
               {renderSideButton('sticker-emoji', 'stickers', 'community')}
               {renderSideButton('color-filter-outline', 'filters')}
               {renderSideButton('musical-notes', 'music')}
@@ -709,14 +1218,14 @@ const CreateStoryScreen = () => {
             <View className="flex-1 items-center justify-center" pointerEvents="none">
                {/* This view is now just a placeholder since stickers are absolute positioned above */}
             </View>
-            
-            {/* Right Side Buttons (Flip & Undo) */}
-            <View className="justify-end mb-40">
-               <TouchableOpacity className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10 mb-4">
-                  <MaterialIcons name="flip-camera-android" size={26} color="white" />
+
+            {/* Right Side Buttons (Undo & Redo) */}
+            <View className="justify-end mb-20">
+               <TouchableOpacity onPress={handleUndo} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10 mb-4">
+                  <Ionicons name="arrow-undo-outline" size={26} color={historyIndex > 0 ? "white" : "gray"} />
                </TouchableOpacity>
-               <TouchableOpacity className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
-                  <Ionicons name="arrow-undo-outline" size={26} color="white" />
+               <TouchableOpacity onPress={handleRedo} className="w-12 h-12 items-center justify-center bg-black/40 rounded-full border border-white/10">
+                  <Ionicons name="arrow-redo-outline" size={26} color={historyIndex < history.length - 1 ? "white" : "gray"} />
                </TouchableOpacity>
             </View>
           </View>
@@ -762,40 +1271,38 @@ const CreateStoryScreen = () => {
               </BlurView>
             </View>
           )}
-
-          {/* Bottom Bar */}
-          <View className="flex-row items-center justify-between mb-10 px-4 gap-x-3">
-            <TouchableOpacity className="flex-1 h-12 bg-black/40 flex-row items-center justify-center rounded-full border border-white/10 shadow-lg">
-              <View className="w-8 h-8 rounded-full bg-[#10B981] mr-1.5 items-center justify-center">
-                 <Ionicons name="star" size={16} color="white" />
-              </View>
-              <Text className="text-white font-bold text-sm" numberOfLines={1}>Close groups</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={handleShare} 
-              disabled={isUploading}
-              className="flex-1 h-12 shadow-lg"
-            >
-              <LinearGradient 
-                colors={['#8B5CF6', '#D946EF']} 
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} 
-                className="flex-row items-center justify-center h-full rounded-full"
-              >
-                {isUploading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <>
-                    <Image 
-                      source={{ uri: userProfile?.profile_picture || 'https://i.pravatar.cc/150?u=me' }} 
-                      className="w-8 h-8 rounded-full border border-white/30 mr-1.5" 
-                    />
-                    <Text className="text-white font-bold text-sm" numberOfLines={1}>Your story</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
         </View>
+      </View>
+
+      {/* Bottom Actions Area */}
+      <View className="flex-row items-center justify-between px-4 pb-4 gap-x-4">
+        <TouchableOpacity className="flex-1 h-14 bg-zinc-900/80 flex-row items-center justify-center rounded-full border border-white/10 shadow-lg">
+          <Text className="text-white font-bold text-base" numberOfLines={1}>Close groups</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={handleShare} 
+          disabled={isUploading}
+          className="flex-1 h-14 shadow-xl"
+        >
+          <LinearGradient 
+            colors={['#A78BFA', '#7C3AED']} 
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} 
+            className="flex-row items-center justify-center h-full rounded-full"
+          >
+            {isUploading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <Image 
+                  source={{ uri: userProfile?.profile_picture || 'https://i.pravatar.cc/150?u=me' }} 
+                  className="w-8 h-8 rounded-full border border-white/30 mr-2" 
+                />
+                <Text className="text-white font-bold text-base" numberOfLines={1}>Your story</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
       </SafeAreaView>
 
       {/* Overlays / Bottom Sheets */}

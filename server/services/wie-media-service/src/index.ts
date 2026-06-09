@@ -30,6 +30,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ── Routes
+app.use("/api/flux/music", musicRoutes);
 app.use("/api/flux", fluxRoutes);
 app.use("/api/diary", diaryRoutes);
 app.use("/api/music", musicRoutes);
