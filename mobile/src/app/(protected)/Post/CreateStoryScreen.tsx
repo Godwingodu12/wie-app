@@ -467,6 +467,18 @@ const CreateStoryScreen = () => {
   };
 
   const fetchLocations = async (query: string = '') => {
+    if (!query) {
+      setLocations([
+        { display_name: 'Vismaya Cinemas, Perinthalmanna', place_id: '1' },
+        { display_name: 'Plaza Movies, Perinthalmanna', place_id: '2' },
+        { display_name: 'Parambikkulam Tiger Reserve', place_id: '3' },
+        { display_name: 'Nagarhole Tiger Reserve', place_id: '4' },
+        { display_name: 'Kabani Tiger Reserve', place_id: '5' },
+        { display_name: 'Periyar Tiger Reserve', place_id: '6' },
+      ]);
+      setIsLoadingLocations(false);
+      return;
+    }
     setIsLoadingLocations(true);
     try {
       const response = await mediaService.searchLocations(query);
@@ -990,35 +1002,35 @@ const CreateStoryScreen = () => {
   const renderLocationSheet = (onClose: () => void) => (
     <View style={StyleSheet.absoluteFill} className="z-[110]">
       <TouchableOpacity activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
         <View className="bg-[#1C2024]/98 rounded-t-[40px] min-h-[85%] p-6 border-t border-white/10 shadow-2xl">
           <View className="w-12 h-1 bg-white/20 self-center rounded-full mb-8" />
           <Text className="text-white text-xl font-bold text-center mb-8">Add location</Text>
-          <View className="flex-row items-center bg-zinc-800/60 rounded-2xl px-4 py-4 mb-6">
-            <Ionicons name="search" size={22} color="#888" />
+          <View className="flex-row items-center bg-zinc-800/40 rounded-2xl px-5 py-4 mb-8">
+            <Ionicons name="search" size={22} color="#666" />
             <TextInput 
               placeholder="Search your location" 
-              placeholderTextColor="#888" 
-              className="flex-1 text-white ml-2 text-base" 
+              placeholderTextColor="#666" 
+              className="flex-1 text-white ml-3 text-lg" 
               value={locationSearch}
               onChangeText={setLocationSearch}
             />
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-2">
             {isLoadingLocations ? (
               <ActivityIndicator size="large" color="white" className="mt-10" />
             ) : locations.length === 0 ? (
-              <Text className="text-gray-500 text-center mt-10">No locations found</Text>
+              <Text className="text-gray-500 text-center mt-10 text-lg">No locations found</Text>
             ) : (
               locations.map((loc, i) => (
                 <TouchableOpacity 
                   key={loc.place_id || i} 
                   onPress={() => { setSelectedLocation(loc.display_name); onClose(); }}
-                  className="py-5 border-b border-white/5"
+                  className="py-5"
                 >
-                  <Text className="text-white text-lg font-medium">{loc.display_name}</Text>
+                  <Text className="text-white text-xl font-medium tracking-tight">{loc.display_name}</Text>
                 </TouchableOpacity>
               ))
             )}
