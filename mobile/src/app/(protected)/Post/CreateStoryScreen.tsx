@@ -255,6 +255,12 @@ const CreateStoryScreen = () => {
   const [stickers, setStickers] = useState<any[]>([]);
   const [isLoadingStickers, setIsLoadingStickers] = useState(false);
   const [stickerSearch, setStickerSearch] = useState('');
+  const [locations, setLocations] = useState<any[]>([]);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [userResults, setUserResults] = useState<any[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<any[]>([]);
   const [selectedSong, setSelectedSong] = useState<any>(null);
@@ -460,6 +466,36 @@ const CreateStoryScreen = () => {
     }
   };
 
+  const fetchLocations = async (query: string = '') => {
+    setIsLoadingLocations(true);
+    try {
+      const response = await mediaService.searchLocations(query);
+      if (response && response.success) {
+        setLocations(response.data || []);
+      } else {
+        setLocations([]);
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      setLocations([]);
+    } finally {
+      setIsLoadingLocations(false);
+    }
+  };
+
+  const fetchUsers = async (query: string = '') => {
+    setIsLoadingUsers(true);
+    try {
+      const results = await wieUserService.searchUsers(query);
+      setUserResults(results || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setUserResults([]);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   // --- EFFECTS ---
   useEffect(() => {
     fetchUserProfile();
@@ -470,6 +506,24 @@ const CreateStoryScreen = () => {
       fetchStickers(stickerSearch);
     }
   }, [activeTab, stickerSearch]);
+
+  useEffect(() => {
+    if (activeTab === 'location') {
+      const delayDebounceFn = setTimeout(() => {
+        fetchLocations(locationSearch);
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [activeTab, locationSearch]);
+
+  useEffect(() => {
+    if (activeTab === 'mention') {
+      const delayDebounceFn = setTimeout(() => {
+        fetchUsers(userSearch);
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [activeTab, userSearch]);
 
   useEffect(() => {
     selectedEffectSV.value = selectedEffect;
@@ -755,11 +809,11 @@ const CreateStoryScreen = () => {
             </TouchableOpacity>
 
             <View className="flex-row items-center gap-x-2">
-              <TouchableOpacity onPress={() => {}} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
+              <TouchableOpacity onPress={() => setActiveTab('mention')} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
                 <MaterialCommunityIcons name="at" size={20} color="white" />
                 <Text className="text-white font-bold ml-1.5 text-sm">Mention</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => {}} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
+              <TouchableOpacity onPress={() => setActiveTab('location')} className="flex-row items-center bg-black/40 px-4 h-12 rounded-full border border-white/10">
                 <Ionicons name="location-outline" size={20} color="white" />
                 <Text className="text-white font-bold ml-1.5 text-sm">Location</Text>
               </TouchableOpacity>
@@ -934,25 +988,40 @@ const CreateStoryScreen = () => {
   );
 
   const renderLocationSheet = (onClose: () => void) => (
-    <View style={StyleSheet.absoluteFill} className="z-[70]">
+    <View style={StyleSheet.absoluteFill} className="z-[110]">
       <TouchableOpacity activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill}>
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
-        <View className="bg-[#1C2024]/95 rounded-t-[40px] min-h-[85%] p-6 border-t border-gray-800 shadow-2xl">
-          <View className="w-12 h-1 bg-gray-600 self-center rounded-full mb-8" />
+        <View className="bg-[#1C2024]/98 rounded-t-[40px] min-h-[85%] p-6 border-t border-white/10 shadow-2xl">
+          <View className="w-12 h-1 bg-white/20 self-center rounded-full mb-8" />
           <Text className="text-white text-xl font-bold text-center mb-8">Add location</Text>
-          <View className="flex-row items-center bg-zinc-800/60 rounded-xl px-4 py-4 mb-6">
+          <View className="flex-row items-center bg-zinc-800/60 rounded-2xl px-4 py-4 mb-6">
             <Ionicons name="search" size={22} color="#888" />
-            <TextInput placeholder="Search your location" placeholderTextColor="#888" className="flex-1 text-white ml-2 text-base" />
+            <TextInput 
+              placeholder="Search your location" 
+              placeholderTextColor="#888" 
+              className="flex-1 text-white ml-2 text-base" 
+              value={locationSearch}
+              onChangeText={setLocationSearch}
+            />
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {['Vismaya Cinemas, Perinthalmanna', 'Plaza Movies, Perinthalmanna', 'Parambikkulam Tiger Reserve', 'Nagarhole Tiger Reserve', 'Kabani Tiger Reserve', 'Periyar Tiger Reserve'].map((loc, i) => (
-              <TouchableOpacity key={i} className="py-5 border-b border-white/5 flex-row items-center">
-                <Ionicons name="location-outline" size={22} color="white" className="mr-4" />
-                <Text className="text-white text-lg flex-1 ml-3">{loc}</Text>
-              </TouchableOpacity>
-            ))}
+          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+            {isLoadingLocations ? (
+              <ActivityIndicator size="large" color="white" className="mt-10" />
+            ) : locations.length === 0 ? (
+              <Text className="text-gray-500 text-center mt-10">No locations found</Text>
+            ) : (
+              locations.map((loc, i) => (
+                <TouchableOpacity 
+                  key={loc.place_id || i} 
+                  onPress={() => { setSelectedLocation(loc.display_name); onClose(); }}
+                  className="py-5 border-b border-white/5"
+                >
+                  <Text className="text-white text-lg font-medium">{loc.display_name}</Text>
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
         </View>
       </View>
@@ -960,47 +1029,81 @@ const CreateStoryScreen = () => {
   );
 
   const renderMentionSheet = (onClose: () => void) => (
-    <View style={StyleSheet.absoluteFill} className="z-[70]">
+    <View style={StyleSheet.absoluteFill} className="z-[110]">
       <TouchableOpacity activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill}>
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
-        <View className="bg-[#1C2024]/95 rounded-t-[40px] min-h-[85%] p-6 border-t border-gray-800 shadow-2xl">
-          <View className="w-12 h-1 bg-gray-600 self-center rounded-full mb-8" />
+        <View className="bg-[#1C2024]/98 rounded-t-[40px] min-h-[85%] p-6 border-t border-white/10 shadow-2xl">
+          <View className="w-12 h-1 bg-white/20 self-center rounded-full mb-8" />
           <Text className="text-white text-xl font-bold text-center mb-8">Add mentions</Text>
           
-          <View className="flex-row mb-6">
-            {[1, 2, 3, 4, 5].map((_, i) => (
-               <View key={i} className="mr-4 items-center">
-                  <View className="relative">
-                    <Image source={{ uri: `https://i.pravatar.cc/150?u=${i+10}` }} className="w-16 h-16 rounded-full" />
-                    <TouchableOpacity className="absolute -top-1 -right-1 bg-zinc-800 rounded-full w-5 h-5 items-center justify-center border border-zinc-700">
-                       <Ionicons name="close" size={12} color="white" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text className="text-gray-400 text-xs mt-2">Sangeeth</Text>
-               </View>
-            ))}
+          {selectedMentions.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-grow-0 mb-6">
+              {selectedMentions.map((user) => (
+                <View key={user.id} className="mr-6 items-center">
+                    <View className="relative">
+                      <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-16 h-16 rounded-full border border-white/10" />
+                      <TouchableOpacity 
+                        onPress={() => toggleMention(user)}
+                        className="absolute -top-1 -right-1 bg-white rounded-full w-5 h-5 items-center justify-center"
+                      >
+                         <Ionicons name="close" size={12} color="black" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text className="text-white text-xs mt-2 font-medium" numberOfLines={1}>{user.username}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          <View className="flex-row items-center bg-zinc-800/60 rounded-2xl px-4 py-4 mb-6">
+            <Ionicons name="search" size={22} color="#888" />
+            <TextInput 
+              placeholder="Search here..." 
+              placeholderTextColor="#888" 
+              className="flex-1 text-white ml-2 text-base" 
+              value={userSearch}
+              onChangeText={setUserSearch}
+            />
           </View>
 
-          <View className="flex-row items-center bg-zinc-800/60 rounded-xl px-4 py-4 mb-6">
-            <Ionicons name="search" size={22} color="#888" />
-            <TextInput placeholder="Search here..." placeholderTextColor="#888" className="flex-1 text-white ml-2 text-base" />
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {[1, 2, 3, 4, 5, 6].map((_, i) => (
-              <TouchableOpacity key={i} className="flex-row items-center justify-between py-4">
-                <View className="flex-row items-center">
-                  <Image source={{ uri: `https://i.pravatar.cc/150?u=${i+20}` }} className="w-14 h-14 rounded-full" />
-                  <View className="ml-4">
-                    <Text className="text-white font-bold text-lg">Sangeeth P</Text>
-                    <Text className="text-gray-400 text-sm">sangeeth_palliyal</Text>
-                  </View>
-                </View>
-                <Ionicons name={i === 0 ? "radio-button-on" : "radio-button-off"} size={28} color={i === 0 ? "#8B5CF6" : "#555"} />
-              </TouchableOpacity>
-            ))}
+          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+            {isLoadingUsers ? (
+              <ActivityIndicator size="large" color="white" className="mt-10" />
+            ) : userResults.length === 0 ? (
+              <Text className="text-gray-500 text-center mt-10">No users found</Text>
+            ) : (
+              userResults.map((user) => {
+                const isSelected = selectedMentions.find(m => m.id === user.id);
+                return (
+                  <TouchableOpacity 
+                    key={user.id} 
+                    onPress={() => toggleMention(user)}
+                    className="flex-row items-center justify-between py-4"
+                  >
+                    <View className="flex-row items-center flex-1">
+                      <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-14 h-14 rounded-full border border-white/10" />
+                      <View className="ml-4 flex-1">
+                        <Text className="text-white font-bold text-lg">{user.name || user.username}</Text>
+                        <Text className="text-gray-400 text-sm">{user.username}</Text>
+                      </View>
+                    </View>
+                    <View className={`w-7 h-7 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-purple-500 border-purple-500' : 'border-white/20'}`}>
+                      {isSelected && <Ionicons name="checkmark" size={18} color="white" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
+          
+          <TouchableOpacity 
+            onPress={onClose}
+            className="mt-4 bg-white py-4 rounded-3xl"
+          >
+            <Text className="text-black text-center font-bold text-lg">Done</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -1252,6 +1355,34 @@ const CreateStoryScreen = () => {
                   </View>
                 </DraggableSticker>
              )}
+
+             {/* Location Sticker */}
+             {selectedLocation && (
+               <DraggableSticker 
+                 onDelete={() => setSelectedLocation(null)} 
+                 isDragging={isDragging} 
+                 deleteActive={deleteActive}
+               >
+                 <View className="bg-white px-6 py-3 rounded-full flex-row items-center shadow-2xl">
+                   <Ionicons name="location" size={20} color="#3B82F6" />
+                   <Text className="text-black font-bold ml-2 text-lg">{selectedLocation}</Text>
+                 </View>
+               </DraggableSticker>
+             )}
+
+             {/* Mention Stickers */}
+             {selectedMentions.map((user) => (
+               <DraggableSticker 
+                 key={user.id}
+                 onDelete={() => toggleMention(user)} 
+                 isDragging={isDragging} 
+                 deleteActive={deleteActive}
+               >
+                 <View className="bg-purple-500 px-6 py-3 rounded-xl flex-row items-center shadow-2xl">
+                   <Text className="text-white font-bold text-xl">@{user.username}</Text>
+                 </View>
+               </DraggableSticker>
+             ))}
           </View>
 
           {/* Delete Zone */}

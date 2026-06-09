@@ -286,6 +286,16 @@ export const mediaService = {
       return { success: false, stickers: [] };
     }
   },
+
+  async searchLocations(query: string) {
+    try {
+      const response = await mediaApi.get('location/search', { params: { q: query } });
+      return response.data;
+    } catch (error: any) {
+      console.error('searchLocations error:', error.message);
+      return { success: false, data: [] };
+    }
+  },
 };
 
 export const getPostFeed = mediaService.getPostFeed;
@@ -311,4 +321,5 @@ export const getLikedMusic = mediaService.getLikedMusic;
 export const toggleMusicLike = mediaService.toggleMusicLike;
 export const getTrendingStickers = mediaService.getTrendingStickers;
 export const searchStickers = mediaService.searchStickers;
+export const searchLocations = mediaService.searchLocations;
 
