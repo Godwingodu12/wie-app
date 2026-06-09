@@ -1002,40 +1002,52 @@ const CreateStoryScreen = () => {
   const renderLocationSheet = (onClose: () => void) => (
     <View style={StyleSheet.absoluteFill} className="z-[110]">
       <TouchableOpacity activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill}>
-        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={StyleSheet.absoluteFill} className="bg-black/40" />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
-        <View className="bg-[#1C2024]/98 rounded-t-[40px] min-h-[85%] p-6 border-t border-white/10 shadow-2xl">
-          <View className="w-12 h-1 bg-white/20 self-center rounded-full mb-8" />
-          <Text className="text-white text-xl font-bold text-center mb-8">Add location</Text>
-          <View className="flex-row items-center bg-zinc-800/40 rounded-2xl px-5 py-4 mb-8">
-            <Ionicons name="search" size={22} color="#666" />
-            <TextInput 
-              placeholder="Search your location" 
-              placeholderTextColor="#666" 
-              className="flex-1 text-white ml-3 text-lg" 
-              value={locationSearch}
-              onChangeText={setLocationSearch}
-            />
+        <BlurView intensity={95} tint="dark" className="rounded-t-[40px] min-h-[85%] border-t border-white/10 shadow-2xl overflow-hidden">
+          <View className="p-6 flex-1">
+            <View className="w-14 h-1.5 bg-white/30 self-center rounded-full mb-8" />
+            <Text className="text-white text-2xl font-bold text-center mb-10 tracking-tight">Add location</Text>
+            
+            <View className="flex-row items-center bg-white/10 rounded-[24px] px-6 py-4 mb-10 border border-white/5">
+              <Ionicons name="search" size={24} color="#999" />
+              <TextInput 
+                placeholder="Search your location" 
+                placeholderTextColor="#666" 
+                className="flex-1 text-white ml-4 text-xl font-medium" 
+                value={locationSearch}
+                onChangeText={setLocationSearch}
+                autoFocus={false}
+              />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+              {isLoadingLocations ? (
+                <View className="mt-20">
+                  <ActivityIndicator size="large" color="white" />
+                </View>
+              ) : locations.length === 0 ? (
+                <View className="mt-20">
+                  <Text className="text-gray-500 text-center text-xl font-medium">No locations found</Text>
+                </View>
+              ) : (
+                locations.map((loc, i) => (
+                  <TouchableOpacity 
+                    key={loc.place_id || i} 
+                    onPress={() => { setSelectedLocation(loc.display_name); onClose(); }}
+                    className="py-6 active:opacity-50"
+                  >
+                    <Text className="text-white text-[22px] font-semibold tracking-tight" numberOfLines={2}>
+                      {loc.display_name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+              <View className="h-20" />
+            </ScrollView>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-2">
-            {isLoadingLocations ? (
-              <ActivityIndicator size="large" color="white" className="mt-10" />
-            ) : locations.length === 0 ? (
-              <Text className="text-gray-500 text-center mt-10 text-lg">No locations found</Text>
-            ) : (
-              locations.map((loc, i) => (
-                <TouchableOpacity 
-                  key={loc.place_id || i} 
-                  onPress={() => { setSelectedLocation(loc.display_name); onClose(); }}
-                  className="py-5"
-                >
-                  <Text className="text-white text-xl font-medium tracking-tight">{loc.display_name}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
-        </View>
+        </BlurView>
       </View>
     </View>
   );
