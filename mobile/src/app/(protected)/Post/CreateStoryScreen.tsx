@@ -467,14 +467,14 @@ const CreateStoryScreen = () => {
   };
 
   const fetchLocations = async (query: string = '') => {
-    if (!query) {
+    if (query.length < 2) {
       setLocations([
-        { display_name: 'Vismaya Cinemas, Perinthalmanna', place_id: '1' },
-        { display_name: 'Plaza Movies, Perinthalmanna', place_id: '2' },
-        { display_name: 'Parambikkulam Tiger Reserve', place_id: '3' },
-        { display_name: 'Nagarhole Tiger Reserve', place_id: '4' },
-        { display_name: 'Kabani Tiger Reserve', place_id: '5' },
-        { display_name: 'Periyar Tiger Reserve', place_id: '6' },
+        { name: 'Vismaya Cinemas, Perinthalmanna', placeId: '1' },
+        { name: 'Plaza Movies, Perinthalmanna', placeId: '2' },
+        { name: 'Parambikkulam Tiger Reserve', placeId: '3' },
+        { name: 'Nagarhole Tiger Reserve', placeId: '4' },
+        { name: 'Kabani Tiger Reserve', placeId: '5' },
+        { name: 'Periyar Tiger Reserve', placeId: '6' },
       ]);
       setIsLoadingLocations(false);
       return;
@@ -496,6 +496,11 @@ const CreateStoryScreen = () => {
   };
 
   const fetchUsers = async (query: string = '') => {
+    if (!query) {
+      setUserResults([]);
+      setIsLoadingUsers(false);
+      return;
+    }
     setIsLoadingUsers(true);
     try {
       const results = await wieUserService.searchUsers(query);
@@ -1005,17 +1010,17 @@ const CreateStoryScreen = () => {
         <View style={StyleSheet.absoluteFill} className="bg-black/40" />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
-        <BlurView intensity={95} tint="dark" className="rounded-t-[40px] min-h-[85%] border-t border-white/10 shadow-2xl overflow-hidden">
+        <BlurView intensity={90} tint="dark" className="rounded-t-[40px] min-h-[85%] border-t border-white/5 shadow-2xl overflow-hidden">
           <View className="p-6 flex-1">
-            <View className="w-14 h-1.5 bg-white/30 self-center rounded-full mb-8" />
-            <Text className="text-white text-2xl font-bold text-center mb-10 tracking-tight">Add location</Text>
+            <View className="w-12 h-1.5 bg-white/20 self-center rounded-full mb-8" />
+            <Text className="text-white text-xl font-bold text-center mb-8 tracking-tight">Add location</Text>
             
-            <View className="flex-row items-center bg-white/10 rounded-[24px] px-6 py-4 mb-10 border border-white/5">
-              <Ionicons name="search" size={24} color="#999" />
+            <View className="flex-row items-center bg-white/5 rounded-[18px] px-5 py-4 mb-10">
+              <Ionicons name="search" size={22} color="#666" />
               <TextInput 
                 placeholder="Search your location" 
                 placeholderTextColor="#666" 
-                className="flex-1 text-white ml-4 text-xl font-medium" 
+                className="flex-1 text-white ml-3 text-lg font-medium" 
                 value={locationSearch}
                 onChangeText={setLocationSearch}
                 autoFocus={false}
@@ -1029,16 +1034,16 @@ const CreateStoryScreen = () => {
                 </View>
               ) : locations.length === 0 ? (
                 <View className="mt-20">
-                  <Text className="text-gray-500 text-center text-xl font-medium">No locations found</Text>
+                  <Text className="text-gray-500 text-center text-lg">No locations found</Text>
                 </View>
               ) : (
                 locations.map((loc, i) => (
                   <TouchableOpacity 
                     key={loc.place_id || i} 
                     onPress={() => { setSelectedLocation(loc.display_name); onClose(); }}
-                    className="py-6 active:opacity-50"
+                    className="py-5"
                   >
-                    <Text className="text-white text-[22px] font-semibold tracking-tight" numberOfLines={2}>
+                    <Text className="text-white text-lg font-medium tracking-tight">
                       {loc.display_name}
                     </Text>
                   </TouchableOpacity>
@@ -1055,80 +1060,88 @@ const CreateStoryScreen = () => {
   const renderMentionSheet = (onClose: () => void) => (
     <View style={StyleSheet.absoluteFill} className="z-[110]">
       <TouchableOpacity activeOpacity={1} onPress={onClose} style={StyleSheet.absoluteFill}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={StyleSheet.absoluteFill} className="bg-black/40" />
       </TouchableOpacity>
       <View className="flex-1 justify-end">
-        <View className="bg-[#1C2024]/98 rounded-t-[40px] min-h-[85%] p-6 border-t border-white/10 shadow-2xl">
-          <View className="w-12 h-1 bg-white/20 self-center rounded-full mb-8" />
-          <Text className="text-white text-xl font-bold text-center mb-8">Add mentions</Text>
-          
-          {selectedMentions.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-grow-0 mb-6">
-              {selectedMentions.map((user) => (
-                <View key={user.id} className="mr-6 items-center">
-                    <View className="relative">
-                      <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-16 h-16 rounded-full border border-white/10" />
-                      <TouchableOpacity 
-                        onPress={() => toggleMention(user)}
-                        className="absolute -top-1 -right-1 bg-white rounded-full w-5 h-5 items-center justify-center"
-                      >
-                         <Ionicons name="close" size={12} color="black" />
-                      </TouchableOpacity>
-                    </View>
-                    <Text className="text-white text-xs mt-2 font-medium" numberOfLines={1}>{user.username}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-
-          <View className="flex-row items-center bg-zinc-800/60 rounded-2xl px-4 py-4 mb-6">
-            <Ionicons name="search" size={22} color="#888" />
-            <TextInput 
-              placeholder="Search here..." 
-              placeholderTextColor="#888" 
-              className="flex-1 text-white ml-2 text-base" 
-              value={userSearch}
-              onChangeText={setUserSearch}
-            />
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-            {isLoadingUsers ? (
-              <ActivityIndicator size="large" color="white" className="mt-10" />
-            ) : userResults.length === 0 ? (
-              <Text className="text-gray-500 text-center mt-10">No users found</Text>
-            ) : (
-              userResults.map((user) => {
-                const isSelected = selectedMentions.find(m => m.id === user.id);
-                return (
-                  <TouchableOpacity 
-                    key={user.id} 
-                    onPress={() => toggleMention(user)}
-                    className="flex-row items-center justify-between py-4"
-                  >
-                    <View className="flex-row items-center flex-1">
-                      <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-14 h-14 rounded-full border border-white/10" />
-                      <View className="ml-4 flex-1">
-                        <Text className="text-white font-bold text-lg">{user.name || user.username}</Text>
-                        <Text className="text-gray-400 text-sm">{user.username}</Text>
+        <BlurView intensity={90} tint="dark" className="rounded-t-[40px] min-h-[85%] border-t border-white/5 shadow-2xl overflow-hidden">
+          <View className="p-6 flex-1">
+            <View className="w-12 h-1.5 bg-white/20 self-center rounded-full mb-8" />
+            <Text className="text-white text-xl font-bold text-center mb-8 tracking-tight">Add mentions</Text>
+            
+            {selectedMentions.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-grow-0 mb-8">
+                {selectedMentions.map((user) => (
+                  <View key={user.id} className="mr-5 items-center w-16">
+                      <View className="relative">
+                        <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-16 h-16 rounded-full border border-white/10" />
+                        <TouchableOpacity 
+                          onPress={() => toggleMention(user)}
+                          className="absolute top-0 -right-1 bg-white rounded-full w-6 h-6 items-center justify-center shadow-lg"
+                        >
+                           <Ionicons name="close" size={14} color="black" />
+                        </TouchableOpacity>
                       </View>
-                    </View>
-                    <View className={`w-7 h-7 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-purple-500 border-purple-500' : 'border-white/20'}`}>
-                      {isSelected && <Ionicons name="checkmark" size={18} color="white" />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
+                      <Text className="text-white text-[11px] mt-2 font-medium text-center" numberOfLines={1}>{user.username}</Text>
+                  </View>
+                ))}
+              </ScrollView>
             )}
-          </ScrollView>
-          
-          <TouchableOpacity 
-            onPress={onClose}
-            className="mt-4 bg-white py-4 rounded-3xl"
-          >
-            <Text className="text-black text-center font-bold text-lg">Done</Text>
-          </TouchableOpacity>
-        </View>
+
+            <View className="flex-row items-center bg-white/5 rounded-[18px] px-5 py-4 mb-8">
+              <Ionicons name="search" size={22} color="#666" />
+              <TextInput 
+                placeholder="Search here..." 
+                placeholderTextColor="#666" 
+                className="flex-1 text-white ml-3 text-lg font-medium" 
+                value={userSearch}
+                onChangeText={setUserSearch}
+                autoFocus={false}
+              />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+              {isLoadingUsers ? (
+                <View className="mt-20">
+                  <ActivityIndicator size="large" color="white" />
+                </View>
+              ) : userResults.length === 0 ? (
+                <View className="mt-20">
+                  <Text className="text-gray-500 text-center text-lg">No users found</Text>
+                </View>
+              ) : (
+                userResults.map((user) => {
+                  const isSelected = selectedMentions.find(m => m.id === user.id);
+                  return (
+                    <TouchableOpacity 
+                      key={user.id} 
+                      onPress={() => toggleMention(user)}
+                      className="flex-row items-center justify-between py-4"
+                    >
+                      <View className="flex-row items-center flex-1">
+                        <Image source={{ uri: user.profile_picture || 'https://i.pravatar.cc/150?u=' + user.id }} className="w-14 h-14 rounded-full" />
+                        <View className="ml-4 flex-1">
+                          <Text className="text-white font-bold text-lg">{user.name || user.username}</Text>
+                          <Text className="text-gray-400 text-base">{user.username}</Text>
+                        </View>
+                      </View>
+                      <View className={`w-8 h-8 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-white border-white' : 'border-white/20'}`}>
+                        {isSelected && <Ionicons name="checkmark" size={20} color="black" />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+              <View className="h-20" />
+            </ScrollView>
+            
+            <TouchableOpacity 
+              onPress={onClose}
+              className="mt-4 bg-white py-4 rounded-[28px]"
+            >
+              <Text className="text-black text-center font-bold text-lg">Done</Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
       </View>
     </View>
   );
