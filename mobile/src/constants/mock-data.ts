@@ -4,7 +4,7 @@ export const STORIES = [
     image: {
       uri: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12',
     },
-    username: 'Your story',
+    username: 'Your flux',
     hasStory: false,
     isSeen: true,
   },

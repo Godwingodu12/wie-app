@@ -265,6 +265,27 @@ export const mediaService = {
       throw error.response?.data || error.message;
     }
   },
+
+  // Sticker APIs
+  async getTrendingStickers(limit: number = 20) {
+    try {
+      const response = await mediaApi.get('flux/stickers/trending', { params: { limit } });
+      return response.data;
+    } catch (error: any) {
+      console.error('getTrendingStickers error:', error.message);
+      return { success: false, stickers: [] };
+    }
+  },
+
+  async searchStickers(query: string, limit: number = 20) {
+    try {
+      const response = await mediaApi.get('flux/stickers/search', { params: { q: query, limit } });
+      return response.data;
+    } catch (error: any) {
+      console.error('searchStickers error:', error.message);
+      return { success: false, stickers: [] };
+    }
+  },
 };
 
 export const getPostFeed = mediaService.getPostFeed;
@@ -288,4 +309,6 @@ export const togglePostComments = mediaService.togglePostComments;
 export const getMusic = mediaService.getMusic;
 export const getLikedMusic = mediaService.getLikedMusic;
 export const toggleMusicLike = mediaService.toggleMusicLike;
+export const getTrendingStickers = mediaService.getTrendingStickers;
+export const searchStickers = mediaService.searchStickers;
 

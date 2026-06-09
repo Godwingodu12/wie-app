@@ -98,7 +98,7 @@ const ProfileOptionsSheet: React.FC<ProfileOptionsSheetProps> = ({
               className={optionItemClass}
               onPress={() => handleAction(onHideStory)}
             >
-              <Text className={whiteTextClass}>Hide your story</Text>
+              <Text className={whiteTextClass}>Hide your flux</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

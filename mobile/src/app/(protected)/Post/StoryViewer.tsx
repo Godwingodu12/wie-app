@@ -55,7 +55,7 @@ const StoryViewer = () => {
 
   const totalStories = stories.length || 1;
   const currentStory = stories[currentStoryIndex] || {};
-  const storyDuration = 5000;
+  const fluxDuration = 5000;
 
   useEffect(() => {
     fetchCurrentUserProfile();
@@ -67,15 +67,15 @@ const StoryViewer = () => {
     }
     
     switch (action) {
-      case 'Delete Story':
-        Alert.alert('Delete Story', 'Are you sure you want to delete this story?', [
+      case 'Delete Flux':
+        Alert.alert('Delete Flux', 'Are you sure you want to delete this flux?', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Delete', style: 'destructive', onPress: async () => {
             try {
-              const storyId = currentStory.id;
-              if (storyId) {
-                await mediaService.deletePost(storyId);
-                showToast({ message: 'Story deleted successfully', type: 'success' });
+              const fluxId = currentStory.id;
+              if (fluxId) {
+                await mediaService.deletePost(fluxId);
+                showToast({ message: 'Flux deleted successfully', type: 'success' });
                 
                 // Remove from local state
                 const updated = stories.filter((_, i) => i !== currentStoryIndex);
@@ -89,13 +89,13 @@ const StoryViewer = () => {
                 router.back();
               }
             } catch (error: any) {
-              showToast({ message: error.message || 'Failed to delete story', type: 'error' });
+              showToast({ message: error.message || 'Failed to delete flux', type: 'error' });
             }
           } }
         ]);
         break;
       case 'Archive':
-        showToast({ message: 'Story moved to archive', type: 'info' });
+        showToast({ message: 'Flux moved to archive', type: 'info' });
         // Logic to remove or move
         break;
       case 'Saved Photo':
@@ -105,17 +105,17 @@ const StoryViewer = () => {
         showToast({ message: 'Added to highlights', type: 'success' });
         break;
       case 'Copy link':
-        showToast({ message: 'Story link copied to clipboard', type: 'info' });
+        showToast({ message: 'Flux link copied to clipboard', type: 'info' });
         break;
       case 'Share':
         Share.share({
-          message: `Check out this story from ${username}!`,
+          message: `Check out this flux from ${username}!`,
         });
         break;
       case 'Add Mention':
         setActiveTab('mention');
         break;
-      case 'Go to Story settings':
+      case 'Go to Flux settings':
         router.push('/(protected)/SetOptions/SettingsMain');
         break;
       case 'Turn off Commenting':
@@ -150,7 +150,7 @@ const StoryViewer = () => {
     progress.setValue(0);
     Animated.timing(progress, {
       toValue: 1,
-      duration: storyDuration,
+      duration: fluxDuration,
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
@@ -355,7 +355,7 @@ const StoryViewer = () => {
         <TextInput placeholder="Search" placeholderTextColor="#888" className="flex-1 text-white ml-2 text-base" />
       </View>
       <Text className="text-gray-400 text-center text-xs mb-6 px-10">
-        People added here will be mentioned in your story but their username won't be visible
+        People added here will be mentioned in your flux but their username won't be visible
       </Text>
       <ScrollView showsVerticalScrollIndicator={false}>
         {[1, 2, 3, 4, 5, 6].map((_, i) => (
@@ -380,7 +380,7 @@ const StoryViewer = () => {
       <TouchableOpacity 
         className="bg-[#8B5CF6] py-4 rounded-2xl mt-4 shadow-lg"
         onPress={() => {
-          showToast({ message: `${selectedMentions.length} people mentioned in your story`, type: 'success' });
+          showToast({ message: `${selectedMentions.length} people mentioned in your flux`, type: 'success' });
           setActiveTab('none');
         }}
       >
@@ -393,14 +393,14 @@ const StoryViewer = () => {
     const isOwner = userId === 'me';
     const menuItems = isOwner 
       ? [
-          { label: 'Delete Story', color: '#EF4444' },
+          { label: 'Delete Flux', color: '#EF4444' },
           { label: 'Archive', color: 'white' },
           { label: 'Saved Photo', color: 'white' },
           { label: 'Highlight', color: 'white' },
           { label: 'Copy link', color: 'white' },
           { label: 'Share', color: 'white' },
           { label: 'Add Mention', color: 'white' },
-          { label: 'Go to Story settings', color: 'white' },
+          { label: 'Go to Flux settings', color: 'white' },
           { label: isCommentingEnabled ? 'Turn off Commenting' : 'Turn on Commenting', color: 'white' },
         ]
       : [
@@ -434,10 +434,10 @@ const StoryViewer = () => {
       
       {/* Background Image */}
       <View className="absolute inset-0">
-        {currentStory.image ? (
+        {currentFlux.image ? (
           <Image 
-            key={currentStory.image}
-            source={{ uri: currentStory.image }} 
+            key={currentFlux.image}
+            source={{ uri: currentFlux.image }} 
             className="w-full h-full" 
             resizeMode="cover" 
           />
@@ -463,7 +463,7 @@ const StoryViewer = () => {
                 <View className="flex-row items-center mt-0.5">
                    <Ionicons name="musical-notes" size={12} color="white" />
                    <Text className="text-white text-[10px] ml-1 opacity-80" numberOfLines={1}>
-                     {currentStory.title || 'Story'}
+                     {currentFlux.title || 'Flux'}
                    </Text>
                 </View>
               </View>
@@ -477,19 +477,19 @@ const StoryViewer = () => {
           </View>
         </View>
 
-        {/* Story Navigation & Interactions - Only visible when no sheet is open */}
+        {/* Flux Navigation & Interactions - Only visible when no sheet is open */}
         {activeTab === 'none' && (
           <>
             <View style={styles.navContainer}>
               <TouchableOpacity 
                 className="flex-1" 
-                onPress={prevStory}
+                onPress={prevFlux}
                 onLongPress={() => setIsPaused(true)}
                 onPressOut={() => setIsPaused(false)}
               />
               <TouchableOpacity 
                 className="flex-1" 
-                onPress={nextStory}
+                onPress={nextFlux}
                 onLongPress={() => setIsPaused(true)}
                 onPressOut={() => setIsPaused(false)}
               />

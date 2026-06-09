@@ -251,7 +251,10 @@ const CreateStoryScreen = () => {
   const [selectedEffect, setSelectedEffect] = useState('None');
   const [selectedAnimation, setSelectedAnimation] = useState('None');
   const [activeTextTool, setActiveTextTool] = useState<'font' | 'color' | 'effects' | 'animations' | 'none'>('font');
-  const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
+  const [selectedSticker, setSelectedSticker] = useState<any | null>(null);
+  const [stickers, setStickers] = useState<any[]>([]);
+  const [isLoadingStickers, setIsLoadingStickers] = useState(false);
+  const [stickerSearch, setStickerSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<any[]>([]);
   const [selectedSong, setSelectedSong] = useState<any>(null);
@@ -427,12 +430,33 @@ const CreateStoryScreen = () => {
 
       await mediaService.createFlux(formData);
 
-      showToast({ message: "Story shared successfully!", type: 'success' });
+      showToast({ message: "Flux shared successfully!", type: 'success' });
       router.replace('/(tabs)');
-    } catch (error: any) {
-      showToast({ message: error.message || "Failed to share story", type: 'error' });
-    } finally {
+      } catch (error: any) {
+      showToast({ message: error.message || "Failed to share flux", type: 'error' });
+      }
+ finally {
       setIsUploading(false);
+    }
+  };
+
+  const fetchStickers = async (query: string = '') => {
+    setIsLoadingStickers(true);
+    try {
+      const response = query 
+        ? await mediaService.searchStickers(query) 
+        : await mediaService.getTrendingStickers();
+      
+      if (response && response.stickers) {
+        setStickers(response.stickers);
+      } else {
+        setStickers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching stickers:', error);
+      setStickers([]);
+    } finally {
+      setIsLoadingStickers(false);
     }
   };
 
@@ -440,6 +464,12 @@ const CreateStoryScreen = () => {
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'stickers') {
+      fetchStickers(stickerSearch);
+    }
+  }, [activeTab, stickerSearch]);
 
   useEffect(() => {
     selectedEffectSV.value = selectedEffect;
@@ -676,18 +706,34 @@ const CreateStoryScreen = () => {
           <Text className="text-white text-xl font-bold text-center mb-8">Choose a sticker</Text>
           <View className="flex-row items-center bg-zinc-800/60 rounded-2xl px-4 py-4 mb-6">
             <Ionicons name="search" size={22} color="#888" />
-            <TextInput placeholder="Search your stickers..." placeholderTextColor="#888" className="flex-1 text-white ml-2 text-base" />
+            <TextInput 
+              placeholder="Search your stickers..." 
+              placeholderTextColor="#888" 
+              className="flex-1 text-white ml-2 text-base" 
+              value={stickerSearch}
+              onChangeText={setStickerSearch}
+            />
           </View>
           <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-            {['🍀', '🌈', '🍺', '☘️', '🎁', '🔥', '✨', '🌟', '❤️', '💰', '🎷', '🎈', '🎉', '🎃', '🎸', '📷'].map((emoji, index) => (
-              <TouchableOpacity 
-                key={index} 
-                onPress={() => { setSelectedSticker(emoji); onClose(); }}
-                className="w-[22%] aspect-square items-center justify-center bg-zinc-800/40 rounded-3xl mb-4"
-              >
-                <Text className="text-4xl">{emoji}</Text>
-              </TouchableOpacity>
-            ))}
+            {isLoadingStickers ? (
+              <View className="w-full items-center justify-center py-10">
+                <ActivityIndicator size="large" color="white" />
+              </View>
+            ) : stickers.length === 0 ? (
+              <View className="w-full items-center justify-center py-10">
+                <Text className="text-gray-500">No stickers found.</Text>
+              </View>
+            ) : (
+              stickers.map((sticker, index) => (
+                <TouchableOpacity 
+                  key={sticker.id || index} 
+                  onPress={() => { setSelectedSticker(sticker); onClose(); }}
+                  className="w-[22%] aspect-square items-center justify-center bg-zinc-800/40 rounded-3xl mb-4"
+                >
+                  <Image source={{ uri: sticker.url }} className="w-16 h-16" resizeMode="contain" />
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
         </View>
       </View>
@@ -1174,14 +1220,18 @@ const CreateStoryScreen = () => {
                </DraggableSticker>
              )}
 
-             {/* Emoji Sticker */}
+             {/* Sticker */}
              {selectedSticker && (
                 <DraggableSticker 
                   onDelete={() => setSelectedSticker(null)} 
                   isDragging={isDragging} 
                   deleteActive={deleteActive}
                 >
-                  <Text className="text-8xl">{selectedSticker}</Text>
+                  {typeof selectedSticker === 'string' ? (
+                    <Text className="text-8xl">{selectedSticker}</Text>
+                  ) : (
+                    <Image source={{ uri: selectedSticker.url }} className="w-48 h-48" resizeMode="contain" />
+                  )}
                 </DraggableSticker>
              )}
 
@@ -1297,7 +1347,7 @@ const CreateStoryScreen = () => {
                   source={{ uri: userProfile?.profile_picture || 'https://i.pravatar.cc/150?u=me' }} 
                   className="w-8 h-8 rounded-full border border-white/30 mr-2" 
                 />
-                <Text className="text-white font-bold text-base" numberOfLines={1}>Your story</Text>
+                <Text className="text-white font-bold text-base" numberOfLines={1}>Your flux</Text>
               </>
             )}
           </LinearGradient>

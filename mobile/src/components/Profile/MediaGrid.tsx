@@ -21,7 +21,7 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
   // 1. EMPTY STATE CONFIG
   const emptyConfigs = {
     Post: { icon: ImageIcon, title: "No Posts Yet", description: "Photos you share will appear here.", buttonText: "Create Post" },
-    Reels: { icon: Clapperboard, title: "Share a Reel", description: "Videos are a great way to tell your story.", buttonText: "Create Reel" },
+    Reels: { icon: Clapperboard, title: "Share a Reel", description: "Videos are a great way to tell your flux.", buttonText: "Create Reel" },
     Feeds: { icon: Layout, title: "Your Feed is Empty", description: "Curated collections will show up here.", buttonText: "Browse Feeds" },
     Tags: { icon: UserSquare2, title: "Photos of You", description: "Tagged photos will appear here.", buttonText: "Tags Settings" }
   };

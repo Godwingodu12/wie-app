@@ -45,7 +45,7 @@ const StoryList = ({
           <View className="mr-3">
             <StoryAvatar
               image={isMyStory ? user.profile_picture : item.image}
-              username={isMyStory ? 'Your story' : item.username}
+              username={isMyStory ? 'Your flux' : item.username}
               hasStory={item.hasStory}
               isSeen={item.isSeen}
               showAddButton={isMyStory}

@@ -16,7 +16,7 @@ type StoryAvatarProps = {
 
 const StoryAvatar = ({
   image,
-  username = 'Your story',
+  username = 'Your flux',
   hasStory = false,
   isSeen = false,
   showAddButton = true,

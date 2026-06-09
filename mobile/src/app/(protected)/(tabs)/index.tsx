@@ -208,7 +208,7 @@ export default function Home() {
           selfStory || { 
             id: 'me', 
             image: currentUser?.profile_picture, 
-            username: 'Your story', 
+            username: 'Your flux', 
             hasStory: false, 
             isSeen: false 
           },
