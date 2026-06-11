@@ -4,6 +4,8 @@ import PostActions from "./PostActions";
 import ExpandableCaption from "./PostCaption";
 import PostHeader from "./PostHeader";
 import PostMedia from "./PostMedia";
+import ShareSheet from "./ShareSheet";
+import CommentSheet from "./CommentSheet";
 import { useLikeSync } from "@/hooks/useLikeSync";
 
 interface PostProps {
@@ -29,6 +31,8 @@ interface PostProps {
 
 const CompletePost: React.FC<PostProps> = React.memo(({ postData }) => {
   const [saved, setSaved] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
   const { isLiked, likeCount, toggleLike } = useLikeSync(
     postData.id,
     Boolean(postData.hasLiked),
@@ -76,12 +80,26 @@ const CompletePost: React.FC<PostProps> = React.memo(({ postData }) => {
         shares={postData.shares}
         onLikePress={toggleLike}
         onSavePress={() => setSaved(!saved)}
+        onSharePress={() => setShowShareSheet(true)}
+        onCommentPress={() => setShowCommentSheet(true)}
       />
 
       {/* Caption Section */}
       <ExpandableCaption
         username={postData.username}
         caption={postData.caption}
+      />
+
+      <ShareSheet 
+        isVisible={showShareSheet} 
+        onClose={() => setShowShareSheet(false)} 
+        postId={postData.id}
+      />
+
+      <CommentSheet 
+        isVisible={showCommentSheet} 
+        onClose={() => setShowCommentSheet(false)} 
+        postId={postData.id}
       />
     </View>
   );

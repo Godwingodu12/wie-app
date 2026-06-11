@@ -44,10 +44,10 @@ export const MessageListItem = ({
       <View className="relative">
         <Image 
           source={typeof avatar === 'string' ? { uri: avatar } : avatar} 
-          className="w-14 h-14 rounded-full bg-zinc-800"
+          className="w-[60px] h-[60px] rounded-full bg-zinc-800"
         />
         {isOnline && !isSelected && (
-          <View className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-black rounded-full" />
+          <View className="absolute bottom-1 right-0.5 w-3.5 h-3.5 bg-[#22C55E] border-2 border-black rounded-full" />
         )}
         {isSelected && (
           <View className="absolute inset-0 rounded-full bg-blue-500/30 items-center justify-center border-2 border-blue-500">
@@ -59,48 +59,48 @@ export const MessageListItem = ({
       </View>
 
       {/* Content Section */}
-      <View className="flex-1 ml-4 justify-center">
-        <View className="flex-row items-center flex-1">
-          <Text className="text-white font-rubik-bold text-[16px] mr-1" numberOfLines={1}>
-            {name}
-          </Text>
-          {isPinned && (
-            <Ionicons name="pin" size={12} color="#71717a" style={{ transform: [{ rotate: '45deg' }] }} />
-          )}
+      <View className="flex-1 ml-4 h-[60px] justify-between py-1">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1 mr-2">
+            <Text className="text-white font-rubik-bold text-[17px]" numberOfLines={1}>
+              {name}
+            </Text>
+            {isPinned && (
+              <Ionicons name="pin" size={12} color="#71717a" style={{ transform: [{ rotate: '45deg' }], marginLeft: 4 }} />
+            )}
+          </View>
+          <Text className="text-zinc-500 text-[12px] font-rubik-regular">{time}</Text>
         </View>
 
-        <View className="flex-row items-center mt-0.5">
-          {/* Status Ticks - Only show if last message is from us */}
-          {isLastMessageFromUs && status && (
-            <Ionicons 
-              name={status === 'sent' ? "checkmark" : "checkmark-done"} 
-              size={16} 
-              color={status === 'read' ? "#3B82F6" : "#71717a"} 
-              className="mr-1"
-            />
-          )}
-          
-          {/* Attachment Icon before text */}
-          {hasImageAttachment && (
-            <Ionicons name="camera" size={14} color="#71717a" style={{ marginRight: 4 }} />
-          )}
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1 mr-2">
+            {/* Status Ticks - Only show if last message is from us */}
+            {isLastMessageFromUs && status && (
+              <Ionicons 
+                name={status === 'sent' ? "checkmark" : "checkmark-done"} 
+                size={16} 
+                color={status === 'read' ? "#2563EB" : "#52525B"} 
+                style={{ marginRight: 4 }}
+              />
+            )}
+            
+            {/* Attachment Icon before text */}
+            {hasImageAttachment && (
+              <Ionicons name="camera" size={14} color="#71717a" style={{ marginRight: 4 }} />
+            )}
 
-          <Text className="text-zinc-500 font-rubik-regular text-sm flex-1" numberOfLines={1}>
-            {lastMessage} • {time}
-          </Text>
-        </View>
-      </View>
+            <Text className="text-zinc-400 font-rubik-regular text-[14.5px] flex-1" numberOfLines={1}>
+              {lastMessage}
+            </Text>
+          </View>
 
-      {/* Right Side Actions - Camera Removed */}
-      {!isSelected && (
-        <View className="flex-row items-center gap-3">
           {unreadCount ? (
-            <View className="bg-[#ffffff] rounded-full px-2 py-0.5 min-w-[22px] items-center justify-center">
-              <Text className="text-black font-rubik-bold text-[11px]">{unreadCount}</Text>
+            <View className="bg-[#7C4DFF] rounded-full px-2 py-0.5 min-w-[20px] h-[20px] items-center justify-center">
+              <Text className="text-white font-rubik-bold text-[10px]">{unreadCount}</Text>
             </View>
           ) : null}
         </View>
-      )}
+      </View>
     </TouchableOpacity>
   );
 };

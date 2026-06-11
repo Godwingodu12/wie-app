@@ -75,12 +75,9 @@ const BlockedAccountsScreen = () => {
       >
         <Pressable 
           onPress={() => setIsModalVisible(false)}
-          className="flex-1 justify-end bg-black/70"
+          className="flex-1 justify-center items-center bg-black/70 px-6"
         >
-          <Pressable className="bg-[#121214] rounded-t-[40px] p-6 pb-10 border-t border-[#1C2024]">
-            {/* Handle Bar */}
-            <View className="w-12 h-1 bg-[#1C2024] rounded-full self-center mb-6" />
-
+          <Pressable className="bg-[#121214] rounded-[40px] p-8 border border-[#1C2024] w-full max-w-[340px]">
             <View className="items-center">
                 <View className="w-20 h-20 rounded-full border-2 border-[#1C2024] mb-4 overflow-hidden">
                     <Image
@@ -88,8 +85,8 @@ const BlockedAccountsScreen = () => {
                         className="w-full h-full"
                     />
                 </View>
-                <Text className="text-white text-xl font-rubik-bold">Unblock @{selectedUser?.username}?</Text>
-                <Text className="text-gray-400 text-center mt-3 px-4 font-rubik">
+                <Text className="text-white text-xl font-rubik-bold text-center">Unblock @{selectedUser?.username}?</Text>
+                <Text className="text-gray-400 text-center mt-3 font-rubik leading-5">
                     They will now be able to request to follow you, see your profile, and message you.
                 </Text>
             </View>
@@ -97,14 +94,14 @@ const BlockedAccountsScreen = () => {
             <View className="flex-row gap-3 mt-8">
               <TouchableOpacity 
                 onPress={() => setIsModalVisible(false)}
-                className="flex-1 h-[56px] bg-[#1C2024] rounded-full items-center justify-center"
+                className="flex-1 h-[52px] bg-[#1C2024] rounded-full items-center justify-center"
               >
                 <Text className="text-white font-rubik-semibold text-base">Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity 
                 onPress={confirmUnblock}
-                className="flex-1 h-[56px] bg-blue-600 rounded-full items-center justify-center"
+                className="flex-1 h-[52px] bg-[#2563EB] rounded-full items-center justify-center"
               >
                 <Text className="text-white font-rubik-semibold text-base">Unblock</Text>
               </TouchableOpacity>

@@ -45,7 +45,7 @@ export const followService = {
 
   async getFollowers(userId: string) {
     try {
-      const response = await api.get(`follow/${userId}/followers`);
+      const response = await api.get(`followers/${userId}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || error.message;
@@ -54,7 +54,7 @@ export const followService = {
 
   async getFollowing(userId: string) {
     try {
-      const response = await api.get(`follow/${userId}/following`);
+      const response = await api.get(`following/${userId}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || error.message;
@@ -82,7 +82,7 @@ export const followService = {
 
   async unfollowUser(targetUserId: string) {
     try {
-      const response = await api.delete(`follow/${targetUserId}`);
+      const response = await api.delete(`unfollow/${targetUserId}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || error.message;

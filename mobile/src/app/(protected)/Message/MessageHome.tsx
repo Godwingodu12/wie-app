@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Keyboard, Modal, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Keyboard, Modal, Pressable, RefreshControl, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router'; 
@@ -130,14 +130,14 @@ const MessagesPage = () => {
     <SafeAreaView className="flex-1 bg-black">
       {/* Selection Mode Top Bar */}
       {isSelectionMode && (
-        <View className="bg-zinc-900 border-b border-zinc-800">
+        <View className="bg-[#1F1F23] border-b border-white/5">
           <View className="flex-row items-center justify-between px-5 py-4">
             <View className="flex-row items-center flex-1">
               <TouchableOpacity onPress={exitSelectionMode} className="mr-4">
                 <Ionicons name="close" size={24} color="white" />
               </TouchableOpacity>
               <Text className="text-white text-lg font-rubik-bold">
-                {selectedItems.size} {selectedItems.size === 1 ? 'selected' : 'selected'}
+                {selectedItems.size} selected
               </Text>
             </View>
             <TouchableOpacity 
@@ -149,27 +149,6 @@ const MessagesPage = () => {
               </Text>
             </TouchableOpacity>
           </View>
-          
-          <View className="flex-row items-center px-5 pb-4 gap-3">
-            <TouchableOpacity 
-              onPress={() => setDeleteSelectedModalVisible(true)}
-              className="flex-1 flex-row items-center justify-center bg-red-600/20 border border-red-600/50 rounded-xl py-3 px-4"
-            >
-              <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-              <Text className="text-red-500 font-rubik-semibold ml-2 text-base">
-                Delete Selected
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setDeleteAllModalVisible(true)}
-              className="flex-1 flex-row items-center justify-center bg-red-600/20 border border-red-600/50 rounded-xl py-3 px-4"
-            >
-              <Ionicons name="trash" size={20} color="#FF3B30" />
-              <Text className="text-red-500 font-rubik-semibold ml-2 text-base">
-                Delete All
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
@@ -178,14 +157,8 @@ const MessagesPage = () => {
         <View className="flex-row justify-between items-center px-5 py-4">
           <View className="flex-row items-center">
             <TouchableOpacity 
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/'); 
-                }
-              }} 
-              className="mr-2"
+              onPress={() => router.back()} 
+              className="mr-3"
               activeOpacity={0.7}
             >
               <Ionicons name="chevron-back" size={28} color="white" />
@@ -193,31 +166,60 @@ const MessagesPage = () => {
             <Text className="text-white text-3xl font-rubik-bold tracking-tight">Messages</Text>
           </View>
 
-          <TouchableOpacity 
-            className="bg-zinc-900 p-2.5 rounded-full border border-zinc-800"
-            activeOpacity={0.7}
-            onPress={()=>router.push('/Message/NewChat')}
-          >
-            <Ionicons name="create-outline" size={24} color="white" />
-          </TouchableOpacity>
+          <View className="flex-row items-center gap-3">
+             <TouchableOpacity 
+               className="bg-[#1F1F23] p-2.5 rounded-full"
+               activeOpacity={0.7}
+               onPress={()=>router.push('/Message/NewChat')}
+             >
+               <Ionicons name="create-outline" size={24} color="white" />
+             </TouchableOpacity>
+          </View>
         </View>
       )}
 
       {/* Search Section */}
       {!isSelectionMode && (
         <>
-          <View className="px-4 mb-2">
-            <SearchBar 
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              isFocused={isSearchFocused}
-              setIsFocused={setIsSearchFocused}
-              onCancel={handleCancelSearch}
-              placeholder="Search peoples..."
-            />
+          <View className="px-5 mb-2">
+            <View className="flex-row items-center bg-[#1F1F23] rounded-2xl px-4 py-3 border border-white/5">
+               <Ionicons name="search" size={20} color="#52525B" />
+               <TextInput 
+                 placeholder="Search peoples, groups..."
+                 placeholderTextColor="#52525B"
+                 className="flex-1 ml-3 text-white text-[16px] font-rubik-regular"
+                 value={searchQuery}
+                 onChangeText={setSearchQuery}
+                 onFocus={() => setIsSearchFocused(true)}
+               />
+               {isSearchFocused && (
+                 <TouchableOpacity onPress={handleCancelSearch}>
+                   <Ionicons name="close-circle" size={20} color="#52525B" />
+                 </TouchableOpacity>
+               )}
+            </View>
           </View>
 
-          <MessageTabs activeTab={activeTab} onTabChange={setActiveTab} />
+          <View className="px-5 py-4 flex-row gap-3">
+             <TouchableOpacity 
+               onPress={() => setActiveTab('All')}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'All' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
+             >
+               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'All' ? 'text-black' : 'text-zinc-400'}`}>All</Text>
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTab('Personal')}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'Personal' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
+             >
+               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Personal' ? 'text-black' : 'text-zinc-400'}`}>Personal</Text>
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTab('Groups')}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'Groups' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
+             >
+               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Groups' ? 'text-black' : 'text-zinc-400'}`}>Groups</Text>
+             </TouchableOpacity>
+          </View>
         </>
       )}
 

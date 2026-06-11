@@ -25,22 +25,28 @@ const Avatar = ({
    
     const avatarSource = getImageSource(image);
 
-    return (
-        <View className="items-center">
-            <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
-                <View
-                    className={`items-center justify-center rounded-full border-[2px] ${ringStyle} w-12 h-12`}
-                >
-                    <Image
-                        source={avatarSource}
-                        style={{ width: '100%', height: '100%' }}
-                        className="bg-neutral-800"
-                        contentFit="cover"
-                        transition={200}
-                    />
-                </View>
-            </TouchableOpacity>
+    const AvatarContent = (
+        <View
+            className={`items-center justify-center rounded-full border-[2px] ${ringStyle} w-12 h-12`}
+        >
+            <Image
+                source={avatarSource}
+                style={{ width: '100%', height: '100%', borderRadius: 999 }}
+                className="bg-neutral-800"
+                contentFit="cover"
+                transition={200}
+            />
         </View>
-    )
+    );
+
+    if (onPress) {
+        return (
+            <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
+                {AvatarContent}
+            </TouchableOpacity>
+        )
+    }
+
+    return AvatarContent;
 }
 export default Avatar

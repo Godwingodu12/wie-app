@@ -169,6 +169,15 @@ export const mediaService = {
     }
   },
 
+  async getPostComments(postId: string) {
+    try {
+      const response = await mediaApi.get(`post/${postId}/comments`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
   async addCommentReply(postId: string, commentId: string, text: string) {
     try {
       const response = await mediaApi.post(`post/${postId}/comments/${commentId}/reply`, { text });
@@ -225,6 +234,15 @@ export const mediaService = {
   async togglePostComments(postId: string) {
     try {
       const response = await mediaApi.patch(`post/${postId}/comments/toggle`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async sharePost(postId: string, receiverIds: string[]) {
+    try {
+      const response = await mediaApi.post(`post/${postId}/share`, { receiverIds });
       return response.data;
     } catch (error: any) {
       throw error.response?.data || error.message;
@@ -309,6 +327,7 @@ export const getSavedPosts = mediaService.getSavedPosts;
 export const updatePost = mediaService.updatePost;
 export const deletePost = mediaService.deletePost;
 export const addComment = mediaService.addComment;
+export const getPostComments = mediaService.getPostComments;
 export const addCommentReply = mediaService.addCommentReply;
 export const deleteComment = mediaService.deleteComment;
 export const getUserDiaries = mediaService.getUserDiaries;
@@ -316,6 +335,7 @@ export const getReelsFeed = mediaService.getReelsFeed;
 export const getFluxFeed = mediaService.getFluxFeed;
 export const toggleFluxLike = mediaService.toggleFluxLike;
 export const togglePostComments = mediaService.togglePostComments;
+export const sharePost = mediaService.sharePost;
 export const getMusic = mediaService.getMusic;
 export const getLikedMusic = mediaService.getLikedMusic;
 export const toggleMusicLike = mediaService.toggleMusicLike;

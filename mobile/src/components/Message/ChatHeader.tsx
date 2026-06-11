@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
+import { BlurView } from 'expo-blur';
 
 interface ChatHeaderProps {
   name: string;
@@ -26,14 +28,12 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
   };
 
   const handleReport = () => {
-    // TODO: Implement report functionality
     console.log('Report user:', name);
     setReportModalVisible(false);
     setOptionsModalVisible(false);
   };
 
   const handleBlock = () => {
-    // TODO: Implement block functionality
     console.log('Block user:', name);
     setBlockModalVisible(false);
     setOptionsModalVisible(false);
@@ -41,83 +41,118 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
 
   return (
     <>
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-zinc-900 bg-black">
+      <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/5 bg-black">
         <View className="flex-row items-center flex-1">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-3">
+          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-2 p-1">
             <Ionicons name="chevron-back" size={28} color="white" />
           </TouchableOpacity>
           
-          <Image 
-            source={typeof avatar === 'string' ? { uri: avatar } : avatar} 
-            className="w-9 h-9 rounded-full bg-zinc-800" 
-          />
-          
-          <View className="ml-3">
-            <Text className="text-white font-rubik-bold text-[16px]">{name}</Text>
-            <Text className="text-zinc-500 text-xs">{status}</Text>
-          </View>
+          <TouchableOpacity 
+            onPress={() => router.push({ pathname: '/Message/ChatSettings', params: { name, avatar } })}
+            className="flex-row items-center flex-1"
+          >
+            <Image 
+              source={typeof avatar === 'string' ? { uri: avatar } : avatar} 
+              className="w-10 h-10 rounded-full bg-zinc-800" 
+            />
+            
+            <View className="ml-3">
+              <Text className="text-white font-rubik-bold text-[17px]" numberOfLines={1}>{name}</Text>
+              <Text className="text-[#22C55E] text-[12px] font-rubik-medium">{status}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        <View className="flex-row items-center relative">
-          <TouchableOpacity onPress={() => setOptionsModalVisible(true)}>
+        <View className="flex-row items-center gap-4">
+          <TouchableOpacity className="p-1">
+            <Ionicons name="call-outline" size={22} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity className="p-1">
+            <Ionicons name="videocam-outline" size={24} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setOptionsModalVisible(true)} className="p-1">
             <Ionicons name="ellipsis-vertical" size={22} color="white" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Options Popup Menu - WhatsApp Style */}
-      {optionsModalVisible && (
-        <Modal
-          visible={optionsModalVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setOptionsModalVisible(false)}
+      {/* Options Popup Menu */}
+      <Modal
+        visible={optionsModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setOptionsModalVisible(false)}
+      >
+        <Pressable
+          className="flex-1"
+          onPress={() => setOptionsModalVisible(false)}
         >
-          <Pressable
-            className="flex-1 mt-2"
-            onPress={() => setOptionsModalVisible(false)}
+          <View 
+            className="absolute top-14 right-4 bg-[#1C1C1E] rounded-2xl shadow-2xl border border-white/10 min-w-[220px] overflow-hidden z-50"
+            style={{ 
+              elevation: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5,
+              shadowRadius: 16,
+            }}
           >
-            <View 
-              className="absolute top-12 right-4 bg-[#1C1C1E] rounded-xl shadow-lg border border-zinc-800 min-w-[180px] overflow-hidden z-50"
-              style={{ 
-                elevation: 8,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
+            <TouchableOpacity 
+               onPress={() => { setOptionsModalVisible(false); router.push('/Message/MuteNotifications'); }}
+               className="flex-row items-center justify-between px-5 py-4 active:bg-white/5 border-b border-white/5"
+            >
+              <Text className="text-white text-[15px] font-rubik-medium">Mute notifications</Text>
+              <Ionicons name="notifications-off-outline" size={18} color="#71717A" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+               onPress={() => { setOptionsModalVisible(false); router.push('/Message/SearchInsideChat'); }}
+               className="flex-row items-center justify-between px-5 py-4 active:bg-white/5 border-b border-white/5"
+            >
+              <Text className="text-white text-[15px] font-rubik-medium">Search</Text>
+              <Ionicons name="search-outline" size={18} color="#71717A" />
+            </TouchableOpacity>
+
+            <TouchableOpacity className="flex-row items-center justify-between px-5 py-4 active:bg-white/5 border-b border-white/5">
+              <Text className="text-white text-[15px] font-rubik-medium">Disappearing messages</Text>
+              <Ionicons name="time-outline" size={18} color="#71717A" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between px-5 py-4 active:bg-white/5 border-b border-white/5"
+              onPress={() => {
+                setOptionsModalVisible(false);
+                setClearChatModalVisible(true);
               }}
             >
-              <TouchableOpacity
-                className="px-4 py-3.5  active:bg-zinc-800"
-                onPress={() => {
-                  setOptionsModalVisible(false);
-                  setClearChatModalVisible(true);
-                }}
-              >
-                <Text className="text-white text-base font-normal">Clear chat</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="px-4 py-3.5  active:bg-zinc-800"
-                onPress={() => {
-                  setOptionsModalVisible(false);
-                  setReportModalVisible(true);
-                }}
-              >
-                <Text className="text-[#FF3B30] text-base font-normal">Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="px-4 py-3.5 active:bg-zinc-800"
-                onPress={() => {
-                  setOptionsModalVisible(false);
-                  setBlockModalVisible(true);
-                }}
-              >
-                <Text className="text-[#FF3B30] text-base font-normal">Block</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Modal>
-      )}
+              <Text className="text-white text-[15px] font-rubik-medium">Clear chat</Text>
+              <Ionicons name="trash-outline" size={18} color="#71717A" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between px-5 py-4 active:bg-white/5 border-b border-white/5"
+              onPress={() => {
+                setOptionsModalVisible(false);
+                setReportModalVisible(true);
+              }}
+            >
+              <Text className="text-[#EF4444] text-[15px] font-rubik-bold">Report</Text>
+              <Ionicons name="alert-circle-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between px-5 py-4 active:bg-white/5"
+              onPress={() => {
+                setOptionsModalVisible(false);
+                setBlockModalVisible(true);
+              }}
+            >
+              <Text className="text-[#EF4444] text-[15px] font-rubik-bold">Block</Text>
+              <Ionicons name="ban-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Clear Chat Confirmation Modal */}
       <Modal
@@ -131,9 +166,12 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
           onPress={() => setClearChatModalVisible(false)}
         >
           <Pressable
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-[32px] p-8"
+            className="w-full bg-zinc-900 border border-white/5 rounded-[32px] p-8"
             onPress={(e) => e.stopPropagation()}
           >
+            <View className="w-16 h-16 bg-red-500/10 rounded-full items-center justify-center self-center mb-6">
+               <Ionicons name="trash" size={32} color="#EF4444" />
+            </View>
             <Text className="text-white text-2xl font-rubik-bold mb-2 text-center">
               Clear Chat?
             </Text>
@@ -143,7 +181,7 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
             <View className="flex-row gap-4">
               <TouchableOpacity
                 onPress={() => setClearChatModalVisible(false)}
-                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-zinc-700"
+                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-white/5"
               >
                 <Text className="text-white font-rubik-medium text-lg">Cancel</Text>
               </TouchableOpacity>
@@ -170,9 +208,12 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
           onPress={() => setReportModalVisible(false)}
         >
           <Pressable
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-[32px] p-8"
+            className="w-full bg-zinc-900 border border-white/5 rounded-[32px] p-8"
             onPress={(e) => e.stopPropagation()}
           >
+            <View className="w-16 h-16 bg-red-500/10 rounded-full items-center justify-center self-center mb-6">
+               <Ionicons name="alert-circle" size={32} color="#EF4444" />
+            </View>
             <Text className="text-white text-2xl font-rubik-bold mb-2 text-center">
               Report {name}?
             </Text>
@@ -182,7 +223,7 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
             <View className="flex-row gap-4">
               <TouchableOpacity
                 onPress={() => setReportModalVisible(false)}
-                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-zinc-700"
+                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-white/5"
               >
                 <Text className="text-white font-rubik-medium text-lg">Cancel</Text>
               </TouchableOpacity>
@@ -209,9 +250,12 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
           onPress={() => setBlockModalVisible(false)}
         >
           <Pressable
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-[32px] p-8"
+            className="w-full bg-zinc-900 border border-white/5 rounded-[32px] p-8"
             onPress={(e) => e.stopPropagation()}
           >
+            <View className="w-16 h-16 bg-red-500/10 rounded-full items-center justify-center self-center mb-6">
+               <Ionicons name="ban" size={32} color="#EF4444" />
+            </View>
             <Text className="text-white text-2xl font-rubik-bold mb-2 text-center">
               Block {name}?
             </Text>
@@ -221,7 +265,7 @@ export const ChatHeader = ({ name, avatar, status, onClearChat }: ChatHeaderProp
             <View className="flex-row gap-4">
               <TouchableOpacity
                 onPress={() => setBlockModalVisible(false)}
-                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-zinc-700"
+                className="flex-1 h-14 rounded-full bg-zinc-800 items-center justify-center border border-white/5"
               >
                 <Text className="text-white font-rubik-medium text-lg">Cancel</Text>
               </TouchableOpacity>

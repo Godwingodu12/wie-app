@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, Text, Keyboard, Platform, Dimensions } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, Keyboard, Platform, Dimensions, Alert, Modal, Pressable } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmojiKeyboard } from 'rn-emoji-keyboard';
 import { Audio } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -15,7 +16,11 @@ import Animated, {
   Layout
 } from 'react-native-reanimated';
 
-export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => {
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { router } from 'expo-router';
+
+export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply, chatId }: any) => {
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -23,6 +28,43 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [message, setMessage] = useState('');
+  
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+       onSendMessage('📷 Media', replyingTo, false, result.assets[0].type === 'video' ? 'video' : 'image', { assets: result.assets });
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+       onSendMessage('📷 Photo', replyingTo, false, 'image', { assets: result.assets });
+    }
+  };
+
+  const shareLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const location = await Location.getCurrentPositionAsync({});
+    onSendMessage('📍 Location', replyingTo, false, 'location', { 
+      latitude: location.coords.latitude, 
+      longitude: location.coords.longitude 
+    });
+  };
+
   const isTyping = message.trim().length > 0;
   const hasAudio = !!recordedUri;
   const insets = useSafeAreaInsets();
@@ -94,11 +136,11 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
 
   const handleSend = () => {
     if (recordedUri) {
-      onSendMessage(recordedUri, replyingTo, true); 
+      onSendMessage(recordedUri, replyingTo, true, 'voice'); 
       setRecordedUri(null);
       setDuration(0);
     } else if (message.trim()) {
-      onSendMessage(message.trim(), replyingTo, false);
+      onSendMessage(message.trim(), replyingTo, false, 'text');
       setMessage('');
     }
   };
@@ -119,8 +161,61 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
       hideSub.remove();
     };
   }, []);
+
+  const [isAttachModalVisible, setIsAttachModalVisible] = useState(false);
+
+  const handleAttachPress = () => {
+    setIsAttachModalVisible(true);
+  };
+
+  const attachmentOptions = [
+    { label: 'Media', icon: 'images', color: '#7C4DFF', onPress: () => { pickImage(); setIsAttachModalVisible(false); } },
+    { label: 'Camera', icon: 'camera', color: '#FF4D4D', onPress: () => { takePhoto(); setIsAttachModalVisible(false); } },
+    { label: 'File', icon: 'document', color: '#4D94FF', onPress: () => { setIsAttachModalVisible(false); } },
+    { label: 'Poll', icon: 'stats-chart', color: '#FFB84D', onPress: () => { 
+        setIsAttachModalVisible(false);
+        router.push({ pathname: '/Message/CreatePoll', params: { chatId } });
+    } },
+    { label: 'Contact', icon: 'person', color: '#4DFF88', onPress: () => { setIsAttachModalVisible(false); } },
+    { label: 'Location', icon: 'location', color: '#FF4DFF', onPress: () => { shareLocation(); setIsAttachModalVisible(false); } },
+  ];
+
   return (
     <View className="bg-black">
+      {/* Attachment Modal */}
+      <Modal
+        visible={isAttachModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsAttachModalVisible(false)}
+      >
+        <Pressable 
+          className="flex-1 bg-black/60 justify-end" 
+          onPress={() => setIsAttachModalVisible(false)}
+        >
+          <View className="bg-[#1C1C1E] rounded-t-[32px] p-6 pb-12 border-t border-white/5 shadow-2xl">
+            <View className="w-12 h-1 bg-white/10 rounded-full self-center mb-8" />
+            <View className="flex-row flex-wrap justify-between">
+              {attachmentOptions.map((opt) => (
+                <TouchableOpacity 
+                  key={opt.label}
+                  onPress={opt.onPress}
+                  className="w-[30%] items-center mb-8"
+                >
+                  <View 
+                    style={{ backgroundColor: opt.color + '20' }}
+                    className="w-16 h-14 rounded-2xl items-center justify-center mb-2 border border-white/5"
+                  >
+                    <Ionicons name={opt.icon as any} size={28} color={opt.color} />
+                  </View>
+                  <Text className="text-zinc-400 text-[13px] font-rubik-medium">{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
       {/* Recording Overlay */}
       {isRecording && (
         <Animated.View 
@@ -147,47 +242,77 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
       )}
 
       {replyingTo && (
-        <View className="flex-row items-center justify-between px-4 py-2 bg-zinc-900 border-t border-zinc-800">
+        <Animated.View 
+          entering={FadeIn} 
+          exiting={FadeOut}
+          className="flex-row items-center justify-between px-4 py-2.5 bg-[#1C1C1E]/90 border-t border-white/5"
+        >
           <View className="flex-1 flex-row items-center">
-            <View className="w-0.5 h-8 bg-blue-500 mr-2" />
+            <View className="w-1 h-10 bg-[#7C4DFF] rounded-full mr-3" />
             <View className="flex-1">
-              <Text className="text-blue-400 text-xs font-rubik-medium mb-0.5">Replying to {replyingTo.isSent ? 'yourself' : 'them'}</Text>
-              <Text className="text-zinc-400 text-xs font-rubik-regular" numberOfLines={1}>
+              <Text className="text-[#7C4DFF] text-[12px] font-rubik-bold mb-0.5">
+                Replying to {replyingTo.isSent ? 'yourself' : 'them'}
+              </Text>
+              <Text className="text-zinc-400 text-[13.5px] font-rubik-regular" numberOfLines={1}>
                 {replyingTo.isAudio ? "🎤 Voice Note" : replyingTo.text}
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onCancelReply}><Ionicons name="close" size={20} color="#71717a" /></TouchableOpacity>
-        </View>
+          <TouchableOpacity 
+            onPress={onCancelReply}
+            className="p-1.5 bg-white/5 rounded-full"
+          >
+            <Ionicons name="close" size={18} color="#71717a" />
+          </TouchableOpacity>
+        </Animated.View>
       )}
 
-      <View className="px-3 flex-row items-end justify-center pt-2 pb-2">
-        <View className="flex-1 flex-row items-center bg-zinc-900 rounded-[25px] px-3 py-2 min-h-[48px]">
-          <TouchableOpacity onPress={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}>
-            <MaterialCommunityIcons name={isEmojiPickerOpen ? "keyboard-outline" : "emoticon-outline"} size={26} color="#a1a1aa" />
-          </TouchableOpacity>
-          
+      <View className="px-3 flex-row items-center justify-center pt-2.5 pb-6">
+        <TouchableOpacity 
+          onPress={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+          className="mr-2"
+        >
+          <MaterialCommunityIcons 
+            name={isEmojiPickerOpen ? "keyboard-outline" : "emoticon-outline"} 
+            size={28} 
+            color="#A1A1AA" 
+          />
+        </TouchableOpacity>
+
+        <View className="flex-1 flex-row items-center bg-[#1F1F23] rounded-[28px] px-4 py-2 min-h-[52px] border border-white/5">
           {recordedUri ? (
-            <Animated.View layout={Layout} className="flex-1 flex-row items-center px-2">
-              <View className="bg-red-500/10 px-2 py-1 rounded-full flex-row items-center">
+            <Animated.View layout={Layout} className="flex-1 flex-row items-center">
+              <View className="bg-red-500/10 px-3 py-1.5 rounded-full flex-row items-center">
                 <Ionicons name="mic" size={14} color="#ef4444" />
-                <Text className="text-red-500 ml-1 text-xs font-rubik-medium">Recorded</Text>
+                <Text className="text-red-500 ml-1.5 text-[13px] font-rubik-medium">Recorded</Text>
               </View>
-              <Text className="text-zinc-400 ml-2 font-rubik-regular">Voice Note</Text>
-              <TouchableOpacity onPress={() => {setRecordedUri(null); setDuration(0);}} className="ml-auto">
+              <Text className="text-zinc-400 ml-3 font-rubik-regular text-[14px]">Voice Note</Text>
+              <TouchableOpacity onPress={() => {setRecordedUri(null); setDuration(0);}} className="ml-auto p-1">
                 <Ionicons name="trash-outline" size={20} color="#71717a" />
               </TouchableOpacity>
             </Animated.View>
           ) : (
             <TextInput 
               ref={inputRef}
-              placeholder="Message" 
-              placeholderTextColor="#71717a"
+              placeholder="Message..." 
+              placeholderTextColor="#52525B"
               value={message}
               onChangeText={setMessage}
               multiline
-              className="flex-1 text-white px-2 font-rubik-regular text-[17px] max-h-32 pt-1 pb-1"
+              className="flex-1 text-white px-1 font-rubik-regular text-[16px] max-h-32"
+              selectionColor="#7C4DFF"
             />
+          )}
+
+          {!isTyping && !hasAudio && (
+            <View className="flex-row items-center">
+              <TouchableOpacity onPress={handleAttachPress} className="p-1 ml-1">
+                <Ionicons name="add" size={26} color="#A1A1AA" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={takePhoto} className="p-1 ml-1">
+                <Ionicons name="camera-outline" size={24} color="#A1A1AA" />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -195,10 +320,19 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
           onLongPress={(!isTyping && !hasAudio) ? startRecording : undefined}
           onPressOut={isRecording ? stopRecording : undefined}
           onPress={(isTyping || hasAudio) ? handleSend : undefined}
-          activeOpacity={0.7}
-          className={`w-12 h-12 rounded-full items-center justify-center ml-2 ${(isTyping || hasAudio) ? 'bg-white' : 'bg-zinc-800'}`}
+          activeOpacity={0.8}
+          className="ml-2.5"
         >
-          <Ionicons name={(isTyping || hasAudio) ? "send" : "mic"} size={22} color={(isTyping || hasAudio) ? "black" : "white"} />
+          <LinearGradient
+            colors={['#7C4DFF', '#6236FF']}
+            className="w-[52px] h-[52px] rounded-full items-center justify-center shadow-lg"
+          >
+            <Ionicons 
+              name={(isTyping || hasAudio) ? "send" : "mic"} 
+              size={24} 
+              color="white" 
+            />
+          </LinearGradient>
         </TouchableOpacity>
       </View>
       {isEmojiPickerOpen ? (
@@ -208,7 +342,7 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
             theme={{ 
               container: '#18181b', 
               category: { 
-                iconActive: '#000', 
+                iconActive: '#7C4DFF', 
                 container: '#27272a', 
                 icon: '#a1a1aa'
               },
@@ -216,10 +350,6 @@ export const ChatInput = ({ onSendMessage, replyingTo, onCancelReply }: any) => 
           />
         </View>
       ) : (
-        /* The Bottom Fix:
-           Height is 0 when keyboard is active (system handles position).
-           Height is insets.bottom when keyboard is closed (restores initial position).
-        */
         <View style={{ height: isKeyboardVisible ? 340 : Math.max(insets.bottom, 5) }} />
       )}
     </View>

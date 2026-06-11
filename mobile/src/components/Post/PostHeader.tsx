@@ -55,10 +55,10 @@ const PostHeader: React.FC<Props> = ({ userId, isFollowing: initialIsFollowing =
         >
           <Avatar hasStory image={profileImage} />
 
-          <View className='ml-3 flex-1 justify-center'>
+          <View className='ml-4 flex-1 justify-center'>
             <View className='flex-row items-center'>
               <Text
-                className='text-[12px] text-white font-medium mr-1'
+                className='text-[13px] text-white font-semibold mr-1'
                 numberOfLines={1}
               >
                 {displayName}
@@ -67,9 +67,9 @@ const PostHeader: React.FC<Props> = ({ userId, isFollowing: initialIsFollowing =
             </View>
 
             <View className='flex-row items-center mt-0.5'>
-              <Ionicons name='musical-note' color={COLORS.black_secondary_text} size={10} />
+              <Ionicons name='musical-note' color={COLORS.black_secondary_text} size={11} />
               <Text
-                className='text-black_secondary_text text-[10px] font-light ml-1'
+                className='text-black_secondary_text text-[11px] font-medium ml-1'
                 numberOfLines={1}
               >
                 {musicTitle || "Original Audio"}
@@ -102,7 +102,7 @@ const PostHeader: React.FC<Props> = ({ userId, isFollowing: initialIsFollowing =
         </View>
       </View>
 
-      <Text className='text-gray-400 text-[12px] font-normal mt-1 ml-[52px]'>
+      <Text className='text-gray-400 text-[11px] font-normal mt-1 ml-[64px]'>
         {timestamp}
       </Text>
     </View>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { 
   useAnimatedStyle, 
@@ -26,7 +27,14 @@ export interface Message {
   status?: 'sent' | 'delivered' | 'read';
   avatar?: string;
   senderName?: string; 
+  messageType?: string;
   isAudio?: boolean;
+  chat_images?: Array<{ url: string; viewMode?: string }>;
+  chat_videos?: Array<{ url: string; thumbnail?: string }>;
+  chat_files?: Array<{ url: string; name: string; size: number; extension: string }>;
+  locationData?: { latitude: number; longitude: number; address?: string; name?: string; isLive?: boolean };
+  contactData?: { name: string; phone: string[] };
+  profileData?: { userId: string; name: string; username: string; avatar?: string };
   replyTo?: {
     id: string;
     text: string;
@@ -63,7 +71,7 @@ export const MessageBubble = ({
   
   const isSent = message.isSent;
   const translateX = useSharedValue(0);
-  const pulseScale = useSharedValue(1); // For the avatar pulse
+  const pulseScale = useSharedValue(1);
   const highlightAnim = useSharedValue(0);
   const SCRUBBER_WIDTH = 130;
 
@@ -80,11 +88,10 @@ export const MessageBubble = ({
     backgroundColor: interpolateColor(
       highlightAnim.value,
       [0, 1],
-      ['transparent', 'rgba(59, 130, 246, 0.2)']
+      ['transparent', 'rgba(124, 77, 255, 0.15)']
     ),
   }));
 
-  // Handle Pulse Animation
   useEffect(() => {
     if (isPlaying) {
       pulseScale.value = withRepeat(
@@ -92,8 +99,8 @@ export const MessageBubble = ({
           withTiming(1.08, { duration: 600 }),
           withTiming(1, { duration: 600 })
         ),
-        -1, // Infinite
-        true // Reverse
+        -1,
+        true
       );
     } else {
       pulseScale.value = withTiming(1, { duration: 300 });
@@ -136,15 +143,33 @@ export const MessageBubble = ({
         }
         return;
       }
+
+      let uri = message.text;
+      if (Platform.OS === 'android' && !uri.startsWith('http') && !uri.startsWith('file://')) {
+        uri = `file://${uri}`;
+      }
+
       const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: message.text },
+        { uri },
         { shouldPlay: true, isLooping: false },
         onPlaybackStatusUpdate
       );
       setSound(newSound);
       setIsPlaying(true);
     } catch (err) {
-      console.error("Playback failed", err);
+      console.error("Playback failed:", err);
+      try {
+        let uri = message.text;
+        const { sound: retrySound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true, isLooping: false },
+          onPlaybackStatusUpdate
+        );
+        setSound(retrySound);
+        setIsPlaying(true);
+      } catch (retryErr) {
+        console.error("Retry playback failed:", retryErr);
+      }
     }
   };
 
@@ -196,8 +221,28 @@ export const MessageBubble = ({
     return { opacity, transform: [{ scale: opacity }] };
   });
 
+  const BubbleContainer = ({ children, isSent }: { children: React.ReactNode, isSent: boolean }) => {
+    if (isSent) {
+      return (
+        <LinearGradient
+          colors={['#2563EB', '#1D4ED8']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className={`px-4 py-3 shadow-sm rounded-[24px] ${isLastInGroup ? 'rounded-br-[4px]' : ''}`}
+        >
+          {children}
+        </LinearGradient>
+      );
+    }
+    return (
+      <View className={`px-4 py-3 shadow-sm bg-[#1F1F23] rounded-[24px] border border-white/5 ${isLastInGroup ? 'rounded-bl-[4px]' : ''}`}>
+        {children}
+      </View>
+    );
+  };
+
   return (
-    <Animated.View style={[rHighlightStyle, { width: '100%', paddingVertical: 2 }]} className="relative justify-center">
+    <Animated.View style={[rHighlightStyle, { width: '100%', paddingVertical: 1 }]} className="relative justify-center">
       <Modal transparent visible={showPopup} animationType="none" onRequestClose={closePopup}>
         <Pressable className="flex-1 bg-black/70 justify-center items-center px-10" onPress={closePopup}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)} className="w-full bg-[#1c1c1e] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl">
@@ -226,87 +271,163 @@ export const MessageBubble = ({
 
       <GestureDetector gesture={panGesture}>
         <Animated.View style={rBubbleStyle}>
-          <View className={`flex-row w-full px-4 ${isSent ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-4' : 'mb-1'}`}>
+          <View className={`flex-row w-full px-4 ${isSent ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-3' : 'mb-0.5'}`}>
             <View className={`flex-row items-end max-w-[85%] ${isSent ? 'flex-row-reverse' : 'flex-row'}`}>
               
-              {!isSent && !message.isAudio && (
+              {!isSent && (
                 <View className="w-8 h-8 mr-2">
-                  {isLastInGroup && message.avatar && <Image source={{ uri: message.avatar }} className="w-8 h-8 rounded-full bg-zinc-800" />}
+                  {isLastInGroup && message.avatar && (
+                    <Image 
+                      source={typeof message.avatar === 'string' ? { uri: message.avatar } : message.avatar} 
+                      className="w-8 h-8 rounded-full bg-zinc-800" 
+                    />
+                  )}
                 </View>
               )}
 
               <View className={`items-${isSent ? 'end' : 'start'}`}>
-                <TouchableOpacity onLongPress={() => setShowPopup(true)} delayLongPress={400} activeOpacity={0.9} 
-                  className={`px-3 py-2.5 shadow-sm ${isSent ? 'bg-white rounded-[24px]' : 'bg-[#1C1C1E] rounded-[24px]'} ${isLastInGroup ? (isSent ? 'rounded-br-[4px]' : 'rounded-bl-[4px]') : ''}`}>
-                  
-                  {message.replyTo && (
-                    <TouchableOpacity 
-                      onPress={() => onReplyMessagePress?.(message.replyTo!.id)}
-                      className={`mb-2 py-1.5 px-3 border-l-2 rounded-lg ${isSent ? 'border-zinc-300 bg-zinc-100' : 'border-[#007AFF] bg-white/5'}`}>
-                      <Text className={`text-[11px] font-bold mb-0.5 ${isSent ? 'text-zinc-500' : 'text-[#007AFF]'}`}>{message.replyTo.senderName}</Text>
-                      <Text className={`text-[13px] ${isSent ? 'text-zinc-600' : 'text-zinc-400'}`} numberOfLines={1}>
-                        {message.replyTo.isAudio ? "🎤 Voice Note" : message.replyTo.text}
-                      </Text>
-                    </TouchableOpacity>
+                  {!isSent && isLastInGroup && message.senderName && message.messageType !== 'system' && (
+                    <Text className="text-zinc-500 text-[12px] font-rubik-medium mb-1 ml-1">{message.senderName}</Text>
                   )}
 
-                  {message.isAudio ? (
+                  <TouchableOpacity onLongPress={() => setShowPopup(true)} delayLongPress={400} activeOpacity={0.9}>
+                    <BubbleContainer isSent={isSent}>
+                    
+                    {message.replyTo && (
+                      <TouchableOpacity 
+                        onPress={() => onReplyMessagePress?.(message.replyTo!.id)}
+                        activeOpacity={0.7}
+                        className={`mb-2 py-2 px-3 border-l-4 rounded-xl ${isSent ? 'border-white/40 bg-black/10' : 'border-[#2563EB] bg-white/5'}`}>
+                        <Text className={`text-[12px] font-bold mb-0.5 ${isSent ? 'text-white' : 'text-[#2563EB]'}`}>
+                          {message.replyTo.isSent ? 'You' : (message.replyTo.senderName || 'Sender')}
+                        </Text>
+                        <Text className={`text-[13.5px] ${isSent ? 'text-white/80' : 'text-zinc-400'}`} numberOfLines={1}>
+                          {message.replyTo.isAudio ? "🎤 Voice Note" : message.replyTo.text}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {message.messageType === 'poll' && message.pollData && (
+                      <View className="w-[240px] py-1">
+                         <Text className="text-white font-rubik-bold text-[16px] mb-3">{message.pollData.question}</Text>
+                         {message.pollData.options.map((opt: any) => (
+                           <TouchableOpacity key={opt.id} className="bg-white/5 border border-white/10 rounded-xl p-3 mb-2 flex-row justify-between items-center">
+                              <Text className="text-white/90 font-rubik-medium">{opt.text}</Text>
+                              <View className="w-5 h-5 rounded-full border border-white/30" />
+                           </TouchableOpacity>
+                         ))}
+                         <Text className="text-zinc-500 text-[11px] mt-1">{message.pollData.totalVotes || 0} votes • Select one</Text>
+                      </View>
+                    )}
+
+                    {message.messageType === 'screenshot' && (
+                      <View className="flex-row items-center py-1 w-[240px]">
+                         <View className="bg-red-500/20 p-2 rounded-full mr-3">
+                            <Ionicons name="alert-circle" size={24} color="#ef4444" />
+                         </View>
+                         <View className="flex-1">
+                            <Text className="text-white font-rubik-bold text-[14px]">Screenshot Detected</Text>
+                            <Text className="text-zinc-400 text-[12px]">{isSent ? 'You took' : 'They took'} a screenshot of this chat.</Text>
+                         </View>
+                      </View>
+                    )}
+
+                    {message.messageType === 'image' && message.chat_images && message.chat_images.length > 0 && (
+                      <View className="mb-1 rounded-2xl overflow-hidden">
+                        <Image source={{ uri: message.chat_images[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
+                        {message.text && message.text !== '📷 Image' && (
+                           <Text className={`mt-2 font-rubik-regular text-[15.5px] ${isSent ? 'text-white' : 'text-zinc-100'}`}>
+                             {message.text}
+                           </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {message.messageType === 'video' && message.chat_videos && message.chat_videos.length > 0 && (
+                      <View className="mb-1 rounded-2xl overflow-hidden relative">
+                        <Image source={{ uri: message.chat_videos[0].thumbnail || message.chat_videos[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
+                        <View className="absolute inset-0 items-center justify-center bg-black/20">
+                           <Ionicons name="play-circle" size={50} color="white" />
+                        </View>
+                      </View>
+                    )}
+
+                    {message.messageType === 'file' && message.chat_files && message.chat_files.length > 0 && (
+                      <View className={`flex-row items-center p-3 rounded-xl bg-black/20 w-[230px]`}>
+                        <View className="w-10 h-10 bg-[#2563EB]/20 rounded-lg items-center justify-center mr-3">
+                          <Ionicons name="document-text" size={24} color="#2563EB" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-white text-[14px] font-rubik-medium" numberOfLines={1}>{message.chat_files[0].name}</Text>
+                          <Text className="text-zinc-400 text-[11px] uppercase">{message.chat_files[0].extension}</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {message.isAudio ? (
                     <View className="flex-row items-center py-1 w-[240px]">
-                      {/* Pulsing Avatar with Play/Pause Button */}
                       <Animated.View style={[rPulseStyle, { position: 'relative' }]}>
                         <Image 
-                          source={{ uri: message.avatar }} 
+                          source={typeof message.avatar === 'string' ? { uri: message.avatar } : message.avatar} 
                           className="w-11 h-11 rounded-full bg-zinc-800 border-2 border-zinc-200/20" 
                         />
                         <TouchableOpacity 
                           onPress={handlePlayVoice} 
-                          className={`absolute -right-1 -bottom-1 w-6 h-6 rounded-full items-center justify-center shadow-lg ${isSent ? 'bg-black' : 'bg-white'}`}
+                          className={`absolute -right-1 -bottom-1 w-6 h-6 rounded-full items-center justify-center shadow-lg ${isSent ? 'bg-white' : 'bg-[#2563EB]'}`}
                         >
-                          <Ionicons name={isPlaying ? "pause" : "play"} size={14} color={isSent ? "white" : "black"} />
+                          <Ionicons name={isPlaying ? "pause" : "play"} size={14} color={isSent ? "#2563EB" : "white"} />
                         </TouchableOpacity>
                       </Animated.View>
                       
                       <View className="flex-1 px-3">
                         <Pressable onPress={handleScrub} className="h-6 justify-center">
-                          <View style={{ width: SCRUBBER_WIDTH }} className={`h-[4px] rounded-full ${isSent ? 'bg-black/10' : 'bg-white/10'}`}>
+                          <View style={{ width: SCRUBBER_WIDTH }} className={`h-[4px] rounded-full ${isSent ? 'bg-white/30' : 'bg-white/10'}`}>
                             <View 
                               style={{ width: `${progressPercent * 100}%` }} 
-                              className={`h-full rounded-full ${isSent ? 'bg-black' : 'bg-[#007AFF]'}`} 
+                              className={`h-full rounded-full ${isSent ? 'bg-white' : 'bg-[#2563EB]'}`} 
                             />
                           </View>
                           <View 
                             style={{ left: knobLeftPosition, position: 'absolute' }} 
-                            className={`w-3.5 h-3.5 rounded-full -ml-1.5 shadow-sm ${isSent ? 'bg-black' : 'bg-white'}`} 
+                            className={`w-3.5 h-3.5 rounded-full -ml-1.5 shadow-sm bg-white`} 
                           />
                         </Pressable>
                         
                         <View className="flex-row justify-between w-[130px] mt-1">
-                          <Text className={`text-[10px] font-medium ${isSent ? 'text-black/50' : 'text-zinc-500'}`}>
+                          <Text className={`text-[10px] font-medium ${isSent ? 'text-white/80' : 'text-zinc-500'}`}>
                             {formatTime(position)}
                           </Text>
-                          <Text className={`text-[10px] font-medium ${isSent ? 'text-black/50' : 'text-zinc-500'}`}>
+                          <Text className={`text-[10px] font-medium ${isSent ? 'text-white/80' : 'text-zinc-500'}`}>
                             {duration > 0 ? formatTime(duration) : '0:00'}
                           </Text>
                         </View>
                       </View>
 
-                      <View className={`p-2 rounded-full ${isSent ? 'bg-black/5' : 'bg-white/5'}`}>
-                        <Ionicons name="mic" size={18} color={isSent ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.3)"} />
+                      <View className={`p-2 rounded-full ${isSent ? 'bg-white/10' : 'bg-white/5'}`}>
+                        <Ionicons name="mic" size={18} color={isSent ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.4)"} />
                       </View>
                     </View>
                   ) : (
-                    <Text className={`font-rubik-regular text-[15.5px] leading-[21px] ${isSent ? 'text-black' : 'text-zinc-100'}`}>
+                    <Text className={`font-rubik-regular text-[16px] leading-[22px] ${isSent ? 'text-white' : 'text-zinc-100'}`}>
                       {message.text}
                     </Text>
                   )}
+                  </BubbleContainer>
                 </TouchableOpacity>
 
                 {isLastInGroup && (
                   <View className={`flex-row items-center mt-1.5 px-1 ${isSent ? 'justify-end' : 'justify-start'}`}>
-                    <Text className="text-zinc-500 text-[10px] font-medium uppercase">
+                    <Text className="text-zinc-500 text-[10px] font-medium">
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
-                    {isSent && <Ionicons name="checkmark-done" size={14} color={message.status === 'read' ? '#007AFF' : '#a1a1aa'} style={{ marginLeft: 4 }} />}
+                    {isSent && (
+                      <Ionicons 
+                        name={message.status === 'read' ? "checkmark-done" : (message.status === 'delivered' ? "checkmark-done" : "checkmark")} 
+                        size={15} 
+                        color={message.status === 'read' ? '#2563EB' : '#52525B'} 
+                        style={{ marginLeft: 4 }} 
+                      />
+                    )}
                   </View>
                 )}
               </View>
