@@ -1983,7 +1983,15 @@ export const shareFlux = async (
     const callerName = callerInfo?.name ?? callerInfo?.username ?? "Someone";
     const callerAvatar =
       callerInfo?.profile_picture ?? callerInfo?.profilePicture ?? "";
-    const fluxUrl = `/post/flux-view?fluxId=${fluxId}&userId=${callerId}`;
+    
+    const fluxOwnerResp = await wieUserClient
+      .getUsersByIds([fluxOwnerId])
+      .catch(() => ({ users: [] }));
+    const fluxOwnerInfo = (fluxOwnerResp.users ?? [])[0];
+    const fluxOwnerName = fluxOwnerInfo?.username ?? fluxOwnerInfo?.name ?? "User";
+    const fluxOwnerAvatar = fluxOwnerInfo?.profile_picture ?? null;
+
+    const fluxUrl = `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`;
 
     const results: {
       receiverId: string;
@@ -1999,8 +2007,13 @@ export const shareFlux = async (
         fluxId,
         fluxMediaUrl: (flux as any).mediaUrl,
         fluxMediaType: (flux as any).mediaType,
-        fluxOwnerId: callerId,
+        fluxOwnerId,
+        fluxOwnerName,
+        fluxOwnerUsername: fluxOwnerName,
+        fluxOwnerAvatar,
+        fluxOwnerProfilePicture: fluxOwnerAvatar,
         sharerName: callerName,
+        sharerAvatar: callerAvatar,
         fluxUrl,
         type: "flux_share",
       });
@@ -2017,7 +2030,9 @@ export const shareFlux = async (
             fluxMediaType: (flux as any).mediaType,
             sharerName: callerName,
             sharerAvatar: callerAvatar,
-            fluxOwnerId: callerId,
+            fluxOwnerId,
+            fluxOwnerName,
+            fluxOwnerAvatar,
             type: "flux_share",
           }),
         });

@@ -91,6 +91,7 @@ const AUDIO_FORMAT_MAP = {
   'audio/mpeg':  'mp3',
   'audio/mp3':   'mp3',
   'audio/mp4':   'm4a',
+  'audio/m4a':   'm4a',
   'audio/x-m4a': 'm4a',
   'audio/ogg':   'ogg',
   'audio/opus':  'opus',
@@ -108,9 +109,9 @@ export const uploadChatAudio = async (buffer, options = {}) => {
 
     const result = await uploadToCloudinary(buffer, {
       folder:       'WIE_CHAT/chat_audio',
-      resourceType: 'video',   
+      resourceType: 'auto',   // Using auto for better compatibility
       ...options,
-      mimeType: mappedFormat ? `audio/${mappedFormat}` : undefined,
+      mimeType: mappedFormat ? `audio/${mappedFormat}` : mimeType,
     });
 
     return {

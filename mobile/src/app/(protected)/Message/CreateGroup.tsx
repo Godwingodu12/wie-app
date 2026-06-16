@@ -59,14 +59,14 @@ const CreateGroup = () => {
         {/* Group Icon Section */}
         <View className="items-center py-8">
            <TouchableOpacity onPress={pickImage} className="relative">
-              <View className="w-24 h-24 rounded-full bg-[#1F1F23] items-center justify-center border border-white/5 overflow-hidden">
+              <View className="w-24 h-24 rounded-full bg-[#1C1C1E] items-center justify-center border border-white/5 overflow-hidden">
                 {groupIcon ? (
                   <Image source={{ uri: groupIcon }} className="w-full h-full" />
                 ) : (
                   <Ionicons name="camera" size={32} color="#52525B" />
                 )}
               </View>
-              <View className="absolute bottom-0 right-0 bg-[#7C4DFF] w-8 h-8 rounded-full items-center justify-center border-2 border-black">
+              <View className="absolute bottom-0 right-0 bg-primary w-8 h-8 rounded-full items-center justify-center border-2 border-black">
                  <Ionicons name="add" size={20} color="white" />
               </View>
            </TouchableOpacity>
@@ -76,7 +76,7 @@ const CreateGroup = () => {
         {/* Group Name Input */}
         <View className="mb-8">
            <Text className="text-[#A0A0A0] text-[13px] font-rubik-medium mb-2 ml-1">Group name</Text>
-           <View className="flex-row items-center bg-[#1F1F23] border border-white/5 rounded-2xl px-4 h-[56px]">
+           <View className="flex-row items-center bg-[#1C1C1E] border border-white/5 rounded-2xl px-4 h-[56px]">
               <TextInput 
                 placeholder="Enter group name"
                 placeholderTextColor="#52525B"
@@ -91,7 +91,7 @@ const CreateGroup = () => {
         </View>
 
         {/* Group Options */}
-        <View className="mb-6 rounded-2xl bg-[#1F1F23] border border-white/5 overflow-hidden">
+        <View className="mb-6 rounded-2xl bg-[#1C1C1E] border border-white/5 overflow-hidden">
            <TouchableOpacity className="flex-row items-center justify-between p-4 border-b border-white/5">
               <View className="flex-row items-center">
                  <Ionicons name="time-outline" size={22} color="white" />
@@ -103,7 +103,10 @@ const CreateGroup = () => {
               </View>
            </TouchableOpacity>
            
-           <TouchableOpacity className="flex-row items-center justify-between p-4">
+           <TouchableOpacity 
+             onPress={() => router.push('/Message/GroupPermissions')}
+             className="flex-row items-center justify-between p-4"
+           >
               <View className="flex-row items-center">
                  <Ionicons name="settings-outline" size={22} color="white" />
                  <Text className="text-white ml-3 text-[15px] font-rubik-medium">Group settings</Text>
@@ -122,7 +125,7 @@ const CreateGroup = () => {
         <TouchableOpacity 
           onPress={handleCreate}
           disabled={!groupName.trim() || isSubmitting}
-          className={`h-[56px] rounded-full items-center justify-center shadow-lg ${!groupName.trim() ? 'bg-[#1F1F23]' : 'bg-[#7C4DFF]'}`}
+          className={`h-[56px] rounded-full items-center justify-center shadow-lg ${!groupName.trim() ? 'bg-[#1C1C1E]' : 'bg-primary'}`}
         >
           <Text className={`font-rubik-bold text-lg ${!groupName.trim() ? 'text-zinc-500' : 'text-white'}`}>
             Create group

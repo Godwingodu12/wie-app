@@ -111,11 +111,20 @@ const OtherProfile = () => {
         console.log(`[OtherProfile] Fetching fluxes for userId: ${userId}`);
         const [postsResponse, userDiaries] = await Promise.all([
           mediaService.getUserPosts(userId).catch(err => {
-            console.error(`[OtherProfile] getUserPosts ERROR:`, err);
+            // If the account is private, it's an expected restriction, not a code failure
+            if (err?.message === 'This account is private' || err?.response?.status === 403) {
+              console.log(`[OtherProfile] Account is private, skipping post fetch.`);
+            } else {
+              console.error(`[OtherProfile] getUserPosts ERROR:`, err);
+            }
             return { data: [], pagination: { total: 0 } };
           }),
           mediaService.getUserDiaries(userId).catch(err => {
-            console.error(`[OtherProfile] getUserDiaries ERROR:`, err);
+            if (err?.message === 'This account is private' || err?.response?.status === 403) {
+               console.log(`[OtherProfile] Account is private, skipping diaries fetch.`);
+            } else {
+               console.error(`[OtherProfile] getUserDiaries ERROR:`, err);
+            }
             return [];
           })
         ]);

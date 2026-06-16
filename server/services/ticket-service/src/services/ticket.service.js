@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
@@ -7145,6 +7146,9 @@ export const getCancellationDescription = (tier) => {
 export const startAutoDeleteCron = () => {
   cron.schedule("0 0 * * *", async () => {
     try {
+      // Don't run if not connected to avoid buffering noise
+      if (mongoose.connection.readyState !== 1) return;
+
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       // 1. Hard-delete root tickets that have been in deleted state > 30 days

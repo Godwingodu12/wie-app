@@ -26,7 +26,7 @@ const SearchInsideChat = () => {
     <SafeAreaView className="flex-1 bg-black">
       {/* Search Header */}
       <View className="px-5 py-4 border-b border-white/5">
-        <View className="flex-row items-center bg-[#1F1F23] rounded-2xl px-4 py-1 border border-white/5">
+        <View className="flex-row items-center bg-[#1C1C1E] rounded-2xl px-4 py-1 border border-white/5">
            <TouchableOpacity onPress={() => router.back()}>
              <Ionicons name="arrow-back" size={22} color="white" />
            </TouchableOpacity>
@@ -52,11 +52,11 @@ const SearchInsideChat = () => {
         contentContainerStyle={{ padding: 20 }}
         renderItem={({ item }) => (
           <TouchableOpacity 
-            className="mb-6 bg-[#1F1F23]/50 p-4 rounded-2xl border border-white/5"
+            className="mb-6 bg-[#1C1C1E] p-4 rounded-2xl border border-white/5"
             onPress={() => router.back()}
           >
             <View className="flex-row justify-between mb-2">
-              <Text className="text-[#7C4DFF] text-[12px] font-rubik-bold">MATCH FOUND</Text>
+              <Text className="text-primary text-[12px] font-rubik-bold">MATCH FOUND</Text>
               <Text className="text-zinc-500 text-[11px] font-rubik-medium">{item.timestamp}</Text>
             </View>
             <Text className="text-white text-[15px] font-rubik-regular leading-[22px]">
@@ -66,7 +66,7 @@ const SearchInsideChat = () => {
         )}
         ListEmptyComponent={
           <View className="mt-20 items-center px-10">
-            <Ionicons name="search" size={64} color="#1F1F23" />
+            <Ionicons name="search" size={64} color="#1C1C1E" />
             <Text className="text-zinc-500 font-rubik-regular text-center mt-4">
               {searchQuery ? 'No messages found.' : 'Search for messages in this chat.'}
             </Text>

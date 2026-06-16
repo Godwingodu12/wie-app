@@ -40,7 +40,10 @@ config.maxWorkers = 4;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Force resolution for expo-router/entry to ensure it's picked up correctly
   if (moduleName === 'expo-router/entry') {
-    return context.resolveRequest(context, 'expo-router/entry', platform);
+    return {
+      filePath: path.resolve(projectRoot, 'node_modules/expo-router/entry.js'),
+      type: 'sourceFile',
+    };
   }
 
   // Fix react-native-css-interop subpaths for NativeWind
@@ -80,6 +83,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // Default resolver delegation (Metro context provides the default resolver in context.resolveRequest)
   return context.resolveRequest(context, moduleName, platform);
 };
 

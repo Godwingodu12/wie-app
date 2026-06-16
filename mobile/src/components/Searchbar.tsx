@@ -57,9 +57,7 @@ export const SearchBar = ({
         />
 
         {!isFocused ? (
-          <TouchableOpacity onPress={onPressOptions} activeOpacity={0.7}>
-            <Ionicons name="options-outline" size={20} color="#71717a" />
-          </TouchableOpacity>
+          null
         ) : (
           value.length > 0 && (
             <TouchableOpacity onPress={() => onChangeText('')}>

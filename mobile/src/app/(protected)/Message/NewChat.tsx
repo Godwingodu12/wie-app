@@ -96,7 +96,7 @@ const NewChatSearchPage = () => {
       <View className="flex-row items-center px-5 py-4 justify-between">
         <View className="flex-row items-center">
           <TouchableOpacity 
-            onPress={() => router.back()}
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')}
             className="mr-3"
           >
             <Ionicons name="chevron-back" size={28} color="white" />

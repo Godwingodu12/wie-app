@@ -922,7 +922,8 @@ export const getWieChatMessages = async (req, res) => {
     const RICH_FIELDS = [
       'chat_images', 'chat_videos', 'chat_audio', 'chat_files',
       'stickerData', 'voiceData', 'locationData', 'contactData',
-      'profileData', 'eventData', 'replyTo'
+      'profileData', 'eventData', 'replyTo', 'metadata', 'pollData',
+      'postShareData', 'storyShareData'
     ];
 
     const messagesWithAllFields = paginatedMessages.map(msg => {

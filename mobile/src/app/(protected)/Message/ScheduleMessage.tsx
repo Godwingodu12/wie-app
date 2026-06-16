@@ -32,13 +32,17 @@ const ScheduleMessage = () => {
   const handleSchedule = () => {
     if (!message.trim()) return;
     console.log('Scheduling message:', message, 'at', date);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(protected)/(tabs)');
+    }
   };
 
   return (
     <SafeAreaView className="flex-1 bg-black">
       <View className="flex-row items-center px-5 py-4">
-        <TouchableOpacity onPress={() => router.back()} className="mr-4">
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')} className="mr-4">
           <Ionicons name="close" size={28} color="white" />
         </TouchableOpacity>
         <Text className="text-white text-2xl font-rubik-bold">Schedule message</Text>
@@ -47,7 +51,7 @@ const ScheduleMessage = () => {
       <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
         <View className="mt-6">
            <Text className="text-[#A0A0A0] text-[13px] font-rubik-medium mb-3 ml-1">Message</Text>
-           <View className="bg-[#1F1F23] border border-white/5 rounded-2xl px-4 py-3 min-h-[120px]">
+           <View className="bg-[#1C1C1E] border border-white/5 rounded-2xl px-4 py-3 min-h-[120px]">
               <TextInput
                 placeholder="Type your message here..."
                 placeholderTextColor="#52525B"
@@ -64,10 +68,10 @@ const ScheduleMessage = () => {
            
            <TouchableOpacity 
              onPress={() => setShowDatePicker(true)}
-             className="flex-row items-center justify-between bg-[#1F1F23] border border-white/5 rounded-2xl p-4 h-[56px] mb-3"
+             className="flex-row items-center justify-between bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 h-[56px] mb-3"
            >
               <View className="flex-row items-center">
-                 <Ionicons name="calendar-outline" size={20} color="#7C4DFF" />
+                 <Ionicons name="calendar-outline" size={20} color="#8b5cf6" />
                  <Text className="text-white ml-3 font-rubik-medium">{date.toLocaleDateString()}</Text>
               </View>
               <Ionicons name="chevron-down" size={18} color="#3F3F46" />
@@ -75,10 +79,10 @@ const ScheduleMessage = () => {
 
            <TouchableOpacity 
              onPress={() => setShowTimePicker(true)}
-             className="flex-row items-center justify-between bg-[#1F1F23] border border-white/5 rounded-2xl p-4 h-[56px]"
+             className="flex-row items-center justify-between bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 h-[56px]"
            >
               <View className="flex-row items-center">
-                 <Ionicons name="time-outline" size={20} color="#7C4DFF" />
+                 <Ionicons name="time-outline" size={20} color="#8b5cf6" />
                  <Text className="text-white ml-3 font-rubik-medium">{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
               </View>
               <Ionicons name="chevron-down" size={18} color="#3F3F46" />
@@ -116,7 +120,7 @@ const ScheduleMessage = () => {
         <TouchableOpacity 
           onPress={handleSchedule}
           disabled={!message.trim()}
-          className={`h-[56px] rounded-full items-center justify-center shadow-lg ${!message.trim() ? 'bg-zinc-800' : 'bg-[#7C4DFF]'}`}
+          className={`h-[56px] rounded-full items-center justify-center shadow-lg ${!message.trim() ? 'bg-zinc-800' : 'bg-primary'}`}
         >
           <Text className={`font-rubik-bold text-lg ${!message.trim() ? 'text-zinc-500' : 'text-white'}`}>Schedule</Text>
         </TouchableOpacity>

@@ -2,7 +2,7 @@ import express from 'express';
 import * as wieChatController from '../controllers/wiechat.controller.js';
 import * as wieMediaController from '../controllers/chatmedia.controller.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { mediaUpload, documentUpload } from '../middleware/upload.js';
+import { mediaUpload, documentUpload, anyMediaUpload } from '../middleware/upload.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -44,7 +44,7 @@ router.post(
 );
 router.post(
   '/:chatId/send-audio',
-  documentUpload.single('audio'),
+  anyMediaUpload.single('audio'),
   wieMediaController.sendAudioMessage
 );
 router.post(

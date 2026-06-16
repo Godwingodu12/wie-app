@@ -15,6 +15,8 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
   const userIdStr  = userId.toString();
   const receiverId = chat.participants.find(id => id !== userIdStr);
 
+  console.log(`DEBUG: sendMediaMessage starting for chat ${chat._id}, type ${messageObj.messageType}`);
+
   // ── Check receiver is viewing this chat 
   const receiverOnline = isUserOnline(receiverId);
   let   receiverViewingChat = false;
@@ -28,7 +30,7 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
           break;
         }
       }
-    } catch { /* silent */ }
+    } catch (e) { console.log('DEBUG: receiver check error:', e.message); }
   }
 
   // ── Finalise message object 
@@ -37,6 +39,7 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
   messageObj.deliveredTo = receiverOnline ? [receiverId] : [];
   messageObj.timestamp   = new Date();
 
+  console.log('DEBUG: Pushing message to chat object');
   chat.messages.push(messageObj);
   chat.lastMessage = {
     content:   messageObj.content,
@@ -50,7 +53,15 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
   }
 
   chat.updatedAt = new Date();
-  await chat.save();
+  
+  console.log('DEBUG: Saving chat to MongoDB...');
+  try {
+    await chat.save();
+    console.log('DEBUG: Chat saved successfully');
+  } catch (saveErr) {
+    console.error('DEBUG: MongoDB save error:', saveErr);
+    throw saveErr;
+  }
 
   const saved = chat.messages[chat.messages.length - 1];
 
@@ -64,6 +75,7 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
   }
 
   // ── HTTP response 
+  console.log('DEBUG: Sending HTTP 201 response');
   res.status(201).json({
     success: true,
     message: buildMessagePayload(saved, userIdStr, receiverOnline),
@@ -73,6 +85,7 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
   // ── Socket emissions (non-blocking) 
   setImmediate(() => {
     try {
+      console.log('DEBUG: Starting socket emissions');
       const io       = getIO();
       const msgData  = buildMessagePayload(saved, userIdStr, receiverOnline);
       const chatIdStr = chat._id.toString();
@@ -138,9 +151,9 @@ const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, s
         unreadCount: 0,
         isSender:    true
       });
-
+      console.log('DEBUG: Socket emissions completed');
     } catch (err) {
-      console.error('Socket emit error (media):', err.message);
+      console.error('DEBUG: Socket emit error (media):', err.message);
     }
   });
 };
@@ -186,7 +199,7 @@ export const sendImageMessage = async (req, res) => {
     const { chatId }  = req.params;
     const userId      = req.user._id || req.user.id;
     const userIdStr   = userId.toString();
-    const { caption } = req.body;
+    const { caption, replyTo } = req.body;
 
     if (!req.files?.length && !req.file) {
       return res.status(400).json({ success: false, message: 'No image files provided' });
@@ -222,6 +235,7 @@ export const sendImageMessage = async (req, res) => {
       messageType: 'image',
       chat_images: imagesWithMode,
       viewMode,
+      ...(replyTo ? { replyTo: typeof replyTo === 'string' ? { messageId: replyTo } : replyTo } : {})
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });
@@ -237,7 +251,7 @@ export const sendVideoMessage = async (req, res) => {
     const { chatId }  = req.params;
     const userId      = req.user._id || req.user.id;
     const userIdStr   = userId.toString();
-    const { caption } = req.body;
+    const { caption, replyTo } = req.body;
 
     if (!req.file) return res.status(400).json({ success: false, message: 'No video file provided' });
 
@@ -271,6 +285,7 @@ export const sendVideoMessage = async (req, res) => {
         viewedBy: [],
       }],
       viewMode,
+      ...(replyTo ? { replyTo: typeof replyTo === 'string' ? { messageId: replyTo } : replyTo } : {})
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });
@@ -286,8 +301,11 @@ export const sendAudioMessage = async (req, res) => {
     const { chatId } = req.params;
     const userId     = req.user._id || req.user.id;
     const userIdStr  = userId.toString();
+    const { replyTo } = req.body;
 
-    if (!req.file) return res.status(400).json({ success: false, message: 'No audio file provided' });
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No audio file provided' });
+    }
 
     const chat = await WieChat.findById(chatId);
     if (!chat) return res.status(404).json({ success: false, message: 'Chat not found' });
@@ -307,22 +325,28 @@ export const sendAudioMessage = async (req, res) => {
 
     const messageObj = {
       sender:      userIdStr,
-      content:     '🎵 Audio',
-      messageType: 'audio',
+      content:     '🎤 Voice message',
+      messageType: 'voice',
+      voiceData: {
+        url: audioResult.url,
+        duration: audioResult.duration || 0,
+        mimeType: req.file.mimetype
+      },
       chat_audio:  [{
         url:          audioResult.url,
         duration:     audioResult.duration,
         size:         audioResult.bytes,
         mimeType:     req.file.mimetype,
         originalName: req.file.originalname
-      }]
+      }],
+      ...(replyTo ? { replyTo: typeof replyTo === 'string' ? { messageId: replyTo } : replyTo } : {})
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });
   } catch (error) {
     console.error('sendAudioMessage error:', error);
     if (!res.headersSent)
-      res.status(500).json({ success: false, message: 'Failed to send audio' });
+      res.status(500).json({ success: false, message: 'Failed to send audio', detail: error.message });
   }
 };
 
@@ -331,6 +355,7 @@ export const sendDocumentMessage = async (req, res) => {
     const { chatId } = req.params;
     const userId     = req.user._id || req.user.id;
     const userIdStr  = userId.toString();
+    const { replyTo } = req.body;
 
     if (!req.file) return res.status(400).json({ success: false, message: 'No document file provided' });
 
@@ -362,7 +387,8 @@ export const sendDocumentMessage = async (req, res) => {
         size:         docResult.bytes || req.file.size,
         mimeType:     req.file.mimetype,
         extension:    ext
-      }]
+      }],
+      ...(replyTo ? { replyTo: typeof replyTo === 'string' ? { messageId: replyTo } : replyTo } : {})
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });

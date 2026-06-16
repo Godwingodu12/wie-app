@@ -89,8 +89,36 @@ const sendSystemMessage = async (call, callback) => {
       isRead: false,
       deliveredTo: [],
       timestamp: new Date(),
-      metadata,
+      metadata: parsedMeta,
     };
+
+    // Explicitly populate top-level schema fields if they exist in parsed content
+    if (message_type === 'post_share' || parsedMeta.type === 'post_share') {
+       messageObj.postShareData = {
+          postId: parsedMeta.postId,
+          postOwnerId: parsedMeta.postOwnerId,
+          mediaUrl: parsedMeta.mediaUrl,
+          mediaType: parsedMeta.mediaType || 'image',
+          caption: parsedMeta.caption,
+          sharerName: parsedMeta.sharerName || parsedMeta.postOwnerName
+       };
+    } else if (['flux_share', 'flux_mention', 'flux_remention'].includes(message_type) || (parsedMeta.type && parsedMeta.type.startsWith('flux_'))) {
+       messageObj.storyShareData = {
+          fluxId: parsedMeta.fluxId,
+          mediaUrl: parsedMeta.mediaUrl || parsedMeta.fluxMediaUrl,
+          mediaType: parsedMeta.mediaType || parsedMeta.fluxMediaType || 'image',
+          ownerId: parsedMeta.ownerId || parsedMeta.fluxOwnerId,
+          ownerName: parsedMeta.ownerName || parsedMeta.fluxOwnerName,
+          ownerAvatar: parsedMeta.ownerAvatar || parsedMeta.fluxOwnerAvatar,
+          text: parsedMeta.text
+       };
+    } else if (message_type === 'voice' && parsedMeta.audio) {
+       messageObj.voiceData = {
+          url: parsedMeta.url,
+          duration: parsedMeta.duration,
+          mimeType: parsedMeta.mimeType
+       };
+    }
 
     chat.messages.push(messageObj);
     chat.lastMessage = {
@@ -127,6 +155,9 @@ const sendSystemMessage = async (call, callback) => {
           deliveredTo: [],
           isRead: false,
           metadata,
+          postShareData: savedMsg.postShareData,
+          voiceData: savedMsg.voiceData,
+          storyShareData: savedMsg.storyShareData
         },
         sender: sender_id,
         timestamp: new Date(),

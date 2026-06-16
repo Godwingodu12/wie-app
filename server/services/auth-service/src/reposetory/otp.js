@@ -1,68 +1,32 @@
+import mongoose from 'mongoose';
 import { OTP } from '../models/otp.model.js';
 class OtpService {
   constructor() {
     this.cleanupTimers = new Map(); // Store cleanup timers for each user
-    this.startPeriodicCleanup();
+    this.cleanupInterval = null;
   }
-  async insertOTP(userId, otp, expirationMinutes) {
-    try {
-      // Delete all existing OTPs for this user before creating a new one
-      await this.deleteAllOtps(userId);
-      // Clear any existing cleanup timer for this user
-      if (this.cleanupTimers.has(userId.toString())) {
-        clearTimeout(this.cleanupTimers.get(userId.toString()));
-        this.cleanupTimers.delete(userId.toString());
-      }
-      const expiresAt = new Date(Date.now() + expirationMinutes * 60000);
-      const otpDocument = new OTP({
-        user_id: userId,
-        otp_value: otp,
-        expires_at: expiresAt,
-      });
-      
-      await otpDocument.save();
-      console.log(`OTP created for user ${userId}, expires at: ${expiresAt}`);
-      
-      // Schedule cleanup immediately after expiration (1 minute + 5 seconds buffer)
-      const cleanupDelay = (expirationMinutes * 60000) + 5000;
-      const timerId = setTimeout(async () => {
-        try {
-          const deletedCount = await this.deleteAllOtps(userId);
-          if (deletedCount > 0) {
-            console.log(`⏰ Auto-cleanup: Deleted ${deletedCount} expired OTP(s) for user: ${userId}`);
-          }
-          this.cleanupTimers.delete(userId.toString());
-        } catch (error) {
-          console.error('Error in scheduled cleanup:', error);
-        }
-      }, cleanupDelay);
-      
-      // Store the timer reference
-      this.cleanupTimers.set(userId.toString(), timerId);
-      console.log(`⏲️  Scheduled auto-cleanup for user ${userId} in ${expirationMinutes} minute(s)`);
-      
-      return otp;
-    } catch (error) {
-      console.error('Error inserting OTP:', error);
-      throw error;
-    }
-  }
-  // Start periodic cleanup every 15 seconds (more frequent than before)
+  
+  // Start periodic cleanup, usually called after DB is connected
   startPeriodicCleanup() {
-    const cleanupInterval = setInterval(async () => {
+    if (this.cleanupInterval) return;
+
+    this.cleanupInterval = setInterval(async () => {
       try {
         const deletedCount = await this.cleanupAllExpiredOtps();
         if (deletedCount > 0) {
           console.log(`🧹 Periodic cleanup: Deleted ${deletedCount} expired OTP(s) at ${new Date().toISOString()}`);
         }
       } catch (error) {
-        console.error('Periodic cleanup error:', error);
+        // Log only if it's not a connection/buffering error to reduce noise
+        if (error.name !== 'MongooseError' || !error.message.includes('buffering')) {
+          console.error('Periodic cleanup error:', error);
+        }
       }
-    }, 15000); // Run every 15 seconds
+    }, 60000); // Run every 60 seconds (less frequent than before to reduce load)
 
     // Ensure cleanup doesn't prevent process from exiting
-    if (cleanupInterval.unref) {
-      cleanupInterval.unref();
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
     }
     
     // Run initial cleanup immediately
@@ -70,37 +34,15 @@ class OtpService {
       if (count > 0) {
         console.log(`🧹 Initial cleanup: Deleted ${count} expired OTP(s)`);
       }
-    });
-  }
-
-  // Delete expired OTPs for a specific user
-  async deleteExpiredOtps(userId) {
-    try {
-      const now = new Date();
-      const result = await OTP.deleteMany({ 
-        user_id: userId,
-        expires_at: { $lte: now }
-      });
-      
-      if (result.deletedCount > 0) {
-        console.log(`🗑️  Deleted ${result.deletedCount} expired OTP(s) for user: ${userId}`);
-        // Clear the cleanup timer if OTP was manually deleted
-        if (this.cleanupTimers.has(userId.toString())) {
-          clearTimeout(this.cleanupTimers.get(userId.toString()));
-          this.cleanupTimers.delete(userId.toString());
-        }
-      }
-      
-      return result.deletedCount;
-    } catch (error) {
-      console.error('Error deleting expired OTPs for user:', error);
-      return 0;
-    }
+    }).catch(() => {});
   }
 
   // Clean up all expired OTPs across all users
   async cleanupAllExpiredOtps() {
     try {
+      // Don't even try if not connected
+      if (mongoose.connection.readyState !== 1) return 0;
+
       const now = new Date();
       const result = await OTP.deleteMany({ expires_at: { $lte: now } });
       

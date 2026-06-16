@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, TextInput, FlatList, Image, Platform, Share, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getSuggestedUsers, searchUsers } from '@/services/wieUserService';
 import { sharePost } from '@/services/mediaService';
 import { getImageSource } from '@/utils/imageUtils';
@@ -32,6 +33,7 @@ const ShareSheet = ({ isVisible, onClose, postId }: ShareSheetProps) => {
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
         if (isVisible) {
@@ -76,6 +78,19 @@ const ShareSheet = ({ isVisible, onClose, postId }: ShareSheetProps) => {
                 ? prev.filter(id => id !== userId)
                 : [...prev, userId]
         );
+    };
+
+    const handleSend = async () => {
+        if (selectedUsers.length === 0) return;
+        setIsSending(true);
+        try {
+            await sharePost(postId, selectedUsers);
+            onClose();
+        } catch (error) {
+            console.error('Error sending post:', error);
+        } finally {
+            setIsSending(false);
+        }
     };
 
     const handleExternalAction = async (optionId: string) => {
@@ -194,7 +209,7 @@ const ShareSheet = ({ isVisible, onClose, postId }: ShareSheetProps) => {
                         />
                     )}
 
-                    {/* Bottom Action Row (Horizontal Scroll) */}
+                    {/* Bottom Action Row */}
                     <View 
                         style={{ 
                             position: 'absolute', 
@@ -208,39 +223,64 @@ const ShareSheet = ({ isVisible, onClose, postId }: ShareSheetProps) => {
                             borderTopColor: 'rgba(255,255,255,0.1)'
                         }}
                     >
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false} 
-                            contentContainerStyle={{ paddingHorizontal: 20 }}
-                        >
-                            {ACTION_OPTIONS.map((option) => (
+                        {selectedUsers.length > 0 ? (
+                            <View style={{ paddingHorizontal: 20 }}>
                                 <TouchableOpacity 
-                                    key={option.id} 
-                                    activeOpacity={0.7} 
-                                    style={{ alignItems: 'center', marginRight: 25 }}
-                                    onPress={() => handleExternalAction(option.id)}
+                                    activeOpacity={0.8}
+                                    onPress={handleSend}
+                                    disabled={isSending}
                                 >
-                                    <View 
-                                        style={{ 
-                                            width: 54, 
-                                            height: 54, 
-                                            borderRadius: 27, 
-                                            backgroundColor: '#2C2C2E', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
-                                            marginBottom: 8 
-                                        }}
+                                    <LinearGradient
+                                        colors={['#8B5CF6', '#7C3AED']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={{ height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' }}
                                     >
-                                        {option.type === 'ionicons' ? (
-                                            <Ionicons name={option.icon as any} size={26} color="white" />
+                                        {isSending ? (
+                                            <ActivityIndicator color="white" />
                                         ) : (
-                                            <MaterialCommunityIcons name={option.icon as any} size={28} color={option.color || "white"} />
+                                            <Text style={{ color: 'white', fontSize: 16, fontWeight: '700' }}>
+                                                Send to {selectedUsers.length} {selectedUsers.length === 1 ? 'person' : 'people'}
+                                            </Text>
                                         )}
-                                    </View>
-                                    <Text style={{ color: 'white', fontSize: 11 }}>{option.name}</Text>
+                                    </LinearGradient>
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                            </View>
+                        ) : (
+                            <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                contentContainerStyle={{ paddingHorizontal: 20 }}
+                            >
+                                {ACTION_OPTIONS.map((option) => (
+                                    <TouchableOpacity 
+                                        key={option.id} 
+                                        activeOpacity={0.7} 
+                                        style={{ alignItems: 'center', marginRight: 25 }}
+                                        onPress={() => handleExternalAction(option.id)}
+                                    >
+                                        <View 
+                                            style={{ 
+                                                width: 54, 
+                                                height: 54, 
+                                                borderRadius: 27, 
+                                                backgroundColor: '#2C2C2E', 
+                                                alignItems: 'center', 
+                                                justifyContent: 'center', 
+                                                marginBottom: 8 
+                                            }}
+                                        >
+                                            {option.type === 'ionicons' ? (
+                                                <Ionicons name={option.icon as any} size={26} color="white" />
+                                            ) : (
+                                                <MaterialCommunityIcons name={option.icon as any} size={28} color={option.color || "white"} />
+                                            )}
+                                        </View>
+                                        <Text style={{ color: 'white', fontSize: 11 }}>{option.name}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        )}
                     </View>
                 </View>
             </View>

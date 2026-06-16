@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path, Rect, Circle, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { getImageSource } from '@/utils/imageUtils';
 import Animated, { 
   useAnimatedStyle, 
   useSharedValue, 
@@ -35,6 +38,32 @@ export interface Message {
   locationData?: { latitude: number; longitude: number; address?: string; name?: string; isLive?: boolean };
   contactData?: { name: string; phone: string[] };
   profileData?: { userId: string; name: string; username: string; avatar?: string };
+  postShareData?: {
+    postId: string;
+    postOwnerId: string;
+    postOwnerName?: string;
+    postOwnerAvatar?: string;
+    mediaUrl: string;
+    mediaType: 'image' | 'video';
+    caption?: string;
+    sharerName?: string;
+    postUrl?: string;
+  };
+  storyShareData?: {
+    fluxId: string;
+    mediaUrl: string;
+    mediaType: 'image' | 'video';
+    ownerId: string;
+    ownerName: string;
+    ownerAvatar?: string;
+    text?: string;
+  };
+  pollData?: any;
+  voiceData?: {
+    url: string;
+    duration: number;
+    mimeType?: string;
+  };
   replyTo?: {
     id: string;
     text: string;
@@ -54,7 +83,7 @@ interface MessageBubbleProps {
   isLastInGroup?: boolean; 
 }
 
-export const MessageBubble = ({ 
+export const MessageBubble = React.memo(({ 
   message, 
   onReply, 
   onDeleteForMe, 
@@ -68,12 +97,23 @@ export const MessageBubble = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  
+  const [mapLoading, setMapLoading] = useState(true);
   
   const isSent = message.isSent;
   const translateX = useSharedValue(0);
   const pulseScale = useSharedValue(1);
   const highlightAnim = useSharedValue(0);
   const SCRUBBER_WIDTH = 130;
+
+  const cyclePlaybackRate = async () => {
+    const nextRate = playbackRate === 1 ? 1.5 : (playbackRate === 1.5 ? 2 : 1);
+    setPlaybackRate(nextRate);
+    if (sound && isPlaying) {
+      await sound.setRateAsync(nextRate, true);
+    }
+  };
 
   useEffect(() => {
     if (isHighlighted) {
@@ -127,6 +167,15 @@ export const MessageBubble = ({
 
   const handlePlayVoice = async () => {
     try {
+      // Ensure audio mode is configured for playback so Android grants audio focus
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
       if (sound) {
         const status = await sound.getStatusAsync();
         if (status.isLoaded) {
@@ -137,6 +186,7 @@ export const MessageBubble = ({
             if (status.positionMillis >= (status.durationMillis || 0) - 100) {
                await sound.setPositionAsync(0);
             }
+            await sound.setRateAsync(playbackRate, true);
             await sound.playAsync();
             setIsPlaying(true);
           }
@@ -144,32 +194,64 @@ export const MessageBubble = ({
         return;
       }
 
-      let uri = message.text;
-      if (Platform.OS === 'android' && !uri.startsWith('http') && !uri.startsWith('file://')) {
-        uri = `file://${uri}`;
+      // 1. Gather all potential URIs (remote and local)
+      const candidateUris = [];
+      if (message.chat_audio && message.chat_audio.length > 0) {
+        candidateUris.push(message.chat_audio[0].url);
+      }
+      if (message.voiceData?.url) {
+        candidateUris.push(message.voiceData.url);
+      }
+      if (message.text) {
+        candidateUris.push(message.text);
       }
 
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, isLooping: false },
-        onPlaybackStatusUpdate
+      // Filter out invalid or text placeholders
+      const validUris = candidateUris.filter(
+        uri => uri && uri !== '🎤 Voice message' && uri !== '🎤 Voice Note'
       );
-      setSound(newSound);
-      setIsPlaying(true);
-    } catch (err) {
-      console.error("Playback failed:", err);
-      try {
-        let uri = message.text;
-        const { sound: retrySound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true, isLooping: false },
-          onPlaybackStatusUpdate
-        );
-        setSound(retrySound);
-        setIsPlaying(true);
-      } catch (retryErr) {
-        console.error("Retry playback failed:", retryErr);
+
+      if (validUris.length === 0) {
+        console.warn("DEBUG: No valid voice URI found.");
+        return;
       }
+
+      const getFormattedUri = (inputUri: string) => {
+        let finalUri = inputUri;
+
+        if (Platform.OS === 'android' && !finalUri.startsWith('http') && !finalUri.startsWith('file://')) {
+          if (finalUri.startsWith('/')) {
+            finalUri = `file://${finalUri}`;
+          }
+        }
+        return finalUri;
+      };
+
+      // 2. Try to play each URI until one succeeds
+      let success = false;
+      for (const uri of validUris) {
+        const formattedUri = getFormattedUri(uri);
+        try {
+          console.log("DEBUG: Attempting to play audio from:", formattedUri);
+          const { sound: newSound } = await Audio.Sound.createAsync(
+            { uri: formattedUri },
+            { shouldPlay: true, isLooping: false, rate: playbackRate, shouldCorrectPitch: true },
+            onPlaybackStatusUpdate
+          );
+          setSound(newSound);
+          setIsPlaying(true);
+          success = true;
+          break; // Stop trying if successful
+        } catch (playErr: any) {
+          console.log(`DEBUG: Failed to play URI ${formattedUri}:`, playErr.message);
+        }
+      }
+
+      if (!success) {
+        throw new Error("No playable audio file found after trying all candidates.");
+      }
+    } catch (err: any) {
+      console.error("Playback failed:", err.message);
     }
   };
 
@@ -191,6 +273,42 @@ export const MessageBubble = ({
 
   const progressPercent = duration > 0 ? position / duration : 0;
   const knobLeftPosition = progressPercent * SCRUBBER_WIDTH;
+
+  const MapSkeleton = () => (
+    <View style={{ backgroundColor: '#2c2c2e' }} className="absolute inset-0 overflow-hidden">
+      <Svg height="100%" width="100%" viewBox="0 0 250 130">
+        {/* Intricate High-Density Building Grid */}
+        {[...Array(50)].map((_, i) => (
+          <Rect 
+            key={`b-${i}`}
+            x={(i % 10) * 45 + (i * 7 % 25)} 
+            y={Math.floor(i / 10) * 35 + (i * 3 % 20)} 
+            width={6 + (i % 8)} 
+            height={5 + (i % 6)} 
+            rx="1" 
+            fill="#3a3a3a" 
+          />
+        ))}
+
+        {/* Realistic Curved Route Paths */}
+        <Path d="M 0 45 Q 125 38, 250 48" fill="none" stroke="#3e3e3e" strokeWidth="2.8" />
+        <Path d="M 0 90 Q 125 98, 250 85" fill="none" stroke="#3e3e3e" strokeWidth="2.5" />
+        <Path d="M 55 0 Q 65 65, 50 130" fill="none" stroke="#3e3e3e" strokeWidth="2.5" />
+        <Path d="M 185 0 Q 175 65, 195 130" fill="none" stroke="#3e3e3e" strokeWidth="2.5" />
+        
+        <Path d="M 0 20 Q 125 25, 250 15" fill="none" stroke="#3e3e3e" strokeWidth="1" opacity="0.6" />
+        <Path d="M 0 110 Q 125 105, 250 115" fill="none" stroke="#3e3e3e" strokeWidth="1" opacity="0.6" />
+        <Path d="M 115 0 Q 110 65, 120 130" fill="none" stroke="#3e3e3e" strokeWidth="1" opacity="0.6" />
+
+        {/* Visible Map Place Labels */}
+        <SvgText x="15" y="41" fontSize="4.5" fill="#5a5a5c" fontWeight="bold">Shornur Road</SvgText>
+        <SvgText x="135" y="44" fontSize="4.5" fill="#5a5a5c" fontWeight="bold">Main Ave</SvgText>
+        <SvgText x="65" y="85" fontSize="4.5" fill="#5a5a5c" fontWeight="bold">Town Center</SvgText>
+        <SvgText x="200" y="25" fontSize="4" fill="#4a4a4c">Industrial Area</SvgText>
+        <SvgText x="205" y="105" fontSize="4.5" fill="#5a5a5c" fontWeight="bold">West Link</SvgText>
+      </Svg>
+    </View>
+  );
 
   const rPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -221,28 +339,62 @@ export const MessageBubble = ({
     return { opacity, transform: [{ scale: opacity }] };
   });
 
-  const BubbleContainer = ({ children, isSent }: { children: React.ReactNode, isSent: boolean }) => {
-    if (isSent) {
-      return (
-        <LinearGradient
-          colors={['#2563EB', '#1D4ED8']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className={`px-4 py-3 shadow-sm rounded-[24px] ${isLastInGroup ? 'rounded-br-[4px]' : ''}`}
-        >
-          {children}
-        </LinearGradient>
-      );
-    }
-    return (
-      <View className={`px-4 py-3 shadow-sm bg-[#1F1F23] rounded-[24px] border border-white/5 ${isLastInGroup ? 'rounded-bl-[4px]' : ''}`}>
+  const BubbleContainer = ({ children, isSent, hasReply, messageType }: { children: React.ReactNode, isSent: boolean, hasReply: boolean, messageType?: string }) => {
+    const isPostShare = messageType === 'post_share';
+    const isFluxShare = ['flux_share', 'flux_mention', 'flux_remention'].includes(messageType || '');
+    const isLocation = messageType === 'location' || messageType === 'live_location';
+    const isAudio = messageType === 'audio' || messageType === 'voice';
+    const bubbleRadius = isLocation ? 32 : (isAudio ? 36 : (hasReply ? 24 : 20));
+    const sharpRadius = isAudio ? 36 : 4;
+    
+    const content = (
+      <View
+        style={{
+          paddingHorizontal: (isPostShare || isFluxShare || isLocation) ? 0 : (isAudio ? 10 : (hasReply ? 12 : 16)),
+          paddingVertical: (isPostShare || isFluxShare || isLocation) ? 0 : (isAudio ? 10 : (hasReply ? 10 : 8)),
+          borderRadius: bubbleRadius,
+          borderBottomRightRadius: (isSent && isLastInGroup) ? (isLocation ? 32 : sharpRadius) : bubbleRadius,
+          borderBottomLeftRadius: (!isSent && isLastInGroup) ? (isLocation ? 32 : sharpRadius) : bubbleRadius,
+          width: isLocation ? 290 : undefined,
+          minWidth: isLocation ? 290 : undefined,
+          maxWidth: '100%',
+          borderWidth: (hasReply || isAudio) ? 1 : 0,
+          borderColor: isSent ? 'rgba(255,255,255,0.15)' : 'rgba(139, 92, 246, 0.2)',
+          overflow: 'hidden',
+          backgroundColor: (isAudio || isLocation || isPostShare || isFluxShare) ? 'transparent' : (isSent ? '#8b5cf6' : '#1c1c1e'),
+        }}
+      >
         {children}
       </View>
     );
+
+    if (isAudio) {
+      return (
+        <LinearGradient
+          colors={['#C084FC', '#8B5CF6']} // Lighter lavender gradient
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{
+            borderRadius: bubbleRadius,
+            borderBottomRightRadius: (isSent && isLastInGroup) ? sharpRadius : bubbleRadius,
+            borderBottomLeftRadius: (!isSent && isLastInGroup) ? sharpRadius : bubbleRadius,
+          }}
+        >
+          {content}
+        </LinearGradient>
+      );
+    }
+
+    return content;
   };
 
+  const WAVE_BARS = [
+    6, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8,
+    6, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8, 12, 18, 16, 10, 8
+  ];
+
   return (
-    <Animated.View style={[rHighlightStyle, { width: '100%', paddingVertical: 1 }]} className="relative justify-center">
+    <Animated.View style={[rHighlightStyle, { width: '100%', paddingVertical: 0.5 }]} className="relative justify-center">
       <Modal transparent visible={showPopup} animationType="none" onRequestClose={closePopup}>
         <Pressable className="flex-1 bg-black/70 justify-center items-center px-10" onPress={closePopup}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)} className="w-full bg-[#1c1c1e] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl">
@@ -265,16 +417,18 @@ export const MessageBubble = ({
         </Pressable>
       </Modal>
 
-      <Animated.View style={[rIconStyle, { position: 'absolute', [isSent ? 'right' : 'left']: 25 }]}>
-        <Ionicons name="arrow-undo" size={22} color="#71717a" />
+      <Animated.View style={[rIconStyle, { position: 'absolute', [isSent ? 'right' : 'left']: 0, top: '45%' }]}>
+        <View style={{ [isSent ? 'marginRight' : 'marginLeft']: -40 }}>
+           <Ionicons name="arrow-undo" size={20} color="#71717a" />
+        </View>
       </Animated.View>
 
       <GestureDetector gesture={panGesture}>
         <Animated.View style={rBubbleStyle}>
-          <View className={`flex-row w-full px-4 ${isSent ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-3' : 'mb-0.5'}`}>
+          <View className={`flex-row w-full px-4 ${isSent ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-4' : 'mb-1'}`}>
             <View className={`flex-row items-end max-w-[85%] ${isSent ? 'flex-row-reverse' : 'flex-row'}`}>
               
-              {!isSent && (
+              {!isSent && !message.isAudio && (
                 <View className="w-8 h-8 mr-2">
                   {isLastInGroup && message.avatar && (
                     <Image 
@@ -286,136 +440,288 @@ export const MessageBubble = ({
               )}
 
               <View className={`items-${isSent ? 'end' : 'start'}`}>
-                  {!isSent && isLastInGroup && message.senderName && message.messageType !== 'system' && (
-                    <Text className="text-zinc-500 text-[12px] font-rubik-medium mb-1 ml-1">{message.senderName}</Text>
+                  {!isSent && isLastInGroup && message.senderName && message.messageType !== 'system' && !message.isAudio && (
+                    <Text className="text-zinc-500 text-[12px] font-rubik-medium mb-1.5 ml-2">{message.senderName}</Text>
+                  )}
+
+                  {message.replyTo && message.replyTo.id && (
+                    <View className={`mb-1 px-1 ${isSent ? 'items-end' : 'items-start'}`}>
+                      <Text className="text-zinc-500 text-[11px] font-rubik-medium">
+                        Replied to {message.replyTo.isSent ? 'you' : 'them'}
+                      </Text>
+                    </View>
                   )}
 
                   <TouchableOpacity onLongPress={() => setShowPopup(true)} delayLongPress={400} activeOpacity={0.9}>
-                    <BubbleContainer isSent={isSent}>
-                    
-                    {message.replyTo && (
-                      <TouchableOpacity 
-                        onPress={() => onReplyMessagePress?.(message.replyTo!.id)}
-                        activeOpacity={0.7}
-                        className={`mb-2 py-2 px-3 border-l-4 rounded-xl ${isSent ? 'border-white/40 bg-black/10' : 'border-[#2563EB] bg-white/5'}`}>
-                        <Text className={`text-[12px] font-bold mb-0.5 ${isSent ? 'text-white' : 'text-[#2563EB]'}`}>
-                          {message.replyTo.isSent ? 'You' : (message.replyTo.senderName || 'Sender')}
+                    <View className={message.messageType === 'post_share' ? "flex-row items-center" : ""}>
+                      {isSent && message.messageType === 'post_share' && (
+                        <TouchableOpacity className="mr-3 p-2 bg-zinc-800/30 rounded-full">
+                          <Ionicons name="paper-plane-outline" size={18} color="white" />
+                        </TouchableOpacity>
+                      )}
+                      
+                      <BubbleContainer isSent={isSent} hasReply={!!(message.replyTo && message.replyTo.id)} messageType={message.isAudio ? 'audio' : message.messageType}>
+                      
+                      {message.replyTo && message.replyTo.id ? (
+                        <TouchableOpacity 
+                          onPress={() => {
+                            if (message.replyTo?.id) {
+                              onReplyMessagePress?.(message.replyTo.id);
+                            }
+                          }}
+                          activeOpacity={0.7}
+                          className={`mb-2 py-2 px-3 border-l-4 rounded-xl flex-col bg-black/20 border-white/20`}>
+                          <Text className={`text-[13px] font-rubik-regular text-zinc-300`} numberOfLines={1}>
+                            {message.replyTo.isAudio ? "🎤 Voice Note" : (message.replyTo.text || 'Original Message')}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+
+                      {message.messageType === 'poll' && message.pollData && (
+                        <View className="w-[240px] py-1">
+                           <Text className="text-white font-rubik-bold text-[16px] mb-3">{message.pollData.question}</Text>
+                           {message.pollData.options.map((opt: any) => (
+                             <TouchableOpacity key={opt.id} className="bg-white/5 border border-white/10 rounded-xl p-3 mb-2 flex-row justify-between items-center">
+                                <Text className="text-white/90 font-rubik-medium">{opt.text}</Text>
+                                <View className="w-5 h-5 rounded-full border border-white/30" />
+                             </TouchableOpacity>
+                           ))}
+                           <Text className="text-zinc-500 text-[11px] mt-1">{message.pollData.totalVotes || 0} votes • Select one</Text>
+                        </View>
+                      )}
+
+                      {message.messageType === 'screenshot' && (
+                        <View className="flex-row items-center py-1 w-[240px]">
+                           <View className="bg-red-500/20 p-2 rounded-full mr-3">
+                              <Ionicons name="alert-circle" size={24} color="#ef4444" />
+                           </View>
+                           <View className="flex-1">
+                              <Text className="text-white font-rubik-bold text-[14px]">Screenshot Detected</Text>
+                              <Text className="text-zinc-400 text-[12px]">{isSent ? 'You took' : 'They took'} a screenshot of this chat.</Text>
+                           </View>
+                        </View>
+                      )}
+
+                      {message.messageType === 'image' && message.chat_images && message.chat_images.length > 0 && (
+                        <View className="mb-1 rounded-2xl overflow-hidden">
+                          <Image source={{ uri: message.chat_images[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
+                          {message.text && message.text !== '📷 Image' && (
+                             <Text className={`mt-2 font-rubik-regular text-[15.5px] text-white`}>
+                               {message.text}
+                             </Text>
+                          )}
+                        </View>
+                      )}
+
+                      {message.messageType === 'video' && message.chat_videos && message.chat_videos.length > 0 && (
+                        <View className="mb-1 rounded-2xl overflow-hidden relative">
+                          <Image source={{ uri: message.chat_videos[0].thumbnail || message.chat_videos[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
+                          <View className="absolute inset-0 items-center justify-center bg-black/20">
+                             <Ionicons name="play-circle" size={50} color="white" />
+                          </View>
+                        </View>
+                      )}
+
+                      {message.messageType === 'file' && message.chat_files && message.chat_files.length > 0 && (
+                        <View className={`flex-row items-center p-3 rounded-xl bg-black/20 w-[230px]`}>
+                          <View className="w-10 h-10 bg-primary/20 rounded-lg items-center justify-center mr-3">
+                            <Ionicons name="document-text" size={24} color="#8b5cf6" />
+                          </View>
+                          <View className="flex-1">
+                            <Text className="text-white text-[14px] font-rubik-medium" numberOfLines={1}>{message.chat_files[0].name}</Text>
+                            <Text className="text-zinc-400 text-[11px] uppercase">{message.chat_files[0].extension}</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {message.messageType === 'post_share' && message.postShareData && (
+                        <View className="w-[240px] rounded-3xl overflow-hidden bg-zinc-900">
+                          <View className="relative">
+                            <Image 
+                              source={getImageSource(message.postShareData.mediaUrl, null)} 
+                              style={{ width: 240, height: 320 }}
+                              className="bg-zinc-900/50"
+                              resizeMode="cover"
+                            />
+                            
+                            {/* Glass Effect Header Overlay */}
+                            <View 
+                              className="absolute top-0 left-0 right-0 flex-row items-center p-2.5"
+                              style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                            >
+                              <View className="w-5 h-5 rounded-full bg-black/40 mr-2 overflow-hidden items-center justify-center">
+                               <Image 
+                                 source={getImageSource(message.postShareData.postOwnerAvatar)} 
+                                 className="w-full h-full"
+                                 resizeMode="cover"
+                               />
+                              </View>
+                              <Text className="text-white font-rubik-medium text-[12px] flex-1" numberOfLines={1}>
+                                {message.postShareData.postOwnerName || message.postShareData.postOwnerUsername || message.postShareData.sharerName || 'User'}
+                              </Text>
+                            </View>
+
+                            {message.postShareData.mediaType === 'video' && (
+                              <View className="absolute inset-0 items-center justify-center bg-black/20">
+                                <Ionicons name="play-circle" size={48} color="white" />
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                      {(message.messageType === 'flux_share' || message.messageType === 'flux_mention' || message.messageType === 'flux_remention') && message.storyShareData && (
+                        <View className="w-[240px] rounded-3xl overflow-hidden bg-zinc-900">
+                          <View className="relative">
+                            <Image 
+                              source={getImageSource(message.storyShareData.mediaUrl, null)} 
+                              style={{ width: 240, height: 320 }}
+                              className="bg-zinc-900/50"
+                              resizeMode="cover"
+                            />
+                            
+                            {/* Glass Effect Header Overlay */}
+                            <View 
+                              className="absolute top-0 left-0 right-0 flex-row items-center p-2.5"
+                              style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                            >
+                              <View className="w-5 h-5 rounded-full bg-black/40 mr-2 overflow-hidden items-center justify-center">
+                               <Image 
+                                 source={getImageSource(message.storyShareData.ownerAvatar)} 
+                                 className="w-full h-full"
+                                 resizeMode="cover"
+                               />
+                              </View>
+                              <Text className="text-white font-rubik-medium text-[12px] flex-1" numberOfLines={1}>
+                                {message.storyShareData.ownerName || 'User'}
+                              </Text>
+                            </View>
+
+                            {message.storyShareData.mediaType === 'video' && (
+                              <View className="absolute inset-0 items-center justify-center bg-black/20">
+                                <Ionicons name="play-circle" size={48} color="white" />
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                        {(message.messageType === 'location' || message.messageType === 'live_location') && message.locationData && (
+                        <View style={{ width: 290, backgroundColor: '#2c2c2e' }} className="rounded-[32px] overflow-hidden border border-white/10 shadow-sm">
+                          <View style={{ height: 135 }} className="w-full relative bg-[#121212] overflow-hidden">
+                             {mapLoading && <MapSkeleton />}
+                             
+                             <Image 
+                               source={{ uri: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${message.locationData.longitude},${message.locationData.latitude},15/580x270?access_token=${process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || ''}` }}
+                               style={{ width: '100%', height: '100%' }}
+                               resizeMode="cover"
+                               onLoadEnd={() => setMapLoading(false)}
+                             />
+
+                             {message.messageType === 'live_location' && (
+                               <View className="absolute top-3 left-3 bg-red-500 px-2 py-0.5 rounded-md flex-row items-center">
+                                 <View className="w-1.5 h-1.5 rounded-full bg-white mr-1.5" />
+                                 <Text className="text-white text-[10px] font-rubik-bold uppercase">Live</Text>
+                               </View>
+                             )}
+                             
+                             {!mapLoading && (
+                               <View className="absolute inset-0 items-center justify-center">
+                                  <View className="w-3.5 h-3.5 rounded-full bg-white/25 items-center justify-center">
+                                     <View className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
+                                  </View>
+                                </View>
+                             )}
+                          </View>
+                          
+                          <View style={{ backgroundColor: '#2c2c2e' }} className="px-5 py-4 flex-row items-center justify-between">
+                             <View className="flex-1 mr-3">
+                                <Text className="text-white font-rubik-bold text-[15px] mb-0.5" numberOfLines={1}>
+                                  {message.locationData.name || 'Nahdi Kuzhimanthi'}
+                                </Text>
+                                <Text className="text-zinc-400 text-[11px] leading-[14px]" numberOfLines={2}>
+                                  {message.locationData.address || 'Shornur-Perinthalmanna Rd, Perinthalmanna, 679322, KL, IN'}
+                                </Text>
+                                <Text className="text-zinc-500 text-[10.5px] mt-1.5" numberOfLines={1}>
+                                  www.nahdimandi.com
+                                </Text>
+                             </View>
+                             
+                             <TouchableOpacity className="w-9 h-9 rounded-full bg-[#8b5cf6] items-center justify-center shadow-lg active:opacity-80">
+                                <Ionicons name="paper-plane" size={17} color="white" />
+                             </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      {message.isAudio ? (
+                      <View className="flex-row items-center w-[260px]">
+                        <View className="mr-2">
+                          <Image 
+                            source={typeof message.avatar === 'string' ? { uri: message.avatar } : message.avatar} 
+                            className="w-10 h-10 rounded-full bg-zinc-800" 
+                          />
+                        </View>
+                        
+                        <View className="flex-1 flex-row items-center">
+                          <View className="items-center mr-2">
+                            <TouchableOpacity 
+                              onPress={handlePlayVoice} 
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="white" />
+                            </TouchableOpacity>
+                            <Text className="text-white font-rubik-medium text-[10px] mt-1">
+                              {formatTime(position)}
+                            </Text>
+                          </View>
+
+                          <View className="flex-1 h-10 justify-center">
+                            <Pressable onPress={handleScrub} className="flex-row items-center gap-[1.5px] h-6">
+                              {WAVE_BARS.map((height, i) => {
+                                 const progress = (i / WAVE_BARS.length);
+                                 const isPlayed = progressPercent > progress;
+                                 return (
+                                   <View 
+                                     key={i} 
+                                     style={{ 
+                                       height, 
+                                       width: 2, 
+                                       borderRadius: 1,
+                                       backgroundColor: isPlayed ? 'white' : 'rgba(255,255,255,0.4)'
+                                     }} 
+                                   />
+                                 );
+                              })}
+                            </Pressable>
+                          </View>
+                        </View>
+
+                        <TouchableOpacity 
+                          onPress={cyclePlaybackRate}
+                          className="ml-2 bg-black/20 px-2 py-1 rounded-full border border-white/10 min-w-[34px] items-center"
+                        >
+                           <Text className="text-white text-[10px] font-rubik-bold">{playbackRate}X</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      message.messageType !== 'post_share' && message.messageType !== 'location' && message.messageType !== 'live_location' && (
+                        <Text className={`font-rubik-regular text-[16px] leading-[22px] text-white`}>
+                          {message.text}
                         </Text>
-                        <Text className={`text-[13.5px] ${isSent ? 'text-white/80' : 'text-zinc-400'}`} numberOfLines={1}>
-                          {message.replyTo.isAudio ? "🎤 Voice Note" : message.replyTo.text}
-                        </Text>
+                      )
+                    )}
+                    </BubbleContainer>
+
+                    {!isSent && message.messageType === 'post_share' && (
+                      <TouchableOpacity className="ml-3 p-2 bg-zinc-800/30 rounded-full">
+                        <Ionicons name="paper-plane-outline" size={18} color="white" />
                       </TouchableOpacity>
                     )}
-
-                    {message.messageType === 'poll' && message.pollData && (
-                      <View className="w-[240px] py-1">
-                         <Text className="text-white font-rubik-bold text-[16px] mb-3">{message.pollData.question}</Text>
-                         {message.pollData.options.map((opt: any) => (
-                           <TouchableOpacity key={opt.id} className="bg-white/5 border border-white/10 rounded-xl p-3 mb-2 flex-row justify-between items-center">
-                              <Text className="text-white/90 font-rubik-medium">{opt.text}</Text>
-                              <View className="w-5 h-5 rounded-full border border-white/30" />
-                           </TouchableOpacity>
-                         ))}
-                         <Text className="text-zinc-500 text-[11px] mt-1">{message.pollData.totalVotes || 0} votes • Select one</Text>
-                      </View>
-                    )}
-
-                    {message.messageType === 'screenshot' && (
-                      <View className="flex-row items-center py-1 w-[240px]">
-                         <View className="bg-red-500/20 p-2 rounded-full mr-3">
-                            <Ionicons name="alert-circle" size={24} color="#ef4444" />
-                         </View>
-                         <View className="flex-1">
-                            <Text className="text-white font-rubik-bold text-[14px]">Screenshot Detected</Text>
-                            <Text className="text-zinc-400 text-[12px]">{isSent ? 'You took' : 'They took'} a screenshot of this chat.</Text>
-                         </View>
-                      </View>
-                    )}
-
-                    {message.messageType === 'image' && message.chat_images && message.chat_images.length > 0 && (
-                      <View className="mb-1 rounded-2xl overflow-hidden">
-                        <Image source={{ uri: message.chat_images[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
-                        {message.text && message.text !== '📷 Image' && (
-                           <Text className={`mt-2 font-rubik-regular text-[15.5px] ${isSent ? 'text-white' : 'text-zinc-100'}`}>
-                             {message.text}
-                           </Text>
-                        )}
-                      </View>
-                    )}
-
-                    {message.messageType === 'video' && message.chat_videos && message.chat_videos.length > 0 && (
-                      <View className="mb-1 rounded-2xl overflow-hidden relative">
-                        <Image source={{ uri: message.chat_videos[0].thumbnail || message.chat_videos[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
-                        <View className="absolute inset-0 items-center justify-center bg-black/20">
-                           <Ionicons name="play-circle" size={50} color="white" />
-                        </View>
-                      </View>
-                    )}
-
-                    {message.messageType === 'file' && message.chat_files && message.chat_files.length > 0 && (
-                      <View className={`flex-row items-center p-3 rounded-xl bg-black/20 w-[230px]`}>
-                        <View className="w-10 h-10 bg-[#2563EB]/20 rounded-lg items-center justify-center mr-3">
-                          <Ionicons name="document-text" size={24} color="#2563EB" />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-white text-[14px] font-rubik-medium" numberOfLines={1}>{message.chat_files[0].name}</Text>
-                          <Text className="text-zinc-400 text-[11px] uppercase">{message.chat_files[0].extension}</Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {message.isAudio ? (
-                    <View className="flex-row items-center py-1 w-[240px]">
-                      <Animated.View style={[rPulseStyle, { position: 'relative' }]}>
-                        <Image 
-                          source={typeof message.avatar === 'string' ? { uri: message.avatar } : message.avatar} 
-                          className="w-11 h-11 rounded-full bg-zinc-800 border-2 border-zinc-200/20" 
-                        />
-                        <TouchableOpacity 
-                          onPress={handlePlayVoice} 
-                          className={`absolute -right-1 -bottom-1 w-6 h-6 rounded-full items-center justify-center shadow-lg ${isSent ? 'bg-white' : 'bg-[#2563EB]'}`}
-                        >
-                          <Ionicons name={isPlaying ? "pause" : "play"} size={14} color={isSent ? "#2563EB" : "white"} />
-                        </TouchableOpacity>
-                      </Animated.View>
-                      
-                      <View className="flex-1 px-3">
-                        <Pressable onPress={handleScrub} className="h-6 justify-center">
-                          <View style={{ width: SCRUBBER_WIDTH }} className={`h-[4px] rounded-full ${isSent ? 'bg-white/30' : 'bg-white/10'}`}>
-                            <View 
-                              style={{ width: `${progressPercent * 100}%` }} 
-                              className={`h-full rounded-full ${isSent ? 'bg-white' : 'bg-[#2563EB]'}`} 
-                            />
-                          </View>
-                          <View 
-                            style={{ left: knobLeftPosition, position: 'absolute' }} 
-                            className={`w-3.5 h-3.5 rounded-full -ml-1.5 shadow-sm bg-white`} 
-                          />
-                        </Pressable>
-                        
-                        <View className="flex-row justify-between w-[130px] mt-1">
-                          <Text className={`text-[10px] font-medium ${isSent ? 'text-white/80' : 'text-zinc-500'}`}>
-                            {formatTime(position)}
-                          </Text>
-                          <Text className={`text-[10px] font-medium ${isSent ? 'text-white/80' : 'text-zinc-500'}`}>
-                            {duration > 0 ? formatTime(duration) : '0:00'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View className={`p-2 rounded-full ${isSent ? 'bg-white/10' : 'bg-white/5'}`}>
-                        <Ionicons name="mic" size={18} color={isSent ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.4)"} />
-                      </View>
-                    </View>
-                  ) : (
-                    <Text className={`font-rubik-regular text-[16px] leading-[22px] ${isSent ? 'text-white' : 'text-zinc-100'}`}>
-                      {message.text}
-                    </Text>
-                  )}
-                  </BubbleContainer>
+                  </View>
                 </TouchableOpacity>
 
-                {isLastInGroup && (
+                {isLastInGroup && !message.isAudio && (
                   <View className={`flex-row items-center mt-1.5 px-1 ${isSent ? 'justify-end' : 'justify-start'}`}>
                     <Text className="text-zinc-500 text-[10px] font-medium">
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -424,7 +730,7 @@ export const MessageBubble = ({
                       <Ionicons 
                         name={message.status === 'read' ? "checkmark-done" : (message.status === 'delivered' ? "checkmark-done" : "checkmark")} 
                         size={15} 
-                        color={message.status === 'read' ? '#2563EB' : '#52525B'} 
+                        color={message.status === 'read' ? '#8b5cf6' : '#52525B'} 
                         style={{ marginLeft: 4 }} 
                       />
                     )}
@@ -437,4 +743,14 @@ export const MessageBubble = ({
       </GestureDetector>
     </Animated.View>
   );
-};
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.isHighlighted === nextProps.isHighlighted &&
+    prevProps.isLastInGroup === nextProps.isLastInGroup &&
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.text === nextProps.message.text &&
+    prevProps.message.status === nextProps.message.status &&
+    prevProps.message.avatar === nextProps.message.avatar
+  );
+});
+

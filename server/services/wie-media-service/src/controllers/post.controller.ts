@@ -1283,6 +1283,17 @@ export const sharePost = async (
       .catch(() => ({ users: [] }));
     const caller = (callerResp.users ?? [])[0];
     const callerName = caller?.name ?? caller?.username ?? "Someone";
+
+    const ownerId = (post as any).userId?.toString();
+    const ownerResp = await wieUserClient
+      .getUsersByIds([ownerId])
+      .catch(() => ({ users: [] }));
+    const owner = (ownerResp.users ?? [])[0];
+    const postOwnerName = owner?.username || owner?.name || "User";
+    const postOwnerAvatar = owner?.profile_picture || null;
+
+    console.log(`DEBUG: SharePost - ownerId: ${ownerId}, ownerName: ${postOwnerName}, avatar: ${postOwnerAvatar}`);
+
     const firstMedia = (post as any).mediaItems?.[0] ?? {};
 
     const results: {
@@ -1299,14 +1310,20 @@ export const sharePost = async (
           await ShareModel.create({ postId, userId: callerId, receiverId });
           const content = JSON.stringify({
             type: "post_share",
+            v: 6,
             text: `${callerName} shared a post`,
             senderLabel: "You shared a post",
             postId,
-            postOwnerId: (post as any).userId?.toString(),
+            postOwnerId: ownerId,
+            postOwnerName,
+            postOwnerUsername: postOwnerName,
+            postOwnerAvatar,
+            postOwnerProfilePicture: postOwnerAvatar,
             mediaUrl: firstMedia.url ?? null,
             mediaType: firstMedia.type ?? "image",
             caption: (post as any).caption ?? "",
             sharerName: callerName,
+            sharerAvatar: caller?.profile_picture ?? null,
             postUrl: `/post/${postId}`,
           });
           const chatRes = await chatClient.sendSystemMessage({
@@ -1317,8 +1334,15 @@ export const sharePost = async (
             metadata_json: JSON.stringify({
               postId,
               mediaUrl: firstMedia.url ?? null,
+              mediaType: firstMedia.type ?? "image",
               sharerName: callerName,
+              postOwnerName,
+              postOwnerAvatar,
+              postOwnerId: ownerId,
+              caption: (post as any).caption ?? "",
               type: "post_share",
+              ownerId,
+              text: `${callerName} shared a post`
             }),
           });
           results.push({
@@ -1335,7 +1359,6 @@ export const sharePost = async (
     const newShareCount = await ShareModel.countDocuments({ postId });
     await PostModel.findByIdAndUpdate(postId, { shareCount: newShareCount });
 
-    const ownerId = (post as any).userId?.toString();
     if (ownerId && ownerId !== callerId) {
       await createNotification({
         userId: ownerId,

@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import mongoose from 'mongoose';
 import Ticket from "../models/ticket.model.js";
 import { createNotification } from '../utils/notificationHelper.js';
 
@@ -38,6 +39,9 @@ const getActualEventEndDateTime = (ticket) => {
 export const startEventStatusScheduler = () => {
   cron.schedule('* * * * *', async () => {
     try {
+      // Don't run if not connected to avoid buffering noise
+      if (mongoose.connection.readyState !== 1) return;
+
       const now = new Date();
 
       // Main tickets
@@ -145,6 +149,9 @@ export const startEventStatusScheduler = () => {
 export const checkExpiredConfirmedEvents = () => {
   cron.schedule('* * * * *', async () => {
     try {
+      // Don't run if not connected to avoid buffering noise
+      if (mongoose.connection.readyState !== 1) return;
+
       const now = new Date();
 
       const confirmedTickets = await Ticket.find({ event_status: 'confirmed' }).lean();

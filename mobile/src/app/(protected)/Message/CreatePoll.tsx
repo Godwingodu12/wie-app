@@ -41,7 +41,11 @@ const CreatePoll = () => {
     try {
       // Note: we need to add sendPoll to chatService
       await (chatService as any).sendPoll(chatId, question, validOptions, allowMultiple);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(protected)/(tabs)');
+      }
     } catch (error) {
       console.error('Failed to create poll:', error);
     } finally {
@@ -53,8 +57,8 @@ const CreatePoll = () => {
     <SafeAreaView className="flex-1 bg-black">
       <View className="flex-row items-center px-4 py-4 gap-4">
         <TouchableOpacity 
-          onPress={() => router.back()} 
-          className="w-10 h-10 bg-[#1F1F23] rounded-full items-center justify-center"
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')} 
+          className="w-10 h-10 bg-[#1C1C1E] rounded-full items-center justify-center"
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
@@ -70,7 +74,7 @@ const CreatePoll = () => {
               placeholderTextColor="#52525B"
               value={question}
               onChangeText={setQuestion}
-              className="bg-[#1F1F23] border border-white/5 rounded-2xl px-4 h-[56px] text-white text-base"
+              className="bg-[#1C1C1E] border border-white/5 rounded-2xl px-4 h-[56px] text-white text-base"
             />
           </View>
 
@@ -78,7 +82,7 @@ const CreatePoll = () => {
             <Text className="text-[#A0A0A0] text-[13px] font-rubik-medium mb-3 ml-1">Options</Text>
             {options.map((opt, index) => (
               <View key={index} className="flex-row items-center mb-3">
-                <View className="flex-1 flex-row items-center bg-[#1F1F23] border border-white/5 rounded-2xl px-4 h-[56px]">
+                <View className="flex-1 flex-row items-center bg-[#1C1C1E] border border-white/5 rounded-2xl px-4 h-[56px]">
                   <Ionicons name="menu-outline" size={20} color="#52525B" className="mr-3" />
                   <TextInput
                     placeholder={`Option ${index + 1}`}
@@ -101,13 +105,13 @@ const CreatePoll = () => {
                 onPress={handleAddOption}
                 className="flex-row items-center mt-2 ml-1"
               >
-                <Ionicons name="add-circle" size={24} color="#7C4DFF" />
-                <Text className="text-[#7C4DFF] font-rubik-medium ml-2 text-base">Add option</Text>
+                <Ionicons name="add-circle" size={24} color="#8b5cf6" />
+                <Text className="text-primary font-rubik-medium ml-2 text-base">Add option</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          <View className="flex-row items-center justify-between mb-10 p-4 bg-[#1F1F23] rounded-2xl border border-white/5">
+          <View className="flex-row items-center justify-between mb-10 p-4 bg-[#1C1C1E] rounded-2xl border border-white/5">
             <View>
               <Text className="text-white font-rubik-medium text-[15px]">Allow multiple answers</Text>
               <Text className="text-zinc-500 text-[12px]">Users can select more than one option</Text>
@@ -115,7 +119,7 @@ const CreatePoll = () => {
             <Switch
               value={allowMultiple}
               onValueChange={setAllowMultiple}
-              trackColor={{ false: '#3F3F46', true: '#7C4DFF' }}
+              trackColor={{ false: '#3F3F46', true: '#8b5cf6' }}
               thumbColor="#FFFFFF"
             />
           </View>
@@ -126,7 +130,7 @@ const CreatePoll = () => {
         <TouchableOpacity 
           onPress={handleCreate}
           disabled={!question.trim() || options.filter(o => o.trim() !== '').length < 2 || isSubmitting}
-          className={`h-[56px] rounded-full items-center justify-center ${(!question.trim() || options.filter(o => o.trim() !== '').length < 2) ? 'bg-[#1F1F23]' : 'bg-[#7C4DFF]'}`}
+          className={`h-[56px] rounded-full items-center justify-center ${(!question.trim() || options.filter(o => o.trim() !== '').length < 2) ? 'bg-[#1C1C1E]' : 'bg-primary'}`}
         >
           <Text className={`font-rubik-bold text-lg ${(!question.trim() || options.filter(o => o.trim() !== '').length < 2) ? 'text-zinc-500' : 'text-white'}`}>
             Create poll

@@ -125,6 +125,52 @@ const wieMessageSchema = new mongoose.Schema({
     image: String,
     ticketUrl: String
   },
+
+  // ── Post share
+  postShareData: {
+    postId: String,
+    postOwnerId: String,
+    postOwnerName: String,
+    postOwnerUsername: String,
+    postOwnerAvatar: String,
+    postOwnerProfilePicture: String,
+    mediaUrl: String,
+    mediaType: String,
+    caption: String,
+    sharerName: String,
+    sharerAvatar: String,
+    postUrl: String
+  },
+
+  // ── Story/Flux share
+  storyShareData: {
+    fluxId: String,
+    mediaUrl: String,
+    mediaType: String,
+    ownerId: String,
+    ownerName: String,
+    ownerAvatar: String,
+    text: String
+  },
+
+  // ── Polls
+  pollData: {
+    question: String,
+    options: [{
+      id: String,
+      text: String,
+      votes: [String] // Array of user IDs
+    }],
+    allowMultiple: { type: Boolean, default: false },
+    totalVotes: { type: Number, default: 0 },
+    isClosed: { type: Boolean, default: false }
+  },
+
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+
   replyTo: {
     messageId: String,
     sender: String,

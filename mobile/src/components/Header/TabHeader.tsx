@@ -22,13 +22,13 @@ export const TabHeader = () => {
         </TouchableOpacity>
         <TouchableOpacity 
           activeOpacity={0.8} 
-          onPress={() => router.replace('/Notification/Tabswitcher')}
+          onPress={() => router.push('/Notification/Tabswitcher')}
         >
           <Image source={icons.notification} className="w-9 h-9" />
         </TouchableOpacity>
         <TouchableOpacity 
           activeOpacity={0.8} 
-          onPress={() => router.replace('/Message/MessageHome')}
+          onPress={() => router.push('/Message/MessageHome')}
         >
           <Ionicons name="flash-outline" size={24} color="white" />
         </TouchableOpacity>

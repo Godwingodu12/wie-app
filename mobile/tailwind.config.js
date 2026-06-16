@@ -8,10 +8,11 @@ module.exports = {
     extend: {
       colors: {
         // We define these custom colors to match your design exactly
-        dark: '#050505',
+        dark: '#000000',
         card: '#121212',
         border: '#27272a',
         primary: '#8b5cf6',
+        'received-bubble': '#1c1c1e',
       }
     },
   },

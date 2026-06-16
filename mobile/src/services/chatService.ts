@@ -1,16 +1,14 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SERVICES } from '../config/api.config';
 
 const api = axios.create({
   baseURL: SERVICES.CHAT.replace('/api/chat', '/api/wie-chat'), // Base for wie-chat routes
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 60000,
 });
 
-// Add a request interceptor to include the auth token
+// Add a request interceptor to include the auth token and handle Content-Type
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -23,6 +21,27 @@ api.interceptors.request.use(
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      // Robust FormData detection for React Native
+      const isFormData = config.data && (config.data instanceof FormData || (typeof config.data === 'object' && config.data._parts));
+
+      // Automatically set JSON Content-Type ONLY if it's a plain object and NOT FormData
+      if (config.data && !isFormData && typeof config.data === 'object') {
+        config.headers['Content-Type'] = 'application/json';
+      }
+      
+      // If it IS FormData, ensure we DON'T set Content-Type so Axios can set the boundary
+      // UNLESS it was explicitly set to 'multipart/form-data' by the caller
+      if (isFormData) {
+        const currentContentType = config.headers['Content-Type'] || config.headers['content-type'];
+        if (currentContentType !== 'multipart/form-data') {
+          if (typeof config.headers.delete === 'function') {
+            config.headers.delete('Content-Type');
+          } else if (config.headers) {
+            delete config.headers['Content-Type'];
+          }
+        }
       }
     } catch (e: any) {
       console.error('DEBUG: chatApi interceptor error:', e.message);
@@ -173,48 +192,133 @@ export const chatService = {
     try {
       const formData = new FormData();
       images.forEach((img, index) => {
+        let uri = img.uri;
+        
+        // Ensure proper URI formatting for Android as per RN requirements
+        if (Platform.OS === 'android' && !uri.startsWith('content://') && !uri.startsWith('http') && !uri.startsWith('file://')) {
+          uri = `file://${uri.startsWith('/') ? '' : '/'}${uri}`;
+        }
+
         formData.append('images', {
-          uri: img.uri,
-          name: img.name || `image_${index}.jpg`,
-          type: img.type || 'image/jpeg'
+          uri: uri,
+          name: img.name || img.fileName || `image_${index}.jpg`,
+          type: img.mimeType || (img.type === 'video' ? 'video/mp4' : 'image/jpeg')
         } as any);
       });
-      if (replyTo) formData.append('replyTo', replyTo);
       
-      const response = await api.post(`/${chatId}/send-image`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      if (replyTo) formData.append('replyTo', replyTo);
+      formData.append('viewMode', 'keep');
+
+      const token = await AsyncStorage.getItem('auth_token');
+      const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
+      const url = `${baseUrl}${chatId}/send-image`;
+
+      console.log('DEBUG: sendImage attempting XHR upload to:', url);
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.timeout = 120000;
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        
+        xhr.onload = () => {
+          console.log('DEBUG: sendImage XHR status:', xhr.status);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { 
+              const response = JSON.parse(xhr.responseText);
+              resolve(response); 
+            } catch (e) { 
+              resolve(xhr.responseText); 
+            }
+          } else {
+            console.error('DEBUG: sendImage upload failed:', xhr.responseText);
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        
+        xhr.onerror = (e) => {
+          console.error('DEBUG: sendImage XHR error:', e);
+          reject(new Error('Network request failed (XHR)'));
+        };
+
+        xhr.ontimeout = () => {
+          console.error('DEBUG: sendImage XHR timeout');
+          reject(new Error('Network request timed out'));
+        };
+        
+        xhr.send(formData);
       });
-      return response.data;
     } catch (error: any) {
-      throw error.response?.data || error.message;
+      console.error("DEBUG: sendImage top-level error:", error);
+      throw error.message || "Failed to send image";
     }
   },
-
   async sendAudio(chatId: string, audioUri: string, replyTo?: string) {
     try {
+      let finalUri = audioUri;
+      
+      // CRITICAL: Do NOT decode the URI. React Native's RCTNetworking on Android 
+      // expects the URI exactly as provided by the native modules.
+      // Decoding lead to "Could not retrieve file" errors.
+      
+      if (Platform.OS === 'android' && !finalUri.startsWith('http') && !finalUri.startsWith('file://')) {
+        finalUri = `file://${finalUri}`;
+      }
+
+      console.log("DEBUG: sendAudio attempting upload with URI:", finalUri);
+
       const formData = new FormData();
       formData.append('audio', {
-        uri: audioUri,
-        name: 'audio.m4a',
+        uri: finalUri,
+        name: 'recording.m4a',
         type: 'audio/m4a'
       } as any);
+      
       if (replyTo) formData.append('replyTo', replyTo);
 
-      const response = await api.post(`/${chatId}/send-audio`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const token = await AsyncStorage.getItem('auth_token');
+      const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
+      const url = `${baseUrl}${chatId}/send-audio`;
+      
+      console.log('DEBUG: sendAudio via XHR to:', url);
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.timeout = 120000;
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onload = () => {
+          console.log('DEBUG: sendAudio XHR status:', xhr.status);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
+          } else {
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = (e) => {
+          console.error('DEBUG: sendAudio XHR error:', e);
+          reject(new Error('Network request failed (XHR)'));
+        };
+        xhr.ontimeout = () => {
+          console.error('DEBUG: sendAudio XHR timeout');
+          reject(new Error('Network request timed out'));
+        };
+        xhr.send(formData);
       });
-      return response.data;
     } catch (error: any) {
-      throw error.response?.data || error.message;
+      console.error("DEBUG: sendAudio error:", error);
+      throw error.message || "Failed to send audio";
     }
   },
-
-  async sendLocation(chatId: string, latitude: number, longitude: number, replyTo?: string) {
+  async sendLocation(chatId: string, latitude: number, longitude: number, replyTo?: string, locationData?: any) {
     try {
       const response = await api.post(`/${chatId}/send-location`, {
         latitude,
         longitude,
-        replyTo
+        replyTo,
+        locationData
       });
       return response.data;
     } catch (error: any) {
@@ -249,40 +353,100 @@ export const chatService = {
 
   async sendVideo(chatId: string, videoUri: string, caption?: string, replyTo?: string) {
     try {
+      let uri = videoUri;
+      if (Platform.OS === 'android' && !uri.startsWith('http') && !uri.startsWith('file://')) {
+        uri = `file://${uri}`;
+      }
+
       const formData = new FormData();
       formData.append('video', {
-        uri: videoUri,
+        uri: uri,
         name: 'video.mp4',
         type: 'video/mp4'
       } as any);
       if (caption) formData.append('caption', caption);
       if (replyTo) formData.append('replyTo', replyTo);
 
-      const response = await api.post(`/${chatId}/send-video`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const token = await AsyncStorage.getItem('auth_token');
+      const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
+      const url = `${baseUrl}${chatId}/send-video`;
+
+      console.log('DEBUG: sendVideo attempting XHR upload to:', url);
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.timeout = 180000; // Longer timeout for video
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
+          } else {
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = (e) => {
+          console.error('DEBUG: sendVideo XHR error:', e);
+          reject(new Error('Network request failed (XHR)'));
+        };
+        xhr.ontimeout = () => {
+          console.error('DEBUG: sendVideo XHR timeout');
+          reject(new Error('Network request timed out'));
+        };
+        xhr.send(formData);
       });
-      return response.data;
     } catch (error: any) {
-      throw error.response?.data || error.message;
+      throw error.message || "Failed to send video";
     }
   },
 
   async sendDocument(chatId: string, docUri: string, name: string, replyTo?: string) {
     try {
+      let uri = docUri;
+      if (Platform.OS === 'android' && !uri.startsWith('http') && !uri.startsWith('file://')) {
+        uri = `file://${uri}`;
+      }
+
       const formData = new FormData();
       formData.append('document', {
-        uri: docUri,
+        uri: uri,
         name: name,
         type: 'application/octet-stream'
       } as any);
       if (replyTo) formData.append('replyTo', replyTo);
 
-      const response = await api.post(`/${chatId}/send-document`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const token = await AsyncStorage.getItem('auth_token');
+      const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
+      const url = `${baseUrl}${chatId}/send-document`;
+
+      console.log('DEBUG: sendDocument attempting XHR upload to:', url);
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.timeout = 120000;
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
+          } else {
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = (e) => {
+          console.error('DEBUG: sendDocument XHR error:', e);
+          reject(new Error('Network request failed (XHR)'));
+        };
+        xhr.ontimeout = () => {
+          console.error('DEBUG: sendDocument XHR timeout');
+          reject(new Error('Network request timed out'));
+        };
+        xhr.send(formData);
       });
-      return response.data;
     } catch (error: any) {
-      throw error.response?.data || error.message;
+      throw error.message || "Failed to send document";
     }
   },
 

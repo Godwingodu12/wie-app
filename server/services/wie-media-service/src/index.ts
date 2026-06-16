@@ -5,7 +5,15 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env before other imports
+dotenv.config({ path: path.join(__dirname, "../.env"), override: true });
+
 import connectDB from "./config/db";
 import redisClient from "./config/redis";
 import fluxRoutes from "./routes/flux.routes";
@@ -15,13 +23,36 @@ import locationRoutes from "./routes/location.routes";
 import postRoutes from "./routes/post.routes";
 import { archiveExpiredFluxes } from "./services/flux.service";
 import { initRabbit } from "./rabbit";
+import mongoose from 'mongoose';
+
 const app = express();
 const PORT = Number(process.env.PORT) || 5010;
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+const developmentOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  /^http:\/\/192\.168\.1\.\d+(:[0-9]+)?$/,
+];
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const isAllowed = developmentOrigins.some(allowedOrigin => {
+        if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin);
+        return allowedOrigin === origin;
+      });
+      if (isAllowed || process.env.CORS_ORIGIN === '*') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   }),
 );
@@ -42,6 +73,7 @@ app.get("/health", async (_req, res) => {
     status: "ok",
     service: "wie-media-service",
     redis: redisOk ? "connected" : "disconnected",
+    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     timestamp: new Date().toISOString(),
   });
 });
@@ -56,16 +88,22 @@ app.use((_req, res) => {
 
 const bootstrap = async () => {
   try {
-    await connectDB();
-    await redisClient.connect();
-    await initRabbit();
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ wie-media-service running on port ${PORT}`);
     });
 
+    await connectDB();
+    await redisClient.connect();
+    try {
+      await initRabbit();
+    } catch (e) {
+      console.warn('⚠️ RabbitMQ not available (Media Service)');
+    }
+
     // Archive expired fluxes every hour
     setInterval(
       async () => {
+        if (mongoose.connection.readyState !== 1) return;
         const count = await archiveExpiredFluxes().catch(() => 0);
         if (count > 0) console.log(`📦 Archived ${count} expired fluxes`);
       },
@@ -73,8 +111,16 @@ const bootstrap = async () => {
     );
   } catch (error) {
     console.error("❌ Bootstrap failed:", error);
-    process.exit(1);
+    // process.exit(1);
   }
 };
 
 bootstrap();
+
+process.on('uncaughtException', (err) => {
+  console.error('🔥 UNCAUGHT EXCEPTION (Media Service):', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});

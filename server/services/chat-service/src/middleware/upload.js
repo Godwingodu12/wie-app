@@ -15,9 +15,9 @@ const VIDEO_EXTS        = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp', '.fl
 const VIDEO_MIMES       = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska',
                            'video/webm', 'video/3gpp', 'video/x-flv', 'video/x-ms-wmv'];
 
-const AUDIO_EXTS        = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a', '.opus', '.webm','mpeg'];
+const AUDIO_EXTS        = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a', '.opus', '.webm','.mpeg'];
 const AUDIO_MIMES       = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac',
-                           'audio/mp4', 'audio/opus', 'audio/webm'];
+                           'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/opus', 'audio/webm'];
 
 const DOCUMENT_EXTS     = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
                            '.txt', '.csv', '.zip', '.rar', '.7z', '.tar', '.gz'];
@@ -60,8 +60,9 @@ export const mediaUpload = multer({
     const mime = file.mimetype;
     const allowed =
       IMAGE_EXTS.includes(ext)  || IMAGE_MIMES.includes(mime)  ||
-      VIDEO_EXTS.includes(ext)  || VIDEO_MIMES.includes(mime);
-    if (!allowed) return cb(new Error('Only image/video files are allowed'));
+      VIDEO_EXTS.includes(ext)  || VIDEO_MIMES.includes(mime)  ||
+      AUDIO_EXTS.includes(ext)  || AUDIO_MIMES.includes(mime);
+    if (!allowed) return cb(new Error('Only image, video, and audio files are allowed'));
     cb(null, true);
   },
 });
@@ -114,7 +115,8 @@ export const uploadToCloudinary = (buffer, options = {}) => {
     ? mimeType.split('/')[1]?.split(';')[0]?.trim()   // strip codec suffix e.g. "webm;codecs=opus" → "webm"
     : null;
 
-    const safeFormat = derivedFormat && !SKIP_FORMAT.includes(derivedFormat)
+    // Use format only for images; for video/audio (video resourceType), let Cloudinary auto-detect
+    const safeFormat = (resourceType === 'image' && derivedFormat && !SKIP_FORMAT.includes(derivedFormat))
     ? derivedFormat
     : undefined;
 
@@ -126,7 +128,11 @@ export const uploadToCloudinary = (buffer, options = {}) => {
             ...(safeFormat && { format: safeFormat })
         },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error(`DEBUG: Cloudinary upload_stream error for ${resourceType}:`, error);
+          return reject(error);
+        }
+        console.log(`DEBUG: Cloudinary upload_stream success for ${resourceType}:`, result.secure_url);
         resolve({
           public_id:    result.public_id,
           url:          result.secure_url,

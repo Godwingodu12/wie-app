@@ -17,24 +17,24 @@ const ScreenshotWarning = () => {
         For your privacy and security, we notify participants when a screenshot is taken in this chat.
       </Text>
       
-      <View className="w-full bg-[#1F1F23] rounded-[32px] p-6 border border-white/5 mb-12">
+      <View className="w-full bg-[#1C1C1E] rounded-[32px] p-6 border border-white/5 mb-12">
          <View className="flex-row items-center mb-4">
-            <View className="w-8 h-8 rounded-full bg-[#7C4DFF]/10 items-center justify-center mr-3">
-               <Ionicons name="shield-checkmark" size={18} color="#7C4DFF" />
+            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
+               <Ionicons name="shield-checkmark" size={18} color="#8b5cf6" />
             </View>
             <Text className="text-white font-rubik-medium flex-1">Your privacy is our priority</Text>
          </View>
          <View className="flex-row items-center">
-            <View className="w-8 h-8 rounded-full bg-[#7C4DFF]/10 items-center justify-center mr-3">
-               <Ionicons name="eye-off" size={18} color="#7C4DFF" />
+            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
+               <Ionicons name="eye-off" size={18} color="#8b5cf6" />
             </View>
             <Text className="text-white font-rubik-medium flex-1">Messages are end-to-end encrypted</Text>
          </View>
       </View>
 
       <TouchableOpacity 
-        onPress={() => router.back()}
-        className="w-full h-[64px] bg-[#7C4DFF] rounded-full items-center justify-center shadow-lg"
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')}
+        className="w-full h-[64px] bg-primary rounded-full items-center justify-center shadow-lg"
       >
         <Text className="text-white font-rubik-bold text-xl">I Understand</Text>
       </TouchableOpacity>

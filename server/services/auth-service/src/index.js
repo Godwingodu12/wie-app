@@ -1,16 +1,26 @@
 import dns from 'node:dns';
 dns.setServers(['8.8.8.8', '8.8.4.4']);
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env before other imports that might use process.env
+dotenv.config({ path: path.join(__dirname, '../.env'), override: true });
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import authRoutes from './routes/auth.routes.js';
 import session from 'express-session';
 import passport from './config/passport.config.js';
 import { startGrpcServer } from './grpc/server.js';
+import otpService from './reposetory/otp.js';
 import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
-dotenv.config();
+
 const app = express();
 
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
@@ -46,7 +56,13 @@ const GRPC_PORT = process.env.GRPC_PORT || 50051;
 
 const startServer = async () => {
   try {
+    // Start listening early
+    app.listen(PORT, '0.0.0.0', () => {
+       console.log(`✅ Auth Service running on port ${PORT}`);
+    });
+
     await connectDB();
+    otpService.startPeriodicCleanup();
 
     startGrpcServer(GRPC_PORT);
 
@@ -54,16 +70,24 @@ const startServer = async () => {
       await connectRabbitMQ();
       if (isChannelAvailable()) {
         await startConsumers();
+        console.log('✅ RabbitMQ connected (Auth Service)');
       }
     } catch (rabbitError) {
-      //
+      console.warn('⚠️ RabbitMQ not available (Auth Service)');
     }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      //
-    });
   } catch (err) {
-    process.exit(1);
+    console.error('❌ Failed to start Auth Service:', err);
+    // process.exit(1);
   }
 };
+
+process.on('uncaughtException', (err) => {
+  console.error('🔥 UNCAUGHT EXCEPTION (Auth Service):', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 startServer();

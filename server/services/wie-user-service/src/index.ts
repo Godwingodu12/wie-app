@@ -26,35 +26,49 @@ const developmentOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "http://127.0.0.1:3000",
+  /^http:\/\/192\.168\.1\.\d+(:[0-9]+)?$/,
 ];
 
 // Determine the effective CORS origins
-let effectiveCorsOrigins: string[] | boolean;
+let effectiveCorsOrigins: (string | RegExp)[] | boolean;
 
 const configuredCorsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").filter(Boolean)
-  : []; // If CORS_ORIGIN is not set, or empty, start with an empty array
+  : []; 
 
 if (process.env.NODE_ENV === "production") {
   if (configuredCorsOrigins.length > 0) {
     effectiveCorsOrigins = configuredCorsOrigins;
   } else {
-    // In production, if CORS_ORIGIN is not explicitly set or is empty, disallow all origins
     console.warn(
       "⚠️  CORS_ORIGIN is not set or is empty in production. Disallowing all cross-origin requests.",
     );
-    effectiveCorsOrigins = false; // Disallow all origins
+    effectiveCorsOrigins = false; 
   }
 } else {
-  // In development or other environments, use configured origins or development defaults
   effectiveCorsOrigins =
     configuredCorsOrigins.length > 0
       ? configuredCorsOrigins
       : developmentOrigins;
 }
 
-const corsOptions = {
-  origin: effectiveCorsOrigins,
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    
+    const origins = Array.isArray(effectiveCorsOrigins) ? effectiveCorsOrigins : [effectiveCorsOrigins];
+    const isAllowed = origins.some(allowedOrigin => {
+      if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin);
+      return allowedOrigin === origin;
+    });
+
+    if (isAllowed || !effectiveCorsOrigins) {
+      callback(null, true);
+    } else {
+      console.log('DEBUG: CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: [
@@ -76,6 +90,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   res.setHeader("X-Instance-ID", INSTANCE_ID);
   next();
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "WIE User Service is running",
+    instanceId: INSTANCE_ID,
+    database: db.isConnected ? "connected" : "disconnected",
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.use("/api/user", userRoutes);

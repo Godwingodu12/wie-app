@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, StatusBar, Platform, KeyboardAvoidingView, ActivityIndicator, Keyboard } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, StatusBar, Platform, KeyboardAvoidingView, ActivityIndicator, Keyboard, Image, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { ChatHeader } from '@/components/Message/ChatHeader'; 
 import { ChatInput } from '@/components/Message/ChatInput';
@@ -33,30 +34,94 @@ export default function ChatDetailsScreen() {
           const senderId = msg.sender?._id || msg.sender;
           const isMine = senderId === myId;
           
+          let messageType = msg.messageType || 'text';
+          let content = msg.content;
+          let postShareData = msg.postShareData;
+          let storyShareData = msg.storyShareData || (msg as any).storyShareData;
+
+          // Unified parsing logic for shared content (Fallback to content JSON if fields are missing)
+          const tryParseJson = (str: any) => {
+            if (typeof str === 'object' && str !== null) return str;
+            try {
+              if (str && typeof str === 'string' && (str.startsWith('{') || str.includes('"type"'))) {
+                return JSON.parse(str);
+              }
+            } catch (e) {}
+            return null;
+          };
+
+          const parsed = tryParseJson(content);
+          
+          if (messageType === 'post_share' || (parsed && parsed.type === 'post_share')) {
+              messageType = 'post_share';
+              const data = parsed || postShareData || {};
+              postShareData = {
+                postId: data.postId,
+                postOwnerId: data.postOwnerId || data.ownerId,
+                postOwnerName: data.postOwnerName || data.postOwnerUsername || data.sharerName || 'User',
+                postOwnerAvatar: data.postOwnerAvatar || data.postOwnerProfilePicture || data.sharerAvatar,
+                mediaUrl: data.mediaUrl,
+                mediaType: data.mediaType || 'image',
+                caption: data.caption,
+                sharerName: data.sharerName,
+                postUrl: data.postUrl
+              };
+              content = data.text || 'Shared a post';
+          } else if (['flux_share', 'flux_mention', 'flux_remention'].includes(messageType) || (parsed && (parsed.type?.startsWith('flux_') || parsed.fluxId))) {
+               messageType = parsed?.type || messageType;
+               const data = parsed || storyShareData || {};
+               // Map story data to a similar structure for rendering
+               storyShareData = {
+                  fluxId: data.fluxId,
+                  mediaUrl: data.fluxMediaUrl || data.mediaUrl,
+                  mediaType: data.fluxMediaType || data.mediaType || 'image',
+                  ownerId: data.fluxOwnerId || data.ownerId,
+                  ownerName: data.fluxOwnerName || data.mentionerName || data.reMentionerName || data.sharerName || data.ownerName || 'User',
+                  ownerAvatar: data.fluxOwnerAvatar || data.mentionerAvatar || data.reMentionerAvatar || data.sharerAvatar || data.ownerAvatar,
+                  text: data.text
+               };
+               content = data.text || content;
+          }
+
+          let replyToData = undefined;
+          if (msg.replyTo) {
+            const replyId = typeof msg.replyTo === 'string' ? msg.replyTo : (msg.replyTo.messageId || msg.replyTo._id || msg.replyTo.id);
+            if (replyId) {
+              replyToData = {
+                id: replyId,
+                text: typeof msg.replyTo === 'object' ? (msg.replyTo.content || msg.replyTo.text || msg.replyTo.message || 'Original Message') : 'Original Message',
+                isSent: typeof msg.replyTo === 'object' ? ((msg.replyTo.sender?._id || msg.replyTo.sender) === myId) : false, 
+                senderName: typeof msg.replyTo === 'object' ? (msg.replyTo.senderName || msg.replyTo.sender?.username || 'Sender') : 'Sender',
+                isAudio: typeof msg.replyTo === 'object' ? (msg.replyTo.messageType === 'voice' || msg.replyTo.isAudio) : false
+              };
+            }
+          }
+
+          
           return {
             id: msg._id,
-            text: msg.content,
+            text: (msg.messageType === 'audio' || msg.messageType === 'voice') 
+              ? (msg.chat_audio?.[0]?.url || msg.voiceData?.url || content)
+              : content,
             isSent: isMine,
             timestamp: new Date(msg.timestamp || msg.createdAt),
             senderName: isMine ? 'You' : (msg.sender?.username || msg.sender?.name || name),
-            avatar: msg.sender?.profile_picture || avatar,
+            avatar: isMine ? (currentUser?.profile_picture || 'https://via.placeholder.com/150') : (msg.sender?.profile_picture || avatar),
             status: msg.status || 'read',
-            messageType: msg.messageType || 'text',
-            isAudio: msg.messageType === 'voice' || msg.isAudio,
+            messageType: (msg.messageType === 'audio') ? 'voice' : messageType,
+            isAudio: msg.messageType === 'voice' || msg.messageType === 'audio' || msg.isAudio,
             chat_images: msg.chat_images,
             chat_videos: msg.chat_videos,
+            chat_audio: msg.chat_audio,
             chat_files: msg.chat_files,
             locationData: msg.locationData,
             contactData: msg.contactData,
             profileData: msg.profileData,
             pollData: msg.pollData,
-            replyTo: msg.replyTo ? {
-              id: msg.replyTo.messageId || msg.replyTo,
-              text: msg.replyTo.content || 'Original Message',
-              isSent: (msg.replyTo.sender?._id || msg.replyTo.sender) === myId, 
-              senderName: msg.replyTo.senderName || 'Sender',
-              isAudio: msg.replyTo.messageType === 'voice'
-            } : undefined
+            voiceData: msg.voiceData,
+            postShareData: postShareData,
+            storyShareData: storyShareData,
+            replyTo: replyToData
           };
         });
         setMessages(mappedMessages);
@@ -67,6 +132,14 @@ export default function ChatDetailsScreen() {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (chatId) {
+        fetchMessages();
+      }
+    }, [chatId])
+  );
 
   useEffect(() => {
     fetchMessages();
@@ -92,6 +165,7 @@ export default function ChatDetailsScreen() {
       timestamp: new Date(),
       messageType,
       isAudio,
+      avatar: currentUser?.profile_picture || 'https://via.placeholder.com/150',
       replyTo: replyMessage ? {
         id: replyMessage.id,
         text: replyMessage.text,
@@ -101,10 +175,16 @@ export default function ChatDetailsScreen() {
       } : undefined
     };
 
-    if (messageType === 'image' && extraData?.assets) {
-      newMessage.chat_images = [{ url: extraData.assets[0].uri }];
-    } else if (messageType === 'video' && extraData?.assets) {
-      newMessage.chat_videos = [{ url: extraData.assets[0].uri }];
+    if (messageType === 'image' && extraData) {
+      const assets = Array.isArray(extraData) ? extraData : extraData.assets;
+      if (assets && assets.length > 0) {
+        newMessage.chat_images = [{ url: assets[0].uri }];
+      }
+    } else if (messageType === 'video' && extraData) {
+      const assets = Array.isArray(extraData) ? extraData : extraData.assets;
+      if (assets && assets.length > 0) {
+        newMessage.chat_videos = [{ url: assets[0].uri }];
+      }
     } else if (messageType === 'location') {
       newMessage.locationData = extraData;
     }
@@ -113,20 +193,49 @@ export default function ChatDetailsScreen() {
     setReplyingTo(null);
 
     try {
-      if (messageType === 'voice') {
-        await chatService.sendAudio(chatId, content, replyMessage?.id);
+      let response;
+      if (messageType === 'voice' || isAudio) {
+        console.log("DEBUG: Attempting to send voice note from:", content);
+        response = await chatService.sendAudio(chatId, content, replyMessage?.id);
       } else if (messageType === 'image') {
-        await chatService.sendImage(chatId, extraData.assets, replyMessage?.id);
+        const assets = Array.isArray(extraData) ? extraData : extraData.assets;
+        response = await chatService.sendImage(chatId, assets, replyMessage?.id);
       } else if (messageType === 'video') {
-        await chatService.sendVideo(chatId, extraData.assets[0].uri, '', replyMessage?.id);
-      } else if (messageType === 'location') {
-        await chatService.sendLocation(chatId, extraData.latitude, extraData.longitude, replyMessage?.id);
+        const assets = Array.isArray(extraData) ? extraData : extraData.assets;
+        response = await chatService.sendVideo(chatId, assets[0].uri, '', replyMessage?.id);
+      } else if (messageType === 'location' || messageType === 'live_location') {
+        response = await chatService.sendLocation(chatId, extraData.latitude, extraData.longitude, replyMessage?.id, extraData);
       } else {
-        await chatService.sendMessage(chatId, content, replyMessage?.id);
+        response = await chatService.sendMessage(chatId, content, replyMessage?.id);
       }
-      fetchMessages();
-    } catch (error) {
+
+      if (response && response.success) {
+        const serverMsg = response.message;
+        setMessages((prev) => 
+          prev.map((msg) => msg.id === tempId ? { 
+            ...msg, 
+            id: serverMsg._id || serverMsg.id, 
+            status: 'sent',
+            messageType: serverMsg.messageType || msg.messageType,
+            isAudio: (serverMsg.messageType === 'voice' || serverMsg.messageType === 'audio') ? true : msg.isAudio,
+            text: (serverMsg.messageType === 'voice' || serverMsg.messageType === 'audio')
+              ? (serverMsg.voiceData?.url || serverMsg.chat_audio?.[0]?.url || '🎤 Voice message')
+              : (serverMsg.content || msg.text),
+            voiceData: serverMsg.voiceData || msg.voiceData,
+            chat_audio: serverMsg.chat_audio || msg.chat_audio,
+            chat_images: serverMsg.chat_images || msg.chat_images,
+            chat_videos: serverMsg.chat_videos || msg.chat_videos,
+            chat_files: serverMsg.chat_files || msg.chat_files,
+            locationData: serverMsg.locationData || msg.locationData
+          } : msg)
+        );
+      }
+      // fetchMessages(); // Avoid redundant fetch if socket is working, but can be kept if needed
+    } catch (error: any) {
       console.error(`Failed to send ${messageType} message:`, error);
+      if (error && typeof error === 'object') {
+        console.log("DEBUG: send error details:", JSON.stringify(error));
+      }
     }
   };
 
@@ -143,7 +252,7 @@ export default function ChatDetailsScreen() {
       
       {/* Top safety for header */}
       <View style={{ height: insets.top }} className="bg-black" />
-      <ChatHeader name={name} avatar={avatar} status="Online" onClearChat={() => setMessages([])} />
+      <ChatHeader name={name} avatar={avatar} status="Active now" onClearChat={() => setMessages([])} />
       
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
@@ -152,15 +261,68 @@ export default function ChatDetailsScreen() {
       >
         {loading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#7C4DFF" size="large" />
+            <ActivityIndicator color="#8b5cf6" size="large" />
+          </View>
+        ) : messages.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-8">
+            <View className="items-center w-full">
+              <View className="mb-5">
+                <Image 
+                  source={typeof avatar === 'string' ? { uri: avatar } : avatar} 
+                  className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-white/10" 
+                />
+              </View>
+              
+              <Text className="text-white text-2xl font-rubik-bold mb-1.5">{name}</Text>
+              
+              <Text className="text-zinc-400 text-[14px] font-rubik-medium mb-1">
+                1.2K followers | 850 following
+              </Text>
+              
+              <Text className="text-zinc-500 text-center text-[14px] font-rubik-regular mb-6 max-w-[200px]">
+                You might know each other. Start a conversation
+              </Text>
+              
+              {/* Mutual Connections */}
+              <View className="flex-row items-center mb-8">
+                <View className="flex-row mr-3">
+                  {[1, 2, 3].map((_, i) => (
+                    <View 
+                      key={i} 
+                      className={`w-8 h-8 rounded-full border-2 border-black bg-zinc-800 ${i > 0 ? '-ml-3' : ''} overflow-hidden`}
+                    >
+                      <Image 
+                        source={{ uri: `https://i.pravatar.cc/100?u=mutual-${i}-${chatId}` }} 
+                        className="w-full h-full" 
+                      />
+                    </View>
+                  ))}
+                </View>
+                <Text className="text-zinc-500 text-[12px] font-rubik-medium">
+                  +2 more you following
+                </Text>
+              </View>
+
+              <TouchableOpacity activeOpacity={0.8}>
+                <LinearGradient
+                  colors={['#C084FC', '#8B5CF6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ borderRadius: 25 }}
+                  className="px-10 py-3"
+                >
+                  <Text className="text-white font-rubik-bold text-[15px]">View profile</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <MessageList 
             messages={messages} 
             onReply={(msg) => {
               setReplyingTo(msg);
-              // Small delay to ensure input is ready for focus if needed
             }} 
+            currentUserAvatar={currentUser?.profile_picture || 'https://via.placeholder.com/150'}
             otherUserAvatar={avatar}
             flatListRef={flatListRef}
             onReplyMessagePress={scrollToMessage}

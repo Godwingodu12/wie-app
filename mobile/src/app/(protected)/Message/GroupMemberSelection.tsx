@@ -61,9 +61,24 @@ const GroupMemberSelection = () => {
         </View>
       </View>
 
+      {/* Search Bar */}
+      <View className="px-5 mt-2 mb-4">
+        <View className="flex-row items-center bg-[#1C1C1E] rounded-2xl px-4 py-3 border border-white/5">
+           <Ionicons name="search" size={20} color="#52525B" />
+           <TextInput 
+             placeholder="Search peoples..."
+             placeholderTextColor="#52525B"
+             className="flex-1 ml-3 text-white text-[16px] font-rubik-regular"
+             value={searchQuery}
+             onChangeText={setSearchQuery}
+           />
+        </View>
+      </View>
+
       {/* Selected Users Preview */}
       {selectedUsers.length > 0 && (
-        <View className="px-5 pb-4 border-b border-white/5">
+        <View className="px-5 pb-6">
+          <Text className="text-zinc-500 text-[11px] font-rubik-medium uppercase tracking-widest mb-3 ml-1">Selected members</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
             {selectedUsers.map((user) => (
               <View key={user._id || user.id} className="items-center w-14">
@@ -74,7 +89,7 @@ const GroupMemberSelection = () => {
                   />
                   <TouchableOpacity 
                     onPress={() => removeUser(user)}
-                    className="absolute -top-1 -right-1 bg-[#1F1F23] rounded-full border border-white/10"
+                    className="absolute -top-1 -right-1 bg-[#1C1C1E] rounded-full border border-white/10"
                   >
                     <Ionicons name="close-circle" size={20} color="#EF4444" />
                   </TouchableOpacity>
@@ -88,24 +103,10 @@ const GroupMemberSelection = () => {
         </View>
       )}
 
-      {/* Search Bar */}
-      <View className="px-5 mt-4 mb-2">
-        <View className="flex-row items-center bg-[#1F1F23] rounded-2xl px-4 py-3 border border-white/5">
-           <Ionicons name="search" size={20} color="#52525B" />
-           <TextInput 
-             placeholder="Search peoples..."
-             placeholderTextColor="#52525B"
-             className="flex-1 ml-3 text-white text-[16px] font-rubik-regular"
-             value={searchQuery}
-             onChangeText={setSearchQuery}
-           />
-        </View>
-      </View>
-
       <FlatList
         data={users}
         keyExtractor={(item) => item._id || item.id}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         renderItem={({ item }) => {
           const isSelected = selectedUsers.some(u => (u._id || u.id) === (item._id || item.id));
           return (
@@ -122,7 +123,7 @@ const GroupMemberSelection = () => {
                 <Text className="text-white font-rubik-bold text-[16px]">{item.username || item.name}</Text>
                 <Text className="text-zinc-500 text-[12px]" numberOfLines={1}>{item.bio || 'WIE User'}</Text>
               </View>
-              <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-[#7C4DFF] border-[#7C4DFF]' : 'border-zinc-700'}`}>
+              <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-zinc-700'}`}>
                  {isSelected && <Ionicons name="checkmark" size={16} color="white" />}
               </View>
             </TouchableOpacity>
@@ -156,7 +157,7 @@ const GroupMemberSelection = () => {
               pathname: '/Message/CreateGroup',
               params: { members: JSON.stringify(selectedUsers.map(u => u._id || u.id)) }
             })}
-            className="h-[56px] bg-[#7C4DFF] rounded-full items-center justify-center shadow-lg"
+            className="h-[56px] bg-primary rounded-full items-center justify-center shadow-lg"
           >
             <Text className="text-white font-rubik-bold text-lg">Next</Text>
           </TouchableOpacity>

@@ -7,17 +7,19 @@ export const connectDB = async () => {
       throw new Error('MONGO_URI is not defined in environment variables');
     }
 
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000
+    });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
 
     // Index handling
     try {
-      await Chat.collection.dropIndexes();
       await Chat.createIndexes();
     } catch (err) {
-      console.log('ℹ️ Index cleanup skipped:', err.message);
+      console.warn('⚠️ Index creation skipped:', err.message);
     }
 
     mongoose.connection.on('error', (err) => {
@@ -34,6 +36,6 @@ export const connectDB = async () => {
 
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
-    process.exit(1);
+    // process.exit(1); // Keep server alive for debugging
   }
 };

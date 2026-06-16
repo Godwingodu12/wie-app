@@ -25,15 +25,49 @@ export const wieUserService = {
   async updateProfile(formData: FormData) {
     if (MOCK_MODE) return { message: 'Profile updated successfully' };
     try {
-      const response = await api.put('update-profile', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const token = await AsyncStorage.getItem('auth_token');
+      const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
+      const url = `${baseUrl}update-profile`;
+
+      console.log('DEBUG: updateProfile attempting XHR upload to:', url);
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', url);
+        xhr.timeout = 120000;
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        
+        xhr.onload = () => {
+          console.log('DEBUG: updateProfile XHR status:', xhr.status);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { 
+              const response = JSON.parse(xhr.responseText);
+              resolve(response.user || response); 
+            } catch (e) { 
+              resolve(xhr.responseText); 
+            }
+          } else {
+            console.error('DEBUG: updateProfile upload failed:', xhr.responseText);
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        
+        xhr.onerror = (e) => {
+          console.error('DEBUG: updateProfile XHR error:', e);
+          reject(new Error('Network request failed (XHR)'));
+        };
+
+        xhr.ontimeout = () => {
+          console.error('DEBUG: updateProfile XHR timeout');
+          reject(new Error('Network request timed out'));
+        };
+        
+        xhr.send(formData);
       });
-      return response.data.user || response.data;
     } catch (error: any) {
       console.error('updateProfile Error:', error.message);
-      throw error.response?.data || error.message;
+      throw error.message || "Failed to update profile";
     }
   },
 

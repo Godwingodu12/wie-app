@@ -157,7 +157,7 @@ const MessagesPage = () => {
         <View className="flex-row justify-between items-center px-5 py-4">
           <View className="flex-row items-center">
             <TouchableOpacity 
-              onPress={() => router.back()} 
+              onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')} 
               className="mr-3"
               activeOpacity={0.7}
             >
@@ -202,22 +202,22 @@ const MessagesPage = () => {
 
           <View className="px-5 py-4 flex-row gap-3">
              <TouchableOpacity 
-               onPress={() => setActiveTab('All')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'All' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
-             >
-               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'All' ? 'text-black' : 'text-zinc-400'}`}>All</Text>
-             </TouchableOpacity>
-             <TouchableOpacity 
                onPress={() => setActiveTab('Personal')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'Personal' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'Personal' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
              >
                <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Personal' ? 'text-black' : 'text-zinc-400'}`}>Personal</Text>
              </TouchableOpacity>
              <TouchableOpacity 
                onPress={() => setActiveTab('Groups')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'Groups' ? 'bg-white' : 'bg-[#1F1F23] border border-white/5'}`}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'Groups' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
              >
                <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Groups' ? 'text-black' : 'text-zinc-400'}`}>Groups</Text>
+             </TouchableOpacity>
+             <TouchableOpacity 
+               onPress={() => setActiveTab('Brands')}
+               className={`px-6 py-2.5 rounded-full ${activeTab === 'Brands' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
+             >
+               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Brands' ? 'text-black' : 'text-zinc-400'}`}>Brands</Text>
              </TouchableOpacity>
           </View>
         </>
