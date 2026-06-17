@@ -9,6 +9,7 @@ interface MessageListProps {
   otherUserAvatar?: string;
   onReply?: (message: Message) => void;
   onReplyMessagePress?: (messageId: string) => void;
+  onMediaPress?: (media: { url: string; type: 'image' | 'video' }) => void;
   flatListRef?: React.RefObject<FlatList>;
 }
 
@@ -37,6 +38,7 @@ export const MessageList = ({
   otherUserAvatar, 
   onReply,
   onReplyMessagePress,
+  onMediaPress,
   flatListRef: externalFlatListRef
 }: MessageListProps) => {
   const internalFlatListRef = useRef<FlatList>(null);
@@ -116,13 +118,14 @@ export const MessageList = ({
             onDeleteForMe={handleDeleteForMe}
             onDeleteForEveryone={handleDeleteForEveryone}
             onReplyMessagePress={handleReplyMessagePress}
+            onMediaPress={onMediaPress}
             isHighlighted={highlightedId === item.id}
             isLastInGroup={isLastInGroup}
           />
         </View>
       </View>
     );
-  }, [localMessages, currentUserAvatar, otherUserAvatar, onReply, handleDeleteForMe, handleDeleteForEveryone, handleReplyMessagePress, highlightedId]);
+  }, [localMessages, currentUserAvatar, otherUserAvatar, onReply, handleDeleteForMe, handleDeleteForEveryone, handleReplyMessagePress, onMediaPress, highlightedId]);
 
   const keyExtractor = useCallback((item: Message) => item.id, []);
 

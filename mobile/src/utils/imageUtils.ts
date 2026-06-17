@@ -51,16 +51,20 @@ export const getImageSource = (source: any, fallback: any = images.defaultAvatar
         // Port mapping based on path heuristics:
         // - /api/user or /api/tickets -> 5005 (wie-user-service)
         // - /api/connection -> 5012 (connection-service)
-        // - /api/flux, /api/post, /api/diary -> 5010 (wie-media-service)
+        // - /api/flux, /api/post, /api/diary -> 5005/api/media (proxy to wie-media-service)
         
-        let port = '5010'; // default to media
+        let port = '5005';
+        let finalPath = trimmed;
         if (trimmed.includes('/api/user') || trimmed.includes('/api/tickets')) {
             port = '5005';
         } else if (trimmed.includes('/api/connection')) {
             port = '5012';
+        } else if (trimmed.includes('/api/flux') || trimmed.includes('/api/post') || trimmed.includes('/api/diary')) {
+            port = '5005';
+            finalPath = trimmed.replace('/api/', '/api/media/');
         }
         
-        trimmed = `http://${LOCAL_IP}:${port}${trimmed}`;
+        trimmed = `http://${LOCAL_IP}:${port}${finalPath}`;
     }
     
     // Ensure it looks like a valid URI for expo-image
@@ -68,7 +72,7 @@ export const getImageSource = (source: any, fallback: any = images.defaultAvatar
         // If it contains a dot and a slash, it's likely a path like "uploads/image.jpg"
         if (trimmed.includes('/') && trimmed.includes('.')) {
              // Default to media service for uploads
-             trimmed = `http://${LOCAL_IP}:5010/${trimmed}`;
+             trimmed = `http://${LOCAL_IP}:5005/api/media/${trimmed}`;
         } else {
              // Could be a Cloudinary public ID, but without cloud name we can't do much
              // Return as is and let expo-image try or fail

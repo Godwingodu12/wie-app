@@ -79,6 +79,7 @@ interface MessageBubbleProps {
   onDeleteForMe?: (id: string) => void;
   onDeleteForEveryone?: (id: string) => void;
   onReplyMessagePress?: (messageId: string) => void;
+  onMediaPress?: (media: { url: string; type: 'image' | 'video' }) => void;
   isHighlighted?: boolean;
   isLastInGroup?: boolean; 
 }
@@ -89,6 +90,7 @@ export const MessageBubble = React.memo(({
   onDeleteForMe, 
   onDeleteForEveryone, 
   onReplyMessagePress,
+  onMediaPress,
   isHighlighted = false,
   isLastInGroup = true 
 }: MessageBubbleProps) => {
@@ -167,15 +169,6 @@ export const MessageBubble = React.memo(({
 
   const handlePlayVoice = async () => {
     try {
-      // Ensure audio mode is configured for playback so Android grants audio focus
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
       if (sound) {
         const status = await sound.getStatusAsync();
         if (status.isLoaded) {
@@ -194,61 +187,50 @@ export const MessageBubble = React.memo(({
         return;
       }
 
+      // Ensure audio mode is configured for playback
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
       // 1. Gather all potential URIs (remote and local)
       const candidateUris = [];
-      if (message.chat_audio && message.chat_audio.length > 0) {
-        candidateUris.push(message.chat_audio[0].url);
-      }
-      if (message.voiceData?.url) {
-        candidateUris.push(message.voiceData.url);
-      }
-      if (message.text) {
-        candidateUris.push(message.text);
-      }
+      if (message.voiceData?.url) candidateUris.push(message.voiceData.url);
+      if (message.chat_audio && message.chat_audio.length > 0) candidateUris.push(message.chat_audio[0].url);
+      if (message.text && message.text.startsWith('file://')) candidateUris.push(message.text);
 
-      // Filter out invalid or text placeholders
-      const validUris = candidateUris.filter(
-        uri => uri && uri !== '🎤 Voice message' && uri !== '🎤 Voice Note'
-      );
+      const validUris = candidateUris.filter(uri => uri && uri !== '🎤 Voice message' && uri !== '🎤 Voice Note');
 
-      if (validUris.length === 0) {
-        console.warn("DEBUG: No valid voice URI found.");
-        return;
-      }
+      if (validUris.length === 0) return;
 
       const getFormattedUri = (inputUri: string) => {
         let finalUri = inputUri;
-
         if (Platform.OS === 'android' && !finalUri.startsWith('http') && !finalUri.startsWith('file://')) {
-          if (finalUri.startsWith('/')) {
-            finalUri = `file://${finalUri}`;
-          }
+          finalUri = `file://${finalUri.startsWith('/') ? '' : '/'}${finalUri}`;
         }
         return finalUri;
       };
 
-      // 2. Try to play each URI until one succeeds
+      // 2. Try to play the most likely URI
       let success = false;
       for (const uri of validUris) {
         const formattedUri = getFormattedUri(uri);
         try {
-          console.log("DEBUG: Attempting to play audio from:", formattedUri);
           const { sound: newSound } = await Audio.Sound.createAsync(
             { uri: formattedUri },
-            { shouldPlay: true, isLooping: false, rate: playbackRate, shouldCorrectPitch: true },
+            { shouldPlay: true, rate: playbackRate, shouldCorrectPitch: true },
             onPlaybackStatusUpdate
           );
           setSound(newSound);
           setIsPlaying(true);
           success = true;
-          break; // Stop trying if successful
-        } catch (playErr: any) {
-          console.log(`DEBUG: Failed to play URI ${formattedUri}:`, playErr.message);
+          break;
+        } catch (playErr) {
+          console.log(`DEBUG: Failed to play URI ${formattedUri}`);
         }
-      }
-
-      if (!success) {
-        throw new Error("No playable audio file found after trying all candidates.");
       }
     } catch (err: any) {
       console.error("Playback failed:", err.message);
@@ -344,24 +326,25 @@ export const MessageBubble = React.memo(({
     const isFluxShare = ['flux_share', 'flux_mention', 'flux_remention'].includes(messageType || '');
     const isLocation = messageType === 'location' || messageType === 'live_location';
     const isAudio = messageType === 'audio' || messageType === 'voice';
-    const bubbleRadius = isLocation ? 32 : (isAudio ? 36 : (hasReply ? 24 : 20));
+    const isMedia = messageType === 'image' || messageType === 'video';
+    const bubbleRadius = (isLocation || isMedia) ? 32 : (isAudio ? 36 : (hasReply ? 24 : 20));
     const sharpRadius = isAudio ? 36 : 4;
     
     const content = (
       <View
         style={{
-          paddingHorizontal: (isPostShare || isFluxShare || isLocation) ? 0 : (isAudio ? 10 : (hasReply ? 12 : 16)),
-          paddingVertical: (isPostShare || isFluxShare || isLocation) ? 0 : (isAudio ? 10 : (hasReply ? 10 : 8)),
+          paddingHorizontal: (isPostShare || isFluxShare || isLocation || isMedia) ? 0 : (isAudio ? 10 : (hasReply ? 12 : 16)),
+          paddingVertical: (isPostShare || isFluxShare || isLocation || isMedia) ? 0 : (isAudio ? 10 : (hasReply ? 10 : 8)),
           borderRadius: bubbleRadius,
-          borderBottomRightRadius: (isSent && isLastInGroup) ? (isLocation ? 32 : sharpRadius) : bubbleRadius,
-          borderBottomLeftRadius: (!isSent && isLastInGroup) ? (isLocation ? 32 : sharpRadius) : bubbleRadius,
+          borderBottomRightRadius: (isSent && isLastInGroup) ? ((isLocation || isMedia) ? 32 : sharpRadius) : bubbleRadius,
+          borderBottomLeftRadius: (!isSent && isLastInGroup) ? ((isLocation || isMedia) ? 32 : sharpRadius) : bubbleRadius,
           width: isLocation ? 290 : undefined,
-          minWidth: isLocation ? 290 : undefined,
+          minWidth: (isLocation || isMedia) ? (isMedia ? 240 : 290) : undefined,
           maxWidth: '100%',
-          borderWidth: (hasReply || isAudio) ? 1 : 0,
+          borderWidth: (isMedia || isPostShare || isFluxShare) ? 0 : ((hasReply || isAudio) ? 1 : 0),
           borderColor: isSent ? 'rgba(255,255,255,0.15)' : 'rgba(139, 92, 246, 0.2)',
           overflow: 'hidden',
-          backgroundColor: (isAudio || isLocation || isPostShare || isFluxShare) ? 'transparent' : (isSent ? '#8b5cf6' : '#1c1c1e'),
+          backgroundColor: (isAudio || isLocation || isPostShare || isFluxShare || isMedia) ? 'transparent' : (isSent ? '#8b5cf6' : '#1c1c1e'),
         }}
       >
         {children}
@@ -453,8 +436,8 @@ export const MessageBubble = React.memo(({
                   )}
 
                   <TouchableOpacity onLongPress={() => setShowPopup(true)} delayLongPress={400} activeOpacity={0.9}>
-                    <View className={message.messageType === 'post_share' ? "flex-row items-center" : ""}>
-                      {isSent && message.messageType === 'post_share' && (
+                    <View className={(message.messageType === 'post_share' || message.messageType === 'image' || message.messageType === 'video') ? "flex-row items-center" : ""}>
+                      {isSent && (message.messageType === 'post_share' || message.messageType === 'image' || message.messageType === 'video') && (
                         <TouchableOpacity className="mr-3 p-2 bg-zinc-800/30 rounded-full">
                           <Ionicons name="paper-plane-outline" size={18} color="white" />
                         </TouchableOpacity>
@@ -503,23 +486,31 @@ export const MessageBubble = React.memo(({
                       )}
 
                       {message.messageType === 'image' && message.chat_images && message.chat_images.length > 0 && (
-                        <View className="mb-1 rounded-2xl overflow-hidden">
+                        <TouchableOpacity 
+                          activeOpacity={0.9} 
+                          onPress={() => onMediaPress?.({ url: message.chat_images![0].url, type: 'image' })}
+                          className="mb-1 rounded-2xl overflow-hidden"
+                        >
                           <Image source={{ uri: message.chat_images[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
-                          {message.text && message.text !== '📷 Image' && (
+                          {message.text && !['📷 Image', '📷 Photo'].includes(message.text) && (
                              <Text className={`mt-2 font-rubik-regular text-[15.5px] text-white`}>
                                {message.text}
                              </Text>
                           )}
-                        </View>
+                        </TouchableOpacity>
                       )}
 
                       {message.messageType === 'video' && message.chat_videos && message.chat_videos.length > 0 && (
-                        <View className="mb-1 rounded-2xl overflow-hidden relative">
+                        <TouchableOpacity 
+                          activeOpacity={0.9}
+                          onPress={() => onMediaPress?.({ url: message.chat_videos![0].url, type: 'video' })}
+                          className="mb-1 rounded-2xl overflow-hidden relative"
+                        >
                           <Image source={{ uri: message.chat_videos[0].thumbnail || message.chat_videos[0].url }} className="w-[240px] h-[240px] bg-zinc-800" />
                           <View className="absolute inset-0 items-center justify-center bg-black/20">
                              <Ionicons name="play-circle" size={50} color="white" />
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       )}
 
                       {message.messageType === 'file' && message.chat_files && message.chat_files.length > 0 && (
@@ -534,41 +525,54 @@ export const MessageBubble = React.memo(({
                         </View>
                       )}
 
-                      {message.messageType === 'post_share' && message.postShareData && (
-                        <View className="w-[240px] rounded-3xl overflow-hidden bg-zinc-900">
-                          <View className="relative">
-                            <Image 
-                              source={getImageSource(message.postShareData.mediaUrl, null)} 
-                              style={{ width: 240, height: 320 }}
-                              className="bg-zinc-900/50"
-                              resizeMode="cover"
-                            />
-                            
-                            {/* Glass Effect Header Overlay */}
-                            <View 
-                              className="absolute top-0 left-0 right-0 flex-row items-center p-2.5"
-                              style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
-                            >
-                              <View className="w-5 h-5 rounded-full bg-black/40 mr-2 overflow-hidden items-center justify-center">
-                               <Image 
-                                 source={getImageSource(message.postShareData.postOwnerAvatar)} 
-                                 className="w-full h-full"
-                                 resizeMode="cover"
-                               />
-                              </View>
-                              <Text className="text-white font-rubik-medium text-[12px] flex-1" numberOfLines={1}>
-                                {message.postShareData.postOwnerName || message.postShareData.postOwnerUsername || message.postShareData.sharerName || 'User'}
-                              </Text>
-                            </View>
+                      {message.messageType === 'post_share' && message.postShareData && (() => {
+                        const shareRatio = message.postShareData.ratio || '4:3';
+                        const ratioValue = ({
+                          '1:1': 1,
+                          '4:5': 0.8,
+                          '9:16': 9/16,
+                          '16:9': 363/196,
+                          '4:3': 4/3
+                        } as any)[shareRatio] || 4/3;
+                        const bubbleWidth = 240;
+                        const bubbleHeight = bubbleWidth / ratioValue;
 
-                            {message.postShareData.mediaType === 'video' && (
-                              <View className="absolute inset-0 items-center justify-center bg-black/20">
-                                <Ionicons name="play-circle" size={48} color="white" />
+                        return (
+                          <View style={{ width: bubbleWidth }} className="rounded-3xl overflow-hidden bg-zinc-900">
+                            <View className="relative">
+                              <Image 
+                                source={getImageSource(message.postShareData.mediaUrl, null)} 
+                                style={{ width: bubbleWidth, height: bubbleHeight }}
+                                className="bg-zinc-900/50"
+                                resizeMode="cover"
+                              />
+                              
+                              {/* Glass Effect Header Overlay */}
+                              <View 
+                                className="absolute top-0 left-0 right-0 flex-row items-center p-2.5"
+                                style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                              >
+                                <View className="w-5 h-5 rounded-full bg-black/40 mr-2 overflow-hidden items-center justify-center">
+                                 <Image 
+                                   source={getImageSource(message.postShareData.postOwnerAvatar)} 
+                                   className="w-full h-full"
+                                   resizeMode="cover"
+                                 />
+                                </View>
+                                <Text className="text-white font-rubik-medium text-[12px] flex-1" numberOfLines={1}>
+                                  {message.postShareData.postOwnerName || message.postShareData.postOwnerUsername || message.postShareData.sharerName || 'User'}
+                                </Text>
                               </View>
-                            )}
+
+                              {message.postShareData.mediaType === 'video' && (
+                                <View className="absolute inset-0 items-center justify-center bg-black/20">
+                                  <Ionicons name="play-circle" size={48} color="white" />
+                                </View>
+                              )}
+                            </View>
                           </View>
-                        </View>
-                      )}
+                        );
+                      })()}
 
                       {(message.messageType === 'flux_share' || message.messageType === 'flux_mention' || message.messageType === 'flux_remention') && message.storyShareData && (
                         <View className="w-[240px] rounded-3xl overflow-hidden bg-zinc-900">
@@ -705,7 +709,7 @@ export const MessageBubble = React.memo(({
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      message.messageType !== 'post_share' && message.messageType !== 'location' && message.messageType !== 'live_location' && (
+                      message.messageType !== 'post_share' && message.messageType !== 'location' && message.messageType !== 'live_location' && message.messageType !== 'image' && message.messageType !== 'video' && (
                         <Text className={`font-rubik-regular text-[16px] leading-[22px] text-white`}>
                           {message.text}
                         </Text>
@@ -713,7 +717,7 @@ export const MessageBubble = React.memo(({
                     )}
                     </BubbleContainer>
 
-                    {!isSent && message.messageType === 'post_share' && (
+                    {!isSent && (message.messageType === 'post_share' || message.messageType === 'image' || message.messageType === 'video') && (
                       <TouchableOpacity className="ml-3 p-2 bg-zinc-800/30 rounded-full">
                         <Ionicons name="paper-plane-outline" size={18} color="white" />
                       </TouchableOpacity>

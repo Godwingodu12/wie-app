@@ -131,6 +131,8 @@ export const createPost = async (
       return;
     }
 
+    const ratio = req.body.ratio;
+
     const uploadResults = await Promise.all(
       files.map((file, idx) =>
         uploadToCloudinary(file.buffer, {
@@ -145,7 +147,7 @@ export const createPost = async (
           height: result.height,
           duration: result.duration,
           format: result.format,
-          aspectRatio: computeAspectRatio(result.width, result.height),
+          aspectRatio: ratio || computeAspectRatio(result.width, result.height),
           order: idx,
         })),
       ),
@@ -190,6 +192,14 @@ export const createPost = async (
         : undefined,
       taggedUsers,
       mentions: mentionedIds,
+
+      musicId: req.body.musicId,
+      musicTitle: req.body.musicTitle,
+      musicArtist: req.body.musicArtist,
+      musicStartAt: req.body.musicStartAt ? Number(req.body.musicStartAt) : undefined,
+      musicPreviewUrl: req.body.musicPreviewUrl,
+      musicAlbumArt: req.body.musicAlbumArt,
+      ratio: ratio,
     });
 
     if (taggedUsers.length > 0 || mentionedIds.length > 0) {
@@ -1321,6 +1331,7 @@ export const sharePost = async (
             postOwnerProfilePicture: postOwnerAvatar,
             mediaUrl: firstMedia.url ?? null,
             mediaType: firstMedia.type ?? "image",
+            ratio: (post as any).ratio || firstMedia.aspectRatio || "4:3",
             caption: (post as any).caption ?? "",
             sharerName: callerName,
             sharerAvatar: caller?.profile_picture ?? null,
@@ -1335,6 +1346,7 @@ export const sharePost = async (
               postId,
               mediaUrl: firstMedia.url ?? null,
               mediaType: firstMedia.type ?? "image",
+              ratio: (post as any).ratio || firstMedia.aspectRatio || "4:3",
               sharerName: callerName,
               postOwnerName,
               postOwnerAvatar,

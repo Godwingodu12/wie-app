@@ -1,13 +1,15 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, FlatList, ViewToken, Animated, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { getMediaSource } from '@/utils/imageUtils';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const POST_WIDTH = SCREEN_WIDTH - 12;
 
-export type MediaRatio = '1:1' | '4:5' | '9:16' | '16:9';
+export type MediaRatio = '1:1' | '4:5' | '9:16' | '16:9' | '4:3';
 
 interface MediaItem {
     url: string;
@@ -18,9 +20,17 @@ interface PostMediaProps {
     items: MediaItem[];
     ratio: MediaRatio;
     onDoubleTap?: () => void;
+    musicPreviewUrl?: string;
+    isActive?: boolean;
 }
 
-const RATIOS = { '1:1': 1, '4:5': 0.8, '9:16': 0.5625, '16:9': 1.77 };
+const RATIOS = { 
+    '1:1': 1, 
+    '4:5': 0.8, 
+    '9:16': 9/16, 
+    '16:9': 363/196, 
+    '4:3': 4/3 
+};
 
 const VideoPlayerItem = React.memo(({ url, isMuted, containerHeight }: { url: string, isMuted: boolean, containerHeight: number }) => {
     const player = useVideoPlayer(url, (player) => {
@@ -44,15 +54,78 @@ const VideoPlayerItem = React.memo(({ url, isMuted, containerHeight }: { url: st
     );
 });
 
-const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
+const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicPreviewUrl, isActive }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isMuted, setIsMuted] = useState(true);
     const [lastTap, setLastTap] = useState(0);
     const [loadErrors, setLoadErrors] = useState<Record<number, boolean>>({});
     const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
-
+    
+    const soundRef = useRef<Audio.Sound | null>(null);
     const heartScale = useRef(new Animated.Value(0)).current;
-    const containerHeight = SCREEN_WIDTH / RATIOS[ratio];
+
+    // Background music handling for image posts
+    useEffect(() => {
+        let isCancelled = false;
+        
+        const setupAudio = async () => {
+            if (!musicPreviewUrl || !isActive) {
+                if (soundRef.current) {
+                    await soundRef.current.unloadAsync().catch(() => {});
+                    soundRef.current = null;
+                }
+                return;
+            }
+
+            try {
+                if (soundRef.current) {
+                    await soundRef.current.unloadAsync().catch(() => {});
+                }
+                
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        { uri: musicPreviewUrl },
+                        { shouldPlay: true, isMuted: isMuted, isLooping: true }
+                    );
+                    
+                    if (!isCancelled) {
+                        soundRef.current = sound;
+                    } else {
+                        await sound.unloadAsync().catch(() => {});
+                    }
+                } catch (audioError: any) {
+                    // Suppress AudioFocusNotAcquiredException which happens if OS denies audio control
+                    console.warn("Audio playback issue (focus denied by OS):", audioError.message);
+                }
+            } catch (error) {
+                console.log("Error playing background music:", error);
+            }
+        };
+
+        setupAudio();
+
+        return () => {
+            isCancelled = true;
+            if (soundRef.current) {
+                soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+        };
+    }, [musicPreviewUrl, isActive]);
+
+    // Handle mute state changes for background music
+    useEffect(() => {
+        if (soundRef.current) {
+            soundRef.current.setIsMutedAsync(isMuted);
+        }
+    }, [isMuted]);
+    
+    // Exact mapping for ratios
+    const ratioMap = RATIOS;
+    
+    // Safety fallback for unexpected ratio strings (defaults to 4:3 model)
+    const currentRatio = ratioMap[ratio as keyof typeof ratioMap] || RATIOS['4:3'];
+    const containerHeight = POST_WIDTH / currentRatio;
 
     const animateHeart = useCallback(() => {
         Animated.sequence([
@@ -87,7 +160,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
                     <VideoPlayerItem url={typeof source === 'object' ? source.uri : source} isMuted={isMuted} containerHeight={containerHeight} />
                     <TouchableOpacity
                         onPress={() => setIsMuted(!isMuted)}
-                        className="absolute bottom-3 right-3 bg-black/60 w-8 h-8 rounded-full items-center justify-center"
+                        className="absolute bottom-3 right-3 bg-black/60 w-8 h-8 rounded-full items-center justify-center z-10"
                     >
                         <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={16} color="white" />
                     </TouchableOpacity>
@@ -109,28 +182,18 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
                         <Text className="text-gray-500 mt-2 font-rubik text-xs">Content unavailable</Text>
                     </View>
                 ) : (
-                    <View className="w-full h-full">
-                      {/* Background image to fill the borders */}
-                      <Image
-                          source={source}
-                          style={{ position: 'absolute', width: '100%', height: '100%' }}
-                          contentFit="cover"
-                          blurRadius={20}
-                      />
-                      {/* Main image */}
-                      <Image
-                          source={source}
-                          style={{ width: '100%', height: '100%' }}
-                          contentFit="cover"
-                          transition={300}
-                          onLoadStart={() => setLoadingStates(prev => ({ ...prev, [index]: true }))}
-                          onLoadEnd={() => setLoadingStates(prev => ({ ...prev, [index]: false }))}
-                          onError={() => {
-                              setLoadErrors(prev => ({ ...prev, [index]: true }));
-                              setLoadingStates(prev => ({ ...prev, [index]: false }));
-                          }}
-                      />
-                    </View>
+                    <Image
+                        source={source}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                        transition={300}
+                        onLoadStart={() => setLoadingStates(prev => ({ ...prev, [index]: true }))}
+                        onLoadEnd={() => setLoadingStates(prev => ({ ...prev, [index]: false }))}
+                        onError={() => {
+                            setLoadErrors(prev => ({ ...prev, [index]: true }));
+                            setLoadingStates(prev => ({ ...prev, [index]: false }));
+                        }}
+                    />
                 )}
             </View>
         );
@@ -141,7 +204,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
             <TouchableOpacity
                 activeOpacity={1}
                 onPress={handleDoubleTap}
-                style={{ width: SCREEN_WIDTH, height: containerHeight }}
+                style={{ width: POST_WIDTH, height: containerHeight, borderRadius: 24 }}
                 className="bg-neutral-900 justify-center items-center overflow-hidden"
             >
                 {renderItemContent(item, index)}
@@ -157,8 +220,8 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
     }, [isMuted, loadingStates, loadErrors, containerHeight, handleDoubleTap]);
 
     return (
-        <View className="w-full bg-black">
-            <View style={{ height: containerHeight }}>
+        <View className="w-full bg-black items-center">
+            <View style={{ height: containerHeight, width: POST_WIDTH }}>
                 <FlatList
                     data={items}
                     renderItem={renderItem}
@@ -170,13 +233,24 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap }) => {
                     keyExtractor={(_, index) => index.toString()}
                 />
 
-                {items.length > 1 && (
-                    <View className="absolute top-3 right-3 bg-black/70 px-2.5 py-1 rounded-full z-10">
-                        <Text className="text-white text-[11px] font-bold">
-                            {currentIndex + 1}/{items.length}
-                        </Text>
-                    </View>
-                )}
+                <View className="absolute top-3 right-3 flex-row items-center gap-2 z-20">
+                    {musicPreviewUrl && items[0]?.type !== 'video' && (
+                        <TouchableOpacity
+                            onPress={() => setIsMuted(!isMuted)}
+                            className="bg-black/60 w-8 h-8 rounded-full items-center justify-center"
+                        >
+                            <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={16} color="white" />
+                        </TouchableOpacity>
+                    )}
+
+                    {items.length > 1 && (
+                        <View className="bg-black/70 px-2.5 py-1 rounded-full">
+                            <Text className="text-white text-[11px] font-bold">
+                                {currentIndex + 1}/{items.length}
+                            </Text>
+                        </View>
+                    )}
+                </View>
             </View>
 
             {items.length > 1 && (

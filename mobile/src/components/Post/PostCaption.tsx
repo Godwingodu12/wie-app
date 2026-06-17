@@ -20,7 +20,7 @@ const ExpandableCaption: React.FC<ExpandableCaptionProps> = ({
     : caption;
 
   return (
-    <View className="px-3 mt-2">
+    <View className="px-0 mt-2">
       <Text className="text-white leading-5">
         {/* Username */}
         <Text className="font-medium text-[12px]">

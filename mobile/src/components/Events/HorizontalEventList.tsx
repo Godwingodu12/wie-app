@@ -8,7 +8,7 @@ const HorizontalEventList = ({ events }: { events: any[] }) => {
       data={events}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 6 }}
       keyExtractor={(item, index) => String(item.id || item.event_id || index)}
       renderItem={({ item }) => (
         <View className="mr-4">

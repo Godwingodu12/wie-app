@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StatusBar, Platform, KeyboardAvoidingView, ActivityIndicator, Keyboard, Image, Text, TouchableOpacity } from 'react-native';
+import { View, StatusBar, Platform, KeyboardAvoidingView, ActivityIndicator, Keyboard, Image, Text, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import { MessageList } from '@/components/Message/MessageList';
 import { Message } from '@/components/Message/MessageBubble';
 import { chatService } from '@/services/chatService';
 import { useUser } from '@/context/UserContext';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ChatDetailsScreen() {
   const { user: currentUser } = useUser();
@@ -22,6 +23,7 @@ export default function ChatDetailsScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const flatListRef = useRef<any>(null);
 
   const fetchMessages = async () => {
@@ -62,6 +64,7 @@ export default function ChatDetailsScreen() {
                 postOwnerAvatar: data.postOwnerAvatar || data.postOwnerProfilePicture || data.sharerAvatar,
                 mediaUrl: data.mediaUrl,
                 mediaType: data.mediaType || 'image',
+                ratio: data.ratio,
                 caption: data.caption,
                 sharerName: data.sharerName,
                 postUrl: data.postUrl
@@ -196,6 +199,8 @@ export default function ChatDetailsScreen() {
       let response;
       if (messageType === 'voice' || isAudio) {
         console.log("DEBUG: Attempting to send voice note from:", content);
+        // Small delay to ensure the file system has finished flushing the recording
+        if (Platform.OS === 'android') await new Promise(resolve => setTimeout(resolve, 300));
         response = await chatService.sendAudio(chatId, content, replyMessage?.id);
       } else if (messageType === 'image') {
         const assets = Array.isArray(extraData) ? extraData : extraData.assets;
@@ -326,6 +331,7 @@ export default function ChatDetailsScreen() {
             otherUserAvatar={avatar}
             flatListRef={flatListRef}
             onReplyMessagePress={scrollToMessage}
+            onMediaPress={(media) => setSelectedMedia(media)}
           />
         )}
         <ChatInput 
@@ -335,6 +341,34 @@ export default function ChatDetailsScreen() {
           chatId={chatId}
         />
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={!!selectedMedia}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedMedia(null)}
+      >
+        <View className="flex-1 bg-black justify-center items-center">
+          <TouchableOpacity 
+            className="absolute top-12 right-6 z-10 p-2 bg-black/50 rounded-full"
+            onPress={() => setSelectedMedia(null)}
+          >
+            <Ionicons name="close" size={28} color="white" />
+          </TouchableOpacity>
+          
+          {selectedMedia?.type === 'image' ? (
+            <Image 
+              source={{ uri: selectedMedia.url }} 
+              className="w-full h-full" 
+              resizeMode="contain" 
+            />
+          ) : (
+            <View className="w-full h-full bg-black items-center justify-center">
+               <Text className="text-white">Video Player goes here</Text>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }

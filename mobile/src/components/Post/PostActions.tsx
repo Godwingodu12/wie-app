@@ -30,7 +30,7 @@ const PostActions: React.FC<PostActionsProps> = ({
   const iconSize = width < 380 ? 18 : 22;
 
   return (
-    <View className="flex-row items-center mt-2 px-3 gap-x-3">
+    <View className="flex-row items-center mt-1 px-0 gap-x-3">
       <View className="flex-row items-center flex-1 bg-[#1A1A1A] rounded-full py-3 justify-around border border-white/5">
 
         {/* Like */}

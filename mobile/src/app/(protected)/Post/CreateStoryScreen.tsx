@@ -18,6 +18,7 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { Audio } from 'expo-av';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { mediaService } from '@/services/mediaService';
@@ -234,7 +235,8 @@ const DeleteZone = ({ isDragging, deleteActive }: any) => {
 };
 
 const CreateStoryScreen = () => {
-  const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const { imageUri: initialImageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(initialImageUri || null);
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
 
@@ -297,6 +299,40 @@ const CreateStoryScreen = () => {
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // --- FUNCTIONS ---
+  const pickImage = async () => {
+    try {
+      if (!ImagePicker) {
+        console.error("ImagePicker module is not available");
+        return;
+      }
+
+      const mediaTypes = ImagePicker.MediaTypeOptions?.Images || 'Images';
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes,
+        allowsMultipleSelection: false,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setSelectedImageUri(result.assets[0].uri);
+      } else if (!selectedImageUri) {
+        // If user cancels and no image is currently selected, go back
+        router.back();
+      }
+    } catch (error: any) {
+      console.error("Story Gallery Error:", error);
+      showToast({ message: "Failed to open gallery", type: 'error' });
+      if (!selectedImageUri) router.back();
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedImageUri) {
+      setTimeout(pickImage, 150);
+    }
+  }, []);
+
   const fetchUserProfile = async () => {
     try {
       const profile = await wieUserService.getProfile();
@@ -412,7 +448,7 @@ const CreateStoryScreen = () => {
   };
 
   const handleShare = async () => {
-    if (!imageUri) {
+    if (!selectedImageUri) {
       showToast({ message: 'No image selected', type: 'error' });
       return;
     }
@@ -420,19 +456,28 @@ const CreateStoryScreen = () => {
     setIsUploading(true);
     try {
       const formData = new FormData();
-      const filename = imageUri.split('/').pop() || 'story.jpg';
+      const filename = selectedImageUri.split('/').pop() || 'story.jpg';
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : `image/jpeg`;
 
       // @ts-ignore
       formData.append('media', {
-       uri: imageUri,
+       uri: selectedImageUri,
        name: filename,
        type: type,
       } as any);
 
       formData.append('caption', text || '');
       formData.append('visibility', 'public');
+
+      if (selectedSong) {
+        formData.append('musicId', selectedSong.id);
+        formData.append('musicTitle', selectedSong.title);
+        formData.append('musicArtist', selectedSong.artist);
+        formData.append('musicPreviewUrl', selectedSong.audioUrl);
+        formData.append('musicAlbumArt', selectedSong.cover);
+        formData.append('musicStartAt', String(musicStartTime));
+      }
 
       await mediaService.createFlux(formData);
 
@@ -1283,8 +1328,8 @@ const CreateStoryScreen = () => {
             transformState={history[historyIndex]} 
             onTransformEnd={handleTransformEnd}
           >
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            {selectedImageUri ? (
+              <Image source={{ uri: selectedImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
               <View className="flex-1 bg-zinc-900" />
             )}

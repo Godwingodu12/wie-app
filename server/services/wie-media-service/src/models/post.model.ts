@@ -38,6 +38,15 @@ export interface IPost extends Document {
   taggedUsers: ITaggedUser[];
   mentions: string[];
 
+  musicId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicStartAt?: number;
+  musicPreviewUrl?: string;
+  musicAlbumArt?: string;
+
+  ratio?: string;
+
   // ── Denormalized counters (updated atomically) ────────────
   likeCount: number;
   commentCount: number;
@@ -101,6 +110,15 @@ const PostSchema = new Schema<IPost>(
       },
     ],
     mentions: { type: [String], default: [] },
+
+    musicId: { type: String },
+    musicTitle: { type: String },
+    musicArtist: { type: String },
+    musicStartAt: { type: Number },
+    musicPreviewUrl: { type: String },
+    musicAlbumArt: { type: String },
+
+    ratio: { type: String },
 
     // ── Counters ──────────────────────────────────────────
     likeCount: { type: Number, default: 0, index: true },

@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   X, Heart, MessageCircle, Bookmark, ChevronLeft, ChevronRight,
-  Play, Pause, Volume2, VolumeX, Loader2, Share2, MapPin, Eye
+  Play, Pause, Volume2, VolumeX, Loader2, Share2, MapPin, Eye, Music
 } from 'lucide-react';
 import { useTheme } from '@/components/home/ThemeContext';
 import { getPostById } from '@/services/postService';
@@ -370,6 +370,10 @@ export default function PreviewPost({ postId, onClose }: PreviewPostProps) {
                       @{authorUsername}
                     </p>
                   )}
+                  <p className="text-[11px] flex items-center gap-1 mt-0.5 truncate font-medium" style={{ color: textSecondary }}>
+                    <Music size={10} />
+                    {post.musicTitle || "original audio"}
+                  </p>
                   {post.locationLabel && (
                     <p className="text-xs flex items-center gap-1 mt-0.5 truncate" style={{ color: textSecondary }}>
                       <MapPin size={10} />

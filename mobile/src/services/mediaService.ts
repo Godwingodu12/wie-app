@@ -59,10 +59,14 @@ export const mediaService = {
 
   async createPost(formData: FormData) {
     try {
+      console.log('DEBUG: Sending Post Create via native fetch');
       const token = await AsyncStorage.getItem('auth_token');
       const url = `${SERVICES.MEDIA}post/create`;
-      console.log('DEBUG: Fetching Post Create', url);
-
+      
+      console.log('DEBUG: Fetch URL:', url);
+      
+      // Native fetch requires no manual Content-Type for FormData.
+      // It will automatically inject `multipart/form-data; boundary=...`
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -72,40 +76,49 @@ export const mediaService = {
         body: formData,
       });
 
-      const responseData = await response.json();
+      console.log('DEBUG: Fetch Response Status:', response.status);
 
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse server response:', responseText);
+        throw new Error('Invalid server response');
+      }
+      
       if (!response.ok) {
-        console.error('createPost Fetch Error:', response.status, responseData);
+        console.error('createPost Server Error:', response.status, responseData);
         throw new Error(responseData.message || 'Failed to upload post');
       }
-
+      
+      console.log('DEBUG: Post created successfully via fetch');
       return responseData;
     } catch (error: any) {
-      console.error('createPost Error:', error.message);
+      console.error('createPost Fetch Error:', error.message);
+      // Simplify error message for user
+      if (error.message.includes('Network request failed')) {
+        throw new Error('Network Error: Could not reach the server. Check your connection.');
+      }
       throw error;
     }
   },
 
   async createFlux(formData: FormData) {
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      const url = `${SERVICES.MEDIA}flux/create`;
-      console.log('DEBUG: Fetching Flux (Story) Create', url);
-
-      const response = await fetch(url, {
-        method: 'POST',
+      console.log('DEBUG: Sending Flux (Story) Create via mediaApi');
+      const response = await mediaApi.post('flux/create', formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-        body: formData,
+          'Content-Type': 'multipart/form-data',
+        }
       });
-
-      const responseData = await response.json();
-      if (!response.ok) throw new Error(responseData.message || 'Failed to upload flux');
-      return responseData;
+      return response.data;
     } catch (error: any) {
-      console.error('createFlux Error:', error.message);
+      if (error.response) {
+        console.error('createFlux Server Error:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('createFlux Network Error: No response received');
+      }
       throw error;
     }
   },

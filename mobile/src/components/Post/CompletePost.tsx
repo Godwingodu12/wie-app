@@ -20,16 +20,20 @@ interface PostProps {
     avatar: string;
     timestamp: string;
     musicTitle: string;
-    media: { url: string; type: string }[];
+    musicArtist?: string;
+    musicPreviewUrl?: string;
+    media: { url: string; type: string; aspectRatio?: string }[];
+    ratio?: any;
     initialLikes: number;
     hasLiked?: boolean;
     comments: string;
     shares: string;
     caption: string;
   };
+  isActive?: boolean;
 }
 
-const CompletePost: React.FC<PostProps> = React.memo(({ postData }) => {
+const CompletePost: React.FC<PostProps> = React.memo(({ postData, isActive }) => {
   const [saved, setSaved] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
@@ -46,30 +50,29 @@ const CompletePost: React.FC<PostProps> = React.memo(({ postData }) => {
   };
 
   return (
-    <View className="mb-6 bg-black">
+    <View className="mb-6 bg-black px-[6px]">
       {/* Header Section */}
-      <View className="mt-2">
-        <View className="px-3 mb-2">
-          <PostHeader
-            userId={postData.userId}
-            isFollowing={postData.isFollowing}
-            isSelf={postData.isSelf}
-            username={postData.username}
-            name={postData.name}
-            isVerified={postData.isVerified}
-            profileImage={postData.avatar}
-            timestamp={postData.timestamp}
-            musicTitle={postData.musicTitle}
-          />
-        </View>
+      <PostHeader
+        userId={postData.userId}
+        isFollowing={postData.isFollowing}
+        isSelf={postData.isSelf}
+        username={postData.username}
+        name={postData.name}
+        isVerified={postData.isVerified}
+        profileImage={postData.avatar}
+        timestamp={postData.timestamp}
+        musicTitle={postData.musicTitle}
+        musicArtist={postData.musicArtist}
+      />
 
-        {/* Media Section */}
-        <PostMedia
-          items={postData.media}
-          ratio="4:5"
-          onDoubleTap={handleDoubleTap}
-        />
-      </View>
+      {/* Media Section */}
+      <PostMedia
+        items={postData.media}
+        ratio={postData.media?.[0]?.aspectRatio || postData.ratio || "4:3"}
+        onDoubleTap={handleDoubleTap}
+        musicPreviewUrl={postData.musicPreviewUrl}
+        isActive={isActive}
+      />
 
       {/* Actions Section */}
       <PostActions

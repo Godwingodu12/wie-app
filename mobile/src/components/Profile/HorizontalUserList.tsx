@@ -34,7 +34,7 @@ const HorizontalUserList = ({ users }: HorizontalUserListProps) => {
       data={suggestedUsers}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 6 }}
       keyExtractor={(item) => String(item.id || item._id)}
       renderItem={({ item }) => (
         <View className="mr-4">

@@ -67,7 +67,7 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
   return (
     <View className="flex-row flex-wrap pb-20">
       {data.map((item) => {
-        const itemHeight = COLUMN_WIDTH * 1.5;
+        const itemHeight = COLUMN_WIDTH; // Instagram uses square thumbnails
         const imageUrl = item.image || (item.source && (typeof item.source === 'string' ? item.source : item.source.uri));
         
         return (
@@ -78,7 +78,7 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
             activeOpacity={0.9}
             onPress={() => setSelectedMedia(item)}
           >
-            <View className="flex-1 bg-zinc-900 overflow-hidden rounded-md">
+            <View className="flex-1 bg-zinc-900 overflow-hidden rounded-none">
               <Image 
                 source={getImageSource(imageUrl)} 
                 style={{ width: '100%', height: '100%' }}

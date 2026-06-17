@@ -9,7 +9,7 @@ export const MOCK_MODE = false;
 export const SERVICES = {
   AUTH: `http://${LOCAL_IP}:5000/api/auth/`,
   USER: `http://${LOCAL_IP}:5005/api/user/`,
-  MEDIA: `http://${LOCAL_IP}:5010/api/`,
+  MEDIA: `http://${LOCAL_IP}:5005/api/media/`,
   CONNECTION: `http://${LOCAL_IP}:5012/api/`,
   CHAT: `http://${LOCAL_IP}:5004/api/chat/`,
   NOTIFICATION: `http://${LOCAL_IP}:5006/api/notification/`,

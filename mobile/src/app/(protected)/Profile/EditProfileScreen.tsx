@@ -38,15 +38,23 @@ const EditProfileScreen = () => {
     profilePic !== user.profile_picture;
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    try {
+      if (!ImagePicker) return;
+      
+      const mediaTypes = ImagePicker.MediaTypeOptions?.Images || 'Images';
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
 
-    if (!result.canceled) {
-      setProfilePic(result.assets[0].uri);
+      if (!result.canceled) {
+        setProfilePic(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Gallery Error:", error);
     }
   };
 

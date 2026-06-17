@@ -258,10 +258,6 @@ export const chatService = {
     try {
       let finalUri = audioUri;
       
-      // CRITICAL: Do NOT decode the URI. React Native's RCTNetworking on Android 
-      // expects the URI exactly as provided by the native modules.
-      // Decoding lead to "Could not retrieve file" errors.
-      
       if (Platform.OS === 'android' && !finalUri.startsWith('http') && !finalUri.startsWith('file://')) {
         finalUri = `file://${finalUri}`;
       }
@@ -272,7 +268,7 @@ export const chatService = {
       formData.append('audio', {
         uri: finalUri,
         name: 'recording.m4a',
-        type: 'audio/m4a'
+        type: 'audio/mp4' // Using audio/mp4 for better compatibility with .m4a files
       } as any);
       
       if (replyTo) formData.append('replyTo', replyTo);
@@ -281,32 +277,26 @@ export const chatService = {
       const baseUrl = api.defaults.baseURL?.endsWith('/') ? api.defaults.baseURL : `${api.defaults.baseURL}/`;
       const url = `${baseUrl}${chatId}/send-audio`;
       
-      console.log('DEBUG: sendAudio via XHR to:', url);
+      console.log('DEBUG: sendAudio attempting upload to:', url);
 
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url);
-        xhr.timeout = 120000;
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.onload = () => {
-          console.log('DEBUG: sendAudio XHR status:', xhr.status);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
-          } else {
-            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
-          }
-        };
-        xhr.onerror = (e) => {
-          console.error('DEBUG: sendAudio XHR error:', e);
-          reject(new Error('Network request failed (XHR)'));
-        };
-        xhr.ontimeout = () => {
-          console.error('DEBUG: sendAudio XHR timeout');
-          reject(new Error('Network request timed out'));
-        };
-        xhr.send(formData);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          // Note: Do NOT set Content-Type header when using FormData with fetch
+        },
+        body: formData,
       });
+
+      console.log('DEBUG: sendAudio fetch status:', response.status);
+      
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.message || `Upload failed (${response.status})`);
+      }
+      
+      return responseData;
     } catch (error: any) {
       console.error("DEBUG: sendAudio error:", error);
       throw error.message || "Failed to send audio";

@@ -22,13 +22,150 @@ import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  runOnJS,
+  withSpring 
+} from 'react-native-reanimated';
+import { 
+  Gesture, 
+  GestureDetector,
+  GestureHandlerRootView 
+} from 'react-native-gesture-handler';
 import { mediaService } from '@/services/mediaService';
 import { useToast } from '@/context/ToastContext';
 
 const { width, height } = Dimensions.get('window');
 
+const DraggableMediaItem = ({ 
+  item, 
+  containerWidth, 
+  containerHeight, 
+  initialOffset = { x: 0, y: 0, scale: 1 },
+  onOffsetChange 
+}: { 
+  item: ImagePicker.ImagePickerAsset, 
+  containerWidth: number, 
+  containerHeight: number,
+  initialOffset?: { x: number, y: number, scale: number },
+  onOffsetChange: (offset: { x: number, y: number, scale: number }) => void
+}) => {
+  const scale = useSharedValue(initialOffset.scale || 1);
+  const translateX = useSharedValue(initialOffset.x || 0);
+  const translateY = useSharedValue(initialOffset.y || 0);
+  
+  const context = useSharedValue({ x: 0, y: 0, scale: 1 });
+
+  // Dimensions
+  const imgWidth = item.width || containerWidth;
+  const imgHeight = item.height || containerHeight;
+  const imgAspectRatio = imgWidth / imgHeight;
+  const containerAspectRatio = containerWidth / containerHeight;
+
+  let baseWidth: number, baseHeight: number;
+  if (imgAspectRatio > containerAspectRatio) {
+    baseHeight = containerHeight;
+    baseWidth = containerHeight * imgAspectRatio;
+  } else {
+    baseWidth = containerWidth;
+    baseHeight = containerWidth / imgAspectRatio;
+  }
+
+  const updateOffsets = (nextScale: number, nextX: number, nextY: number, animate = false) => {
+    'worklet';
+    const displayedWidth = baseWidth * nextScale;
+    const displayedHeight = baseHeight * nextScale;
+
+    // Boundary logic: prevent pulling image away from edges (no black gaps)
+    const maxOffsetX = Math.max(0, (displayedWidth - containerWidth) / 2);
+    const maxOffsetY = Math.max(0, (displayedHeight - containerHeight) / 2);
+
+    const targetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, nextX));
+    const targetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, nextY));
+
+    if (animate) {
+      translateX.value = withSpring(targetX, { damping: 20 });
+      translateY.value = withSpring(targetY, { damping: 20 });
+    } else {
+      translateX.value = targetX;
+      translateY.value = targetY;
+    }
+  };
+
+  // Sync with prop changes
+  useEffect(() => {
+    const currentScale = initialOffset?.scale || 1;
+    const currentX = initialOffset?.x || 0;
+    const currentY = initialOffset?.y || 0;
+    
+    scale.value = currentScale;
+    updateOffsets(currentScale, currentX, currentY);
+  }, [initialOffset?.scale, initialOffset?.x, initialOffset?.y, containerWidth, containerHeight]);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      context.value = { x: translateX.value, y: translateY.value, scale: scale.value };
+    })
+    .onUpdate((event) => {
+      updateOffsets(scale.value, event.translationX + context.value.x, event.translationY + context.value.y);
+    })
+    .onEnd(() => {
+      runOnJS(onOffsetChange)({ x: translateX.value, y: translateY.value, scale: scale.value });
+    });
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      context.value = { x: translateX.value, y: translateY.value, scale: scale.value };
+    })
+    .onUpdate((event) => {
+      const nextScale = Math.max(1, Math.min(5, context.value.scale * event.scale));
+      scale.value = nextScale;
+      updateOffsets(nextScale, translateX.value, translateY.value);
+    })
+    .onEnd(() => {
+      runOnJS(onOffsetChange)({ x: translateX.value, y: translateY.value, scale: scale.value });
+    });
+
+  const gesture = Gesture.Simultaneous(panGesture, pinchGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value }
+    ],
+  }));
+
+  return (
+    <View style={{ width: containerWidth, height: containerHeight, overflow: 'hidden', borderRadius: 32, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }}>
+      <GestureDetector gesture={gesture}>
+        <Animated.View style={[{ width: baseWidth, height: baseHeight, justifyContent: 'center', alignItems: 'center' }, animatedStyle]}>
+          <Image 
+            key={`${item.uri}-${containerWidth}-${containerHeight}`}
+            source={{ uri: item.uri }} 
+            style={{ width: '100%', height: '100%' }} 
+            contentFit="cover"
+          />
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+};
+
 type Step = 'selection' | 'edit' | 'finalize';
 type PostType = 'post' | 'story' | 'reel';
+type MediaRatio = '1:1' | '4:5' | '9:16' | '16:9' | '4:3';
+
+const RATIOS: Record<MediaRatio, number> = { 
+  '1:1': 1, 
+  '4:5': 0.8, 
+  '9:16': 9/16, 
+  '16:9': 16/9, 
+  '4:3': 4/3 
+};
 
 interface MusicTrack {
   id: string;
@@ -45,12 +182,18 @@ const CreatePostScreen = () => {
   const [postType, setPostType] = useState<PostType>('post');
   
   // Media State
+  const [originalMedia, setOriginalMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   
   // Post Data State
   const [caption, setCaption] = useState('');
-  const [activeSheet, setActiveSheet] = useState<'none' | 'music' | 'tags' | 'location'>('none');
+  const [activeSheet, setActiveSheet] = useState<'none' | 'music' | 'tags' | 'location' | 'crop'>('none');
   
+  // Crop State
+  const [cropRatio, setCropRatio] = useState<MediaRatio>('1:1');
+  const [cropMode, setCropMode] = useState<'adjust' | 'ratio'>('ratio');
+  const [mediaOffsets, setMediaOffsets] = useState<Record<string, { x: number, y: number, scale: number }>>({});
+
   // Music State
   const [musicList, setMusicList] = useState<MusicTrack[]>([]);
   const [musicTab, setMusicTab] = useState<'for-you' | 'trending' | 'liked'>('for-you');
@@ -65,7 +208,16 @@ const CreatePostScreen = () => {
   const [selectedTags, setSelectedTags] = useState<any[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (selectedMedia.length === 0) {
+      // Delay slightly to ensure navigation transition or tab switch UI update finishes
+      const timer = setTimeout(pickImage, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [postType]);
 
   useEffect(() => {
     return () => {
@@ -179,29 +331,93 @@ const CreatePostScreen = () => {
         }
       }
     } catch (error) {
-      console.log("Mute toggle note:", error);
+      console.log("Mute note:", error);
     }
+  };
+
+  const handleCrop = () => {
+    if (selectedMedia.length === 0) return;
+    setActiveSheet('crop');
   };
 
   const pickImage = async () => {
     try {
+      if (!ImagePicker) {
+        console.error("ImagePicker module is not available");
+        return;
+      }
+
+      // Use MediaTypeOptions (legacy but stable for this SDK version)
+      const mediaTypes = postType === 'reel' 
+        ? (ImagePicker.MediaTypeOptions?.Videos || 'Videos') 
+        : (ImagePicker.MediaTypeOptions?.All || 'All');
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsMultipleSelection: true,
-        selectionLimit: 20,
+        mediaTypes: mediaTypes as any,
+        allowsMultipleSelection: postType !== 'reel',
+        selectionLimit: postType === 'reel' ? 1 : 20,
         quality: 1,
       });
 
-      if (!result.canceled) {
-        setSelectedMedia(result.assets);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        console.log("[CreatePost] Selected images, creating persistent copies...");
+        
+        // Create persistent copies immediately to avoid cache invalidation
+        const persistentAssets = [];
+        for (let i = 0; i < result.assets.length; i++) {
+          const asset = result.assets[i];
+          if (asset.type === 'video') {
+            persistentAssets.push(asset);
+            continue;
+          }
+
+          try {
+            // NORMALIZE EXIF: 
+            // We apply rotate: 0 to force baking the orientation into raw pixels.
+            const normalized = await ImageManipulator.manipulateAsync(
+              asset.uri,
+              [{ rotate: 0 }], 
+              { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+            );
+
+            const filename = normalized.uri.split('/').pop() || `draft_${Date.now()}_${i}.jpg`;
+            const destUri = `${FileSystem.documentDirectory}${filename}`;
+            
+            await FileSystem.copyAsync({
+              from: normalized.uri,
+              to: destUri
+            });
+            
+            const info = await FileSystem.getInfoAsync(destUri);
+            if (info.exists && info.size > 0) {
+              persistentAssets.push({
+                ...asset,
+                uri: destUri,
+                width: normalized.width,
+                height: normalized.height
+              });
+            } else {
+              console.warn(`[Persistence] Failed to verify copy for ${filename}. Using original.`);
+              persistentAssets.push(asset);
+            }
+          } catch (e: any) {
+             console.warn(`[Persistence] Error copying/normalizing file ${asset.uri}:`, e.message);
+             persistentAssets.push(asset);
+          }
+        }
+
+        setOriginalMedia(persistentAssets);
+        setSelectedMedia(persistentAssets);
+        setMediaOffsets({});
         setStep('edit');
       }
     } catch (error: any) {
+      console.error("Gallery Error:", error);
       showToast({ message: "Failed to open gallery", type: 'error' });
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 'selection') {
       if (selectedMedia.length === 0) {
         pickImage();
@@ -209,7 +425,86 @@ const CreatePostScreen = () => {
       }
       setStep('edit');
     } else if (step === 'edit') {
-      setStep('finalize');
+      if (originalMedia.length === 0) return;
+      
+      setIsUploading(true);
+      try {
+        console.log(`[CreatePost] Starting crop processing for ${originalMedia.length} items...`);
+        
+        const croppedAssets = await Promise.all(originalMedia.map(async (asset) => {
+          if (asset.type === 'video') return asset;
+          
+          const offset = mediaOffsets[asset.uri] || { x: 0, y: 0, scale: 1 };
+          const userScale = offset.scale || 1;
+          const targetRatio = RATIOS[cropRatio];
+          const containerWidth = width * 0.8;
+          const containerHeight = containerWidth / targetRatio;
+          
+          let sourceUri = asset.uri;
+          if (Platform.OS === 'android' && !sourceUri.startsWith('file://') && !sourceUri.startsWith('content://')) {
+            sourceUri = `file://${sourceUri}`;
+          }
+          
+          const imgWidth = asset.width;
+          const imgHeight = asset.height;
+          
+          if (!imgWidth || !imgHeight) {
+            console.warn("[Crop] Missing dimensions for asset, skipping crop.");
+            return asset;
+          }
+
+          const imgAspectRatio = imgWidth / imgHeight;
+          
+          let baseWidth: number, baseHeight: number;
+          if (imgAspectRatio > targetRatio) {
+            baseHeight = containerHeight;
+            baseWidth = containerHeight * imgAspectRatio;
+          } else {
+            baseWidth = containerWidth;
+            baseHeight = containerWidth / imgAspectRatio;
+          }
+
+          const displayedWidth = baseWidth * userScale;
+          const displayedHeight = baseHeight * userScale;
+
+          const scaleToOriginal = imgWidth / displayedWidth;
+
+          const initialHiddenLeft = (displayedWidth - containerWidth) / 2;
+          const initialHiddenTop = (displayedHeight - containerHeight) / 2;
+
+          const visibleOriginX = initialHiddenLeft - offset.x;
+          const visibleOriginY = initialHiddenTop - offset.y;
+
+          const originX = Math.max(0, Math.round(visibleOriginX * scaleToOriginal));
+          const originY = Math.max(0, Math.round(visibleOriginY * scaleToOriginal));
+          
+          const cropWidth = Math.min(imgWidth - originX, Math.round(containerWidth * scaleToOriginal));
+          const cropHeight = Math.min(imgHeight - originY, Math.round(containerHeight * scaleToOriginal));
+          
+          try {
+            console.log(`[Crop] Processing ${sourceUri} -> origin:(${originX},${originY}) size:${cropWidth}x${cropHeight}`);
+
+            const result = await ImageManipulator.manipulateAsync(
+              sourceUri,
+              [{ crop: { originX, originY, width: cropWidth, height: cropHeight } }],
+              { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            return { ...asset, uri: result.uri, width: result.width, height: result.height };
+          } catch (manipError: any) {
+            console.error(`[Crop] Critical failure for ${asset.uri}: ${manipError.message}`);
+            return asset; 
+          }
+        }));
+        
+        setSelectedMedia(croppedAssets);
+        setStep('finalize');
+      } catch (e: any) {
+        console.error("Processing error:", e.message);
+        showToast({ message: "Error processing images.", type: 'error' });
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -217,6 +512,7 @@ const CreatePostScreen = () => {
     if (step === 'edit') {
       setStep('selection');
     } else if (step === 'finalize') {
+      setSelectedMedia(originalMedia);
       setStep('edit');
     } else {
       router.back();
@@ -266,27 +562,64 @@ const CreatePostScreen = () => {
 
     setIsUploading(true);
     try {
+      console.log("[Upload] Starting pre-flight validation...");
       const formData = new FormData();
-      for (const asset of selectedMedia) {
+      
+      // 1. Rigorous File Verification
+      for (let i = 0; i < selectedMedia.length; i++) {
+        const asset = selectedMedia[i];
+        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+        
+        if (!fileInfo.exists) {
+          throw new Error(`Media file ${i + 1} not found on device. Please re-edit.`);
+        }
+        
+        if (fileInfo.size === 0) {
+          throw new Error(`Media file ${i + 1} is empty (0 bytes).`);
+        }
+
         const uri = asset.uri;
-        const filename = uri.split('/').pop() || 'upload.jpg';
+        const filename = uri.split('/').pop() || `upload_${Date.now()}_${i}.jpg`;
         const type = asset.type === 'video' ? 'video/mp4' : 'image/jpeg';
-        // @ts-ignore
-        formData.append('media', { uri, name: filename, type } as any);
+        
+        console.log(`[Upload] Verified ${filename} (${fileInfo.size} bytes)`);
+        
+        formData.append('media', {
+          uri: uri,
+          name: filename,
+          type: type
+        } as any);
       }
+
+      // 2. Metadata Verification
       formData.append('caption', caption || '');
       formData.append('visibility', 'public');
       formData.append('isStory', postType === 'story' ? 'true' : 'false');
       formData.append('isPersistent', 'true');
       formData.append('type', postType === 'reel' ? 'reel' : 'post');
+      formData.append('ratio', cropRatio);
+      
       if (selectedLocation) formData.append('locationLabel', selectedLocation);
-      if (selectedSong) formData.append('musicId', selectedSong.id);
+      
+      if (selectedSong) {
+        formData.append('musicId', selectedSong.id);
+        formData.append('musicTitle', selectedSong.title);
+        formData.append('musicArtist', selectedSong.artist);
+        formData.append('musicPreviewUrl', selectedSong.audioUrl);
+        formData.append('musicAlbumArt', selectedSong.coverUrl);
+      }
+
+      console.log("[Upload] Validation successful. Calling API...");
 
       await mediaService.createPost(formData);
       showToast({ message: "Post uploaded successfully!", type: 'success' });
-      router.replace('/(tabs)');
+      router.replace('/(protected)/(tabs)');
     } catch (error: any) {
-      showToast({ message: error.message || "Failed to upload", type: 'error' });
+      console.error("[Upload] Error:", error.message);
+      showToast({ 
+        message: error.message || "Failed to upload. Please check your connection and try again.", 
+        type: 'error' 
+      });
     } finally {
       setIsUploading(false);
     }
@@ -502,6 +835,151 @@ const CreatePostScreen = () => {
     </View>
   );
 
+  // --- UI COMPONENTS ---
+
+  const GridOverlay = () => (
+    <View pointerEvents="none" className="absolute inset-0 z-50">
+      <View className="flex-1 flex-row border-2 border-white/50 rounded-[32px] overflow-hidden">
+        <View className="flex-1 border-r border-white/30" />
+        <View className="flex-1 border-r border-white/30" />
+        <View className="flex-1" />
+      </View>
+      <View className="absolute inset-0 flex-col">
+        <View className="flex-1 border-b border-white/30" />
+        <View className="flex-1 border-b border-white/30" />
+        <View className="flex-1" />
+      </View>
+      
+      {/* Corner indicators */}
+      <View className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-white rounded-tl-[30px]" />
+      <View className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-white rounded-tr-[30px]" />
+      <View className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-white rounded-bl-[30px]" />
+      <View className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-white rounded-br-[30px]" />
+      
+      {/* Edge indicators */}
+      <View className="absolute top-0 left-1/2 -ml-2 w-4 h-1.5 bg-white rounded-full" />
+      <View className="absolute bottom-0 left-1/2 -ml-2 w-4 h-1.5 bg-white rounded-full" />
+      <View className="absolute left-0 top-1/2 -mt-2 w-1.5 h-4 bg-white rounded-full" />
+      <View className="absolute right-0 top-1/2 -mt-2 w-1.5 h-4 bg-white rounded-full" />
+    </View>
+  );
+
+  const renderCropSheet = () => {
+    if (activeSheet !== 'crop') return null;
+
+    const currentItem = originalMedia[currentIndex];
+    const containerWidth = width * 0.8;
+    const containerHeight = containerWidth / RATIOS[cropRatio];
+
+    return (
+      <View style={StyleSheet.absoluteFill} className="z-[100] bg-black">
+        
+        {/* Interactive Adjust Area (Figma Design) */}
+        <View className="flex-1 justify-center items-center">
+            {cropMode === 'adjust' && (
+              <View className="absolute top-10 bg-black/60 px-4 py-2 rounded-full flex-row items-center z-50">
+                  <MaterialCommunityIcons name="gesture-pinch" size={16} color="white" />
+                  <Text className="text-white ml-2 text-sm font-medium">Drag to move • Pinch to zoom</Text>
+              </View>
+            )}
+
+            {currentItem && (
+              <View style={{ width: containerWidth, height: containerHeight }}>
+                <DraggableMediaItem
+                    item={currentItem}
+                    containerWidth={containerWidth}
+                    containerHeight={containerHeight}
+                    initialOffset={mediaOffsets[currentItem.uri]}
+                    onOffsetChange={(offset) => {
+                        setMediaOffsets(prev => ({ ...prev, [currentItem.uri]: offset }));
+                    }}
+                />
+                {cropMode === 'adjust' && <GridOverlay />}
+              </View>
+            )}
+        </View>
+
+        {/* Bottom Controls */}
+        <View className="bg-[#1C2024] rounded-t-[40px] p-6 border-t border-gray-800 shadow-2xl">
+          <View className="flex-row items-center justify-between mb-6">
+             <View className="w-6" /> 
+             <Text className="text-white text-xl font-bold">Crop</Text>
+             <TouchableOpacity onPress={() => setActiveSheet('none')}>
+                <Ionicons name="checkmark" size={28} color="white" />
+             </TouchableOpacity>
+          </View>
+
+          <View className="flex-row justify-center mb-8 bg-zinc-800/50 p-1 rounded-2xl self-center">
+            <TouchableOpacity 
+              onPress={() => setCropMode('ratio')}
+              className={`px-8 py-2.5 rounded-xl ${cropMode === 'ratio' ? 'bg-zinc-700' : ''}`}
+            >
+              <Text className={`font-bold ${cropMode === 'ratio' ? 'text-white' : 'text-gray-400'}`}>Ratio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setCropMode('adjust')}
+              className={`px-8 py-2.5 rounded-xl ${cropMode === 'adjust' ? 'bg-zinc-700' : ''}`}
+            >
+              <Text className={`font-bold ${cropMode === 'adjust' ? 'text-white' : 'text-gray-400'}`}>Adjust</Text>
+            </TouchableOpacity>
+          </View>
+
+          {cropMode === 'ratio' ? (
+            <View className="flex-row justify-around items-center px-4 mb-4">
+              {[
+                { label: '9:16', value: '9:16', icon: 'smartphone' },
+                { label: '16:9', value: '16:9', icon: 'monitor' },
+                { label: '4:3', value: '4:3', icon: 'camera' },
+              ].map((r) => (
+                <TouchableOpacity 
+                  key={r.value} 
+                  onPress={() => setCropRatio(r.value as MediaRatio)}
+                  className="items-center"
+                >
+                  <View className={`w-16 h-16 rounded-2xl items-center justify-center border-2 mb-2 ${cropRatio === r.value ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-700 bg-zinc-800/30'}`}>
+                    <Feather name={r.icon as any} size={24} color={cropRatio === r.value ? '#A855F7' : '#9CA3AF'} />
+                  </View>
+                  <Text className={`font-bold ${cropRatio === r.value ? 'text-purple-400' : 'text-gray-400'}`}>{r.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View className="items-center justify-center py-2 mb-4">
+               {/* Dummy slider to match UI visually for now, actual zoom is pinch */}
+               <View className="flex-row items-center w-full px-6 mb-4">
+                  <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+                  <View className="flex-1 h-1 bg-zinc-700 mx-4 rounded-full">
+                     <View className="w-1/3 h-full bg-purple-500 rounded-full" />
+                     <View className="absolute left-1/3 -ml-2 -top-1.5 w-4 h-4 bg-white rounded-full" />
+                  </View>
+                  <Text className="text-gray-400 font-bold text-xs">3.0x</Text>
+               </View>
+               <View className="flex-row items-center">
+                 <MaterialCommunityIcons name="gesture-tap" size={16} color="#9CA3AF" />
+                 <Text className="text-gray-400 text-sm ml-2">Drag to move the image</Text>
+               </View>
+            </View>
+          )}
+
+          <View className="mt-2">
+            <TouchableOpacity 
+                onPress={() => setActiveSheet('none')}
+                className="h-14 bg-purple-600 rounded-full items-center justify-center shadow-lg overflow-hidden"
+            >
+                <LinearGradient 
+                    colors={['#8B5CF6', '#D946EF']} 
+                    start={{ x: 0, y: 0 }} 
+                    end={{ x: 1, y: 1 }} 
+                    className="absolute inset-0" 
+                />
+                <Text className="text-white font-bold text-lg">Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   // --- RENDERING ---
 
   const renderSelection = () => (
@@ -513,35 +991,75 @@ const CreatePostScreen = () => {
           </TouchableOpacity>
         ))}
       </View>
-      <View className="flex-1 items-center justify-center px-10">
-          <Ionicons name="images-outline" size={100} color="#8B5CF6" />
-          <Text className="text-white text-center text-2xl font-bold mt-6">Share your media</Text>
-          <Text className="text-zinc-500 text-center mt-4 text-lg">Choose photos or videos from your gallery to create a new post.</Text>
-          <TouchableOpacity onPress={pickImage} className="mt-12 bg-purple-600 px-12 py-5 rounded-full shadow-2xl">
-              <Text className="text-white font-bold text-xl">Open Gallery</Text>
-          </TouchableOpacity>
-      </View>
+      <View className="flex-1 items-center justify-center" />
     </View>
   );
 
-  const renderEdit = () => (
-    <View className="flex-1 bg-black">
-        <View className="flex-1 justify-center items-center">
-            <FlatList
-                horizontal
-                data={selectedMedia}
-                keyExtractor={(item) => item.uri}
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={width * 0.8 + 20}
-                decelerationRate="fast"
-                contentContainerStyle={{ paddingHorizontal: width * 0.1 }}
-                renderItem={({ item }) => (
-                    <View style={{ width: width * 0.8, height: width * 1.0 }} className="mr-5">
-                        <Image source={{ uri: item.uri }} style={{ width: '100%', height: '100%', borderRadius: 32 }} contentFit="cover" />
-                    </View>
-                )}
-            />
-        </View>
+  const renderEdit = () => {
+    const containerWidth = width * 0.8;
+    const containerHeight = containerWidth / RATIOS[cropRatio];
+    
+    return (
+      <View className="flex-1 bg-black">
+          <View className="flex-1 justify-center">
+              <FlatList
+                  style={{ height: containerHeight, flexGrow: 0 }}
+                  horizontal
+                  data={originalMedia.map(item => ({ ...item, currentOffset: mediaOffsets[item.uri] }))}
+                  extraData={{ mediaOffsets, cropRatio }}
+                  keyExtractor={(item) => item.uri}
+                  showsHorizontalScrollIndicator={false}
+                  snapToInterval={containerWidth + 20}
+                  decelerationRate="fast"
+                  contentContainerStyle={{ paddingHorizontal: (width - (containerWidth + 20)) / 2 }}
+                  onViewableItemsChanged={({ viewableItems }) => {
+                      if (viewableItems.length > 0) {
+                          setCurrentIndex(viewableItems[0].index || 0);
+                      }
+                  }}
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                  renderItem={({ item }) => {
+                      const offset = (item as any).currentOffset || { x: 0, y: 0, scale: 1 };
+                      const imgWidth = item.width || containerWidth;
+                      const imgHeight = item.height || containerHeight;
+                      const imgAspectRatio = imgWidth / imgHeight;
+                      const containerAspectRatio = containerWidth / containerHeight;
+                      let baseWidth: number, baseHeight: number;
+                      if (imgAspectRatio > containerAspectRatio) {
+                        baseHeight = containerHeight;
+                        baseWidth = containerHeight * imgAspectRatio;
+                      } else {
+                        baseWidth = containerWidth;
+                        baseHeight = containerWidth / imgAspectRatio;
+                      }
+
+                      return (
+                          <View style={{ width: containerWidth + 20 }} className="items-center justify-center">
+                              <View style={{ width: containerWidth, height: containerHeight, overflow: 'hidden', borderRadius: 32, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }}>
+                                <View style={{ 
+                                  width: baseWidth, 
+                                  height: baseHeight, 
+                                  justifyContent: 'center', 
+                                  alignItems: 'center',
+                                  transform: [
+                                    { translateX: offset.x },
+                                    { translateY: offset.y },
+                                    { scale: offset.scale }
+                                  ]
+                                }}>
+                                  <Image 
+                                    key={`${item.uri}-${cropRatio}`}
+                                    source={{ uri: item.uri }} 
+                                    style={{ width: '100%', height: '100%' }} 
+                                    contentFit="cover"
+                                  />
+                                </View>
+                              </View>
+                          </View>
+                      )
+                  }}
+              />
+          </View>
 
         {selectedSong && (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 40, paddingHorizontal: 16 }}>
@@ -574,15 +1092,16 @@ const CreatePostScreen = () => {
             </View>
         )}
 
-        <View className="flex-row justify-center gap-x-4 mb-10">
+        <View className="flex-row justify-center gap-x-3 mb-10 px-2">
             {[
+                { label: 'Crop', icon: 'crop', action: () => handleCrop() },
                 { label: 'Text', icon: 'format-text', action: () => showToast({ message: "Text editing coming soon", type: 'info' }) },
                 { label: 'Music', icon: 'music-note', action: () => setActiveSheet('music') },
                 { label: 'Overlay', icon: 'layers-outline', action: () => showToast({ message: "Overlays coming soon", type: 'info' }) },
             ].map((tool) => (
-                <TouchableOpacity key={tool.label} onPress={tool.action} className="bg-zinc-800/60 px-6 py-4 rounded-3xl items-center min-w-[100px] border border-white/5">
-                    <MaterialCommunityIcons name={tool.icon as any} size={28} color="white" />
-                    <Text className="text-white text-xs mt-2 font-bold">{tool.label}</Text>
+                <TouchableOpacity key={tool.label} onPress={tool.action} className="bg-zinc-800/60 px-3 py-4 rounded-3xl items-center flex-1 border border-white/5">
+                    <MaterialCommunityIcons name={tool.icon as any} size={24} color="white" />
+                    <Text className="text-white text-[11px] mt-2 font-bold">{tool.label}</Text>
                 </TouchableOpacity>
             ))}
         </View>
@@ -594,64 +1113,132 @@ const CreatePostScreen = () => {
             </TouchableOpacity>
         </View>
     </View>
-  );
+    );
+  };
 
-  const renderFinalize = () => (
-    <View className="flex-1 bg-black">
-      <ScrollView className="flex-1 px-4">
-        <View className="flex-row mt-6">
-            <View className="w-[100px] h-[130px] bg-[#1C1C1E] rounded-3xl overflow-hidden border border-white/5">
-                <Image source={{ uri: selectedMedia[0]?.uri }} className="w-full h-full" contentFit="cover" />
-            </View>
-            <View className="flex-1 ml-4 justify-start">
-                <TextInput placeholder="Add caption" placeholderTextColor="#52525b" multiline value={caption} onChangeText={setCaption} className="text-white text-base max-h-32 mt-2" />
-            </View>
-        </View>
-        <View className="mt-10 pt-6">
-            <TouchableOpacity onPress={() => setActiveSheet('tags')} className="flex-row items-center justify-between py-6 border-b border-zinc-900">
-                <View className="flex-row items-center">
-                    <Ionicons name="person-outline" size={24} color="white" />
-                    <Text className="text-white ml-4 text-lg">Tag peoples</Text>
-                    {selectedTags.length > 0 && <Text className="text-purple-400 ml-2 font-bold">({selectedTags.length})</Text>}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#52525b" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveSheet('location')} className="flex-row items-center justify-between py-6 border-b border-zinc-900">
-                <View className="flex-row items-center">
-                    <Ionicons name="location-outline" size={24} color="white" />
-                    <Text className="text-white ml-4 text-lg">{selectedLocation || 'Add location'}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#52525b" />
-            </TouchableOpacity>
-            <View className="mt-10">
-                <Text className="text-zinc-500 font-bold mb-4 ml-1">Audience</Text>
-                <TouchableOpacity className="flex-row items-center justify-between py-5 border-b border-zinc-900">
-                    <Text className="text-white text-lg">Followers</Text>
-                    <View className="w-6 h-6 rounded-full border-2 border-zinc-700 items-center justify-center">
-                        <View className="w-3 h-3 rounded-full bg-blue-500" />
+  const renderFinalize = () => {
+    const containerWidth = width - 24;
+    const containerHeight = containerWidth / RATIOS[cropRatio];
+
+    return (
+      <View className="flex-1 bg-black">
+        <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+          {/* Large Carousel Preview */}
+          <View className="mt-6 relative items-center">
+            <View style={{ width: containerWidth, height: containerHeight }} className="bg-[#1C1C1E] rounded-[32px] overflow-hidden">
+                <FlatList
+                    key={`finalize-carousel-${selectedMedia.length}-${cropRatio}`}
+                    horizontal
+                    data={selectedMedia}
+                    keyExtractor={(item, index) => `${item.uri}-${index}`}
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={containerWidth}
+                    decelerationRate="fast"
+                    pagingEnabled
+                    onViewableItemsChanged={({ viewableItems }) => {
+                        if (viewableItems.length > 0) {
+                            setCurrentIndex(viewableItems[0].index || 0);
+                        }
+                    }}
+                    viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                    renderItem={({ item }) => (
+                        <View style={{ width: containerWidth, height: containerHeight }}>
+                            <Image 
+                              source={{ uri: `${item.uri}?t=${Date.now()}` }} 
+                              style={{ width: '100%', height: '100%' }} 
+                              contentFit="cover" 
+                              transition={0}
+                              cachePolicy="none"
+                            />
+                        </View>
+                    )}
+                />
+                
+                {/* Multi-photo Icon (only for 2+ photos) */}
+                {selectedMedia.length > 1 && (
+                    <View className="absolute top-4 right-4 bg-black/60 p-2.5 rounded-2xl z-30 shadow-lg">
+                        <Ionicons name="copy" size={20} color="white" />
                     </View>
-                </TouchableOpacity>
-                <TouchableOpacity className="flex-row items-center justify-between py-5 border-b border-zinc-900">
-                    <Text className="text-white text-lg">Close groups</Text>
-                    <View className="w-6 h-6 rounded-full border-2 border-zinc-700" />
-                </TouchableOpacity>
+                )}
             </View>
+
+            {/* Carousel Indicator Dots */}
+            {selectedMedia.length > 1 && (
+                <View className="flex-row justify-center mt-4 gap-x-2">
+                    {selectedMedia.map((_, i) => (
+                        <View 
+                            key={i} 
+                            style={{ width: i === currentIndex ? 8 : 8, height: i === currentIndex ? 8 : 8 }}
+                            className={`rounded-full ${i === currentIndex ? 'bg-purple-500' : 'bg-zinc-700'}`}
+                        />
+                    ))}
+                </View>
+            )}
+          </View>
+
+          {/* Caption Input */}
+          <View className="mt-6">
+              <TextInput 
+                placeholder="Add caption" 
+                placeholderTextColor="#52525b" 
+                multiline 
+                value={caption} 
+                onChangeText={setCaption} 
+                className="text-white text-base max-h-32 min-h-[40px] px-2" 
+              />
+          </View>
+
+          {/* Post Options */}
+          <View className="mt-10 space-y-2">
+              <TouchableOpacity onPress={() => setActiveSheet('tags')} className="flex-row items-center justify-between py-5 border-b border-zinc-900/50">
+                  <View className="flex-row items-center">
+                      <Ionicons name="person-outline" size={22} color="white" />
+                      <Text className="text-white ml-4 text-lg">Tag peoples</Text>
+                      {selectedTags.length > 0 && <Text className="text-purple-400 ml-2 font-bold">({selectedTags.length})</Text>}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#52525b" />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setActiveSheet('location')} className="flex-row items-center justify-between py-5 border-b border-zinc-900/50">
+                  <View className="flex-row items-center">
+                      <Ionicons name="location-outline" size={22} color="white" />
+                      <Text className="text-white ml-4 text-lg">{selectedLocation || 'Add location'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#52525b" />
+              </TouchableOpacity>
+
+              <View className="mt-10">
+                  <Text className="text-zinc-500 font-bold mb-4 ml-1 text-sm uppercase tracking-wider">Audience</Text>
+                  <TouchableOpacity className="flex-row items-center justify-between py-5 border-b border-zinc-900/50">
+                      <Text className="text-white text-lg">Followers</Text>
+                      <View className="w-6 h-6 rounded-full border-2 border-purple-500 items-center justify-center">
+                          <View className="w-3 h-3 rounded-full bg-purple-500" />
+                      </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity className="flex-row items-center justify-between py-5">
+                      <Text className="text-white text-lg">Close groups</Text>
+                      <View className="w-6 h-6 rounded-full border-2 border-zinc-700" />
+                  </TouchableOpacity>
+              </View>
+          </View>
+        </ScrollView>
+
+        {/* Footer Buttons */}
+        <View className="px-6 pb-12 flex-row gap-x-4 bg-black/80 pt-4">
+            <TouchableOpacity onPress={() => handleBack()} className="flex-1 h-14 bg-zinc-900/80 rounded-3xl items-center justify-center border border-zinc-800">
+                <Text className="text-white font-bold text-lg">Save Draft</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleUpload} disabled={isUploading} className="flex-1 h-14 bg-purple-600 rounded-3xl items-center justify-center overflow-hidden shadow-lg">
+                <LinearGradient colors={['#8B5CF6', '#D946EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} className="absolute inset-0" />
+                {isUploading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">Share</Text>}
+            </TouchableOpacity>
         </View>
-      </ScrollView>
-      <View className="px-6 pb-12 flex-row gap-x-4">
-          <TouchableOpacity onPress={() => router.back()} className="flex-1 h-14 bg-zinc-900 rounded-3xl items-center justify-center border border-zinc-800">
-              <Text className="text-white font-bold text-lg">Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleUpload} disabled={isUploading} className="flex-1 h-14 bg-purple-600 rounded-3xl items-center justify-center overflow-hidden shadow-lg">
-              <LinearGradient colors={['#8B5CF6', '#D946EF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} className="absolute inset-0" />
-              {isUploading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">Save</Text>}
-          </TouchableOpacity>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
-    <View className="flex-1 bg-black">
+    <GestureHandlerRootView className="flex-1 bg-black">
         <StatusBar barStyle="light-content" />
         {renderHeader()}
         {step === 'selection' && renderSelection()}
@@ -660,7 +1247,8 @@ const CreatePostScreen = () => {
         {activeSheet === 'music' && renderMusicSheet()}
         {activeSheet === 'tags' && renderTagSheet()}
         {activeSheet === 'location' && renderLocationSheet()}
-    </View>
+        {activeSheet === 'crop' && renderCropSheet()}
+    </GestureHandlerRootView>
   );
 };
 

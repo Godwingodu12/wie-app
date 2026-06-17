@@ -1,7 +1,4 @@
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const connectDB = async (): Promise<void> => {
   try {
@@ -10,14 +7,10 @@ const connectDB = async (): Promise<void> => {
       throw new Error('MONGO_URI is not defined in environment variables');
     }
     console.log('DEBUG: Attempting MongoDB connection (Media Service)...');
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000
-    });
+    await mongoose.connect(uri);
     console.log('✅ MongoDB Atlas connected (media-service)');
   } catch (error: any) {
     console.error('❌ MongoDB connection failed (Media Service):', error.message);
-    // process.exit(1);
   }
 };
 

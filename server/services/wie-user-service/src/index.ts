@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import express, { Application } from "express";
 import cors from "cors";
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import db from "./config/db";
 import redisClient from "./config/redis";
 import userRoutes from "./routes/user.routes";
@@ -11,6 +12,7 @@ import ticketRoutes from "./routes/ticket.routes";
 import otpService from "./reposetory/otp";
 import { startGrpcServer } from "./grpc/server";
 import { cleanupStaleOnlineUsers } from "./services/wie-user.service";
+
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 5005;
 const GRPC_PORT = Number(process.env.GRPC_PORT) || 50053;
@@ -22,53 +24,8 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const developmentOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "http://127.0.0.1:3000",
-  /^http:\/\/192\.168\.1\.\d+(:[0-9]+)?$/,
-];
-
-// Determine the effective CORS origins
-let effectiveCorsOrigins: (string | RegExp)[] | boolean;
-
-const configuredCorsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").filter(Boolean)
-  : []; 
-
-if (process.env.NODE_ENV === "production") {
-  if (configuredCorsOrigins.length > 0) {
-    effectiveCorsOrigins = configuredCorsOrigins;
-  } else {
-    console.warn(
-      "⚠️  CORS_ORIGIN is not set or is empty in production. Disallowing all cross-origin requests.",
-    );
-    effectiveCorsOrigins = false; 
-  }
-} else {
-  effectiveCorsOrigins =
-    configuredCorsOrigins.length > 0
-      ? configuredCorsOrigins
-      : developmentOrigins;
-}
-
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    
-    const origins = Array.isArray(effectiveCorsOrigins) ? effectiveCorsOrigins : [effectiveCorsOrigins];
-    const isAllowed = origins.some(allowedOrigin => {
-      if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin);
-      return allowedOrigin === origin;
-    });
-
-    if (isAllowed || !effectiveCorsOrigins) {
-      callback(null, true);
-    } else {
-      console.log('DEBUG: CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: [
@@ -83,8 +40,29 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// ✅ Proxy for Media Service to bypass port 5010/5002 firewall
+// This MUST come before express.json() to handle multipart/form-data correctly
+app.use('/api/media', createProxyMiddleware({
+  target: 'http://127.0.0.1:5002',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/': '/api/', 
+  },
+  timeout: 600000, 
+  proxyTimeout: 600000,
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+       console.log(`[Media Proxy] Forwarding ${req.method} ${req.url} -> ${proxyReq.path}`);
+    },
+    error: (err, req, res) => {
+       console.error('[Media Proxy] Error:', err.message);
+    }
+  }
+}));
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Add instance ID header
 app.use((req, res, next) => {
@@ -105,17 +83,16 @@ app.get("/health", (req, res) => {
 app.use("/api/user", userRoutes);
 app.use("/api/tickets", ticketRoutes);
 
-// Cleanup logic (unchanged)
+// Cleanup logic
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 const startCleanupInterval = () => {
   if (cleanupInterval) clearInterval(cleanupInterval);
 
   cleanupInterval = setInterval(async () => {
-    // Double-check with a live ping before running any cleanup queries
     const healthy = await db.healthCheck();
     if (!healthy) {
-      db.isConnected = false; // keep flag in sync
+      db.isConnected = false;
       return;
     }
     try {
@@ -138,13 +115,9 @@ async function startServer() {
         break;
       } catch (err) {
         const msg = (err as Error).message;
-        console.error(
-          `❌ DB connection attempt ${attempt}/${maxAttempts} failed: ${msg}`,
-        );
+        console.error(`❌ DB connection attempt ${attempt}/${maxAttempts} failed: ${msg}`);
         if (attempt < maxAttempts) {
-          // Exponential backoff: 2s, 4s, 6s, 8s
           const delay = attempt * 2000;
-          console.log(`⏳ Retrying in ${delay / 1000}s...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
@@ -156,7 +129,6 @@ async function startServer() {
     }
 
     startCleanupInterval();
-    // Redis (optional)
     try {
       await redisClient.connect();
       console.log("✅ Redis connected");
@@ -164,10 +136,7 @@ async function startServer() {
       console.warn("⚠️ Redis not connected (continuing)");
     }
 
-    // OTP service
     await otpService.initialize();
-
-    // gRPC
     startGrpcServer(GRPC_PORT);
     console.log(`✅ gRPC server running on ${GRPC_PORT}`);
 
@@ -175,69 +144,22 @@ async function startServer() {
       console.log(`✅ HTTP server running on port ${PORT}`);
     });
 
-    // Graceful shutdown
-    let isShuttingDown = false;
-    let listenersRegistered = false;
     const shutdown = async (signal: string) => {
-      if (isShuttingDown) {
-        console.log(
-          `⚠️ Shutdown already in progress. Ignoring signal: ${signal}`,
-        );
-        return;
-      }
-      isShuttingDown = true;
       console.log(`\n${signal} received. Starting graceful shutdown...`);
-
       try {
-        // Stop cleanup interval
-        if (cleanupInterval) {
-          clearInterval(cleanupInterval);
-          console.log("✅ Cleanup interval stopped");
-        }
-
-        // Disconnect Redis
-        try {
-          await redisClient.disconnect();
-          console.log("✅ Redis disconnected");
-        } catch (error) {
-          console.warn("⚠️ Redis disconnect warning:", error);
-        }
-
-        // Close database (now includes Prisma + pg Pool)
+        if (cleanupInterval) clearInterval(cleanupInterval);
+        try { await redisClient.disconnect(); } catch {}
         await db.close();
-        console.log("✅ Database connections closed");
-
-        // Close HTTP server
         server.close(() => {
-          console.log("✅ HTTP server closed");
           process.exit(0);
         });
-
-        setTimeout(() => {
-          console.error("⚠️ Forceful shutdown after timeout");
-          process.exit(1);
-        }, 10000);
       } catch (error) {
-        console.error("❌ Error during shutdown:", error);
         process.exit(1);
       }
     };
 
-    if (!listenersRegistered) {
-      process.on("SIGINT", () => shutdown("SIGINT"));
-      process.on("SIGTERM", () => shutdown("SIGTERM"));
-      listenersRegistered = true;
-    }
-
-    // Handle unhandled errors
-    process.on("unhandledRejection", (reason, promise) => {
-      console.error("Unhandled Rejection at:", promise, "reason:", reason);
-    });
-
-    process.on("uncaughtException", (err) => {
-      console.error("Uncaught Exception:", err);
-      shutdown("UNCAUGHT_EXCEPTION");
-    });
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);

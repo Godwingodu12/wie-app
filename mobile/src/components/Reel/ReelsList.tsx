@@ -8,7 +8,7 @@ export const ReelsList = ({ reels }: { reels: any[] }) => {
       data={reels}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 6 }}
       keyExtractor={(item, index) => String(item.id || item._id || index)}
       renderItem={({ item }) => (
         <View className="mr-3">

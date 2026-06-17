@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 
 export const TabHeader = () => {
   return (
-    <View className="px-3 flex-row justify-between items-center mt-4 mb-2">
+    <View className="px-[6px] flex-row justify-between items-center mt-4 mb-2">
       <View className="flex-row items-center gap-2">
         <Ionicons name="settings-sharp" size={28} color={COLORS.white} />
         <Text className="font-rubik-semibold text-2xl text-white ml-1">Wie</Text>
@@ -30,7 +30,7 @@ export const TabHeader = () => {
           activeOpacity={0.8} 
           onPress={() => router.push('/Message/MessageHome')}
         >
-          <Ionicons name="flash-outline" size={24} color="white" />
+          <Ionicons name="chatbubble-ellipses-outline" size={26} color="white" />
         </TouchableOpacity>
       </View>
     </View>

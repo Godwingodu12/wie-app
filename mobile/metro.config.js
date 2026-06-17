@@ -27,14 +27,19 @@ config.resolver.extraNodeModules = {
   'expo-image': path.resolve(projectRoot, 'node_modules/expo-image'),
   'expo-blur': path.resolve(projectRoot, 'node_modules/expo-blur'),
   'expo-linear-gradient': path.resolve(projectRoot, 'node_modules/expo-linear-gradient'),
+  'expo-image-picker': path.resolve(projectRoot, 'node_modules/expo-image-picker'),
+  'expo-font': path.resolve(projectRoot, 'node_modules/expo-font'),
+  '@expo/vector-icons': path.resolve(projectRoot, 'node_modules/@expo/vector-icons'),
 };
-
 // 3. Enable Symlinks and Package Exports
 config.resolver.unstable_enableSymlinks = true;
 config.resolver.unstable_enablePackageExports = true;
 
 // 4. Set maxWorkers to improve performance
 config.maxWorkers = 4;
+
+// Add font extensions to assetExts to fix empty font errors in Expo/PNPM monorepo
+config.resolver.assetExts = [...config.resolver.assetExts, 'ttf', 'otf'];
 
 // 5. Custom resolver for monorepo and pnpm compatibility
 config.resolver.resolveRequest = (context, moduleName, platform) => {
@@ -64,7 +69,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   }
 
   // Explicit resolution for expo packages that often fail in pnpm monorepos
-  const expoPackages = ['expo-media-library', 'expo-image', 'expo-blur', 'expo-linear-gradient'];
+  const expoPackages = ['expo-media-library', 'expo-image', 'expo-blur', 'expo-linear-gradient', 'expo-image-picker'];
   if (expoPackages.includes(moduleName)) {
     try {
       const packageJsonPath = path.resolve(projectRoot, 'node_modules', moduleName, 'package.json');

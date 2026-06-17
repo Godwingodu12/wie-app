@@ -109,7 +109,7 @@ export const uploadChatAudio = async (buffer, options = {}) => {
 
     const result = await uploadToCloudinary(buffer, {
       folder:       'WIE_CHAT/chat_audio',
-      resourceType: 'auto',   // Using auto for better compatibility
+      resourceType: 'video',   // Cloudinary uses 'video' for audio files
       ...options,
       mimeType: mappedFormat ? `audio/${mappedFormat}` : mimeType,
     });

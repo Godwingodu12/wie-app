@@ -130,7 +130,7 @@ $nodeServices = @(
     @{ name = "ticket"; path = "server/services/ticket-service"; port = 5003 },
     @{ name = "transaction"; path = "server/services/transaction-service"; port = 5007 },
     @{ name = "user"; path = "server/services/wie-user-service"; port = 5005 },
-    @{ name = "media"; path = "server/services/wie-media-service"; port = 5010 },
+    @{ name = "media"; path = "server/services/wie-media-service"; port = 5002 },
     @{ name = "follow"; path = "server/services/wie-follow-service"; port = 5009 }
 )
 

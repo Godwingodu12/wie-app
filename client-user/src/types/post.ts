@@ -76,6 +76,12 @@ export interface Post {
   hasSaved?: boolean;
   createdAt: string;
   updatedAt: string;
+
+  musicId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicPreviewUrl?: string;
+  musicAlbumArt?: string;
 }
 
 export interface PostPagination {

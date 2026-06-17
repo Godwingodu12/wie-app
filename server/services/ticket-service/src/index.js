@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
+import mongoose from 'mongoose';
 import ticketRoutes from './routes/ticket.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { startGrpcServer } from './grpc/server.js';
@@ -29,6 +30,7 @@ app.get('/health', (req, res) => {
   res.json({
     success: true,
     message: 'Ticket service is running',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     cloudinary: 'enabled',
     timestamp: new Date().toISOString()
   });
@@ -44,20 +46,24 @@ const GRPC_PORT = process.env.GRPC_PORT || 50052;
 
 const startServer = async () => {
   try {
+    // 1. Connect to Database FIRST
+    await connectDB();
+
+    // 2. Start HTTP Server
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Ticket Service running on port ${PORT}`);
     });
 
-    await connectDB();
-
+    // 3. Start gRPC Server
     startGrpcServer(GRPC_PORT);
+    console.log(`✅ gRPC server running on ${GRPC_PORT}`);
 
     startEventStatusScheduler();
     checkExpiredConfirmedEvents();
     startAutoDeleteCron();
   } catch (err) {
     console.error('❌ Failed to start Ticket Service:', err);
-    // process.exit(1);
+    // Don't exit, but we should at least know it failed
   }
 };
 

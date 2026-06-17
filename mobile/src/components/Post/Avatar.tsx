@@ -20,14 +20,14 @@ const Avatar = ({
         ? 'border-transparent'
         : isSeen
             ? 'border-[#3A3A3C]'
-            : 'border-blue-500'
+            : 'border-[#8860D9]'
 
    
     const avatarSource = getImageSource(image);
 
     const AvatarContent = (
         <View
-            className={`items-center justify-center rounded-full border-[2px] ${ringStyle} w-12 h-12`}
+            className={`items-center justify-center rounded-full border-[2px] ${ringStyle} w-10 h-10`}
         >
             <Image
                 source={avatarSource}

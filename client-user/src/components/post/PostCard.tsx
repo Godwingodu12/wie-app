@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Heart, MessageCircle, Send, Bookmark,
-  MoreHorizontal, MapPin, Play, Volume2,
+  MoreHorizontal, MapPin, Play, Volume2, Music,
   VolumeX, ChevronLeft, ChevronRight, Verified,
 } from "lucide-react";
 import { useTheme } from "@/components/home/ThemeContext";
@@ -204,6 +204,17 @@ export default function PostCard({
                 <Verified size={13} className="text-[#8860D9]" fill="#8860D9" />
               )}
             </div>
+
+            <div className="flex items-center gap-1 mt-0.5">
+              <Music size={10} style={{ color: themeStyles.textSecondary }} />
+              <span
+                className="text-[11px] font-medium"
+                style={{ color: themeStyles.textSecondary }}
+              >
+                {post.musicTitle || "Original audio"}
+              </span>
+            </div>
+
             {post.locationLabel && (
               <div className="flex items-center gap-1 mt-0.5">
                 <MapPin size={10} style={{ color: themeStyles.textSecondary }} />

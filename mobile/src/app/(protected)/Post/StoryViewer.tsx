@@ -49,6 +49,7 @@ const StoryViewer = () => {
   const [progress] = useState(new Animated.Value(0));
   const [isPaused, setIsPaused] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [isCommentingEnabled, setIsCommentingEnabled] = useState(true);
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const { showToast } = useToast();
@@ -56,6 +57,32 @@ const StoryViewer = () => {
   const totalStories = stories.length || 1;
   const currentStory = stories[currentStoryIndex] || {};
   const fluxDuration = 5000;
+
+  useEffect(() => {
+    if (currentStory) {
+      setIsLiked(currentStory.hasLiked || false);
+      setLikeCount(currentStory.likesCount || 0);
+    }
+  }, [currentStoryIndex, currentStory]);
+
+  const toggleLike = async () => {
+    const fluxId = currentStory.id;
+    if (!fluxId) return;
+
+    // Optimistic update
+    const newLiked = !isLiked;
+    setIsLiked(newLiked);
+    setLikeCount(prev => newLiked ? prev + 1 : Math.max(0, prev - 1));
+
+    try {
+      await mediaService.toggleFluxLike(fluxId);
+    } catch (error: any) {
+      // Revert on error
+      setIsLiked(!newLiked);
+      setLikeCount(prev => !newLiked ? prev + 1 : Math.max(0, prev - 1));
+      showToast({ message: error.message || 'Failed to update like', type: 'error' });
+    }
+  };
 
   useEffect(() => {
     fetchCurrentUserProfile();
@@ -434,10 +461,10 @@ const StoryViewer = () => {
       
       {/* Background Image */}
       <View className="absolute inset-0">
-        {currentFlux.image ? (
+        {currentStory.image ? (
           <Image 
-            key={currentFlux.image}
-            source={{ uri: currentFlux.image }} 
+            key={currentStory.image}
+            source={{ uri: currentStory.image }} 
             className="w-full h-full" 
             resizeMode="cover" 
           />
@@ -463,7 +490,7 @@ const StoryViewer = () => {
                 <View className="flex-row items-center mt-0.5">
                    <Ionicons name="musical-notes" size={12} color="white" />
                    <Text className="text-white text-[10px] ml-1 opacity-80" numberOfLines={1}>
-                     {currentFlux.title || 'Flux'}
+                     {currentStory.title || 'Story'}
                    </Text>
                 </View>
               </View>
@@ -477,19 +504,19 @@ const StoryViewer = () => {
           </View>
         </View>
 
-        {/* Flux Navigation & Interactions - Only visible when no sheet is open */}
+        {/* Story Navigation & Interactions - Only visible when no sheet is open */}
         {activeTab === 'none' && (
           <>
             <View style={styles.navContainer}>
               <TouchableOpacity 
                 className="flex-1" 
-                onPress={prevFlux}
+                onPress={prevStory}
                 onLongPress={() => setIsPaused(true)}
                 onPressOut={() => setIsPaused(false)}
               />
               <TouchableOpacity 
                 className="flex-1" 
-                onPress={nextFlux}
+                onPress={nextStory}
                 onLongPress={() => setIsPaused(true)}
                 onPressOut={() => setIsPaused(false)}
               />
@@ -535,7 +562,7 @@ const StoryViewer = () => {
                     <Text className="text-white/40 font-medium">Commenting disabled</Text>
                   </View>
                 )}
-                <TouchableOpacity onPress={() => setIsLiked(!isLiked)} className="w-14 h-14 items-center justify-center bg-black/40 rounded-full border border-white/10">
+                <TouchableOpacity onPress={toggleLike} className="w-14 h-14 items-center justify-center bg-black/40 rounded-full border border-white/10">
                   <Ionicons name={isLiked ? "heart" : "heart-outline"} size={28} color={isLiked ? "#EF4444" : "white"} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setActiveTab('share')} className="w-14 h-14 items-center justify-center bg-black/40 rounded-full border border-white/10">

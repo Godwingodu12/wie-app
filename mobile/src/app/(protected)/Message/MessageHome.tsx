@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, Keyboard, Modal, Pressable, Ref
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router'; 
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { SearchBar } from '@/components/Searchbar';
 import { MessageTabs } from '@/components/Message/MessageTab';
@@ -26,11 +27,11 @@ const MessagesPage = () => {
       if (data && data.chats) {
         const mappedChats = data.chats.map((chat: any) => ({
           id: chat._id,
-          name: chat.participant?.username || 'Unknown',
-          avatar: chat.participant?.profile_picture || 'https://via.placeholder.com/150',
+          name: chat.participant?.username || chat.name || 'Unknown',
+          avatar: chat.participant?.profile_picture || chat.avatar || 'https://via.placeholder.com/150',
           lastMessage: chat.lastMessage?.content || 'No messages yet',
           time: chat.lastMessage?.createdAt ? new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-          isPinned: false,
+          isPinned: chat.isPinned || false,
           unreadCount: chat.unreadCount || 0,
           status: chat.lastMessage?.status || 'sent',
           isOnline: chat.participant?.isOnline || false,
@@ -61,6 +62,8 @@ const MessagesPage = () => {
                            item.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
       
       if (activeTab === 'All') return matchesSearch;
+      if (activeTab === 'Personal') return matchesSearch && !item.isGroup;
+      if (activeTab === 'Groups') return matchesSearch && item.isGroup;
       return matchesSearch;
     });
   }, [searchQuery, messages, activeTab]);
@@ -126,8 +129,34 @@ const MessagesPage = () => {
     setSelectedItems(new Set());
   };
 
+  const TabButton = ({ label }: { label: string }) => {
+    const isActive = activeTab === label;
+    if (isActive) {
+      return (
+        <TouchableOpacity onPress={() => setActiveTab(label)} activeOpacity={0.9}>
+          <LinearGradient
+            colors={['#C084FC', '#8B5CF6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            className="px-4 py-1.5 rounded-full shadow-sm"
+          >
+            <Text className="text-white font-rubik-bold text-[13.5px]">{label}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      );
+    }
+    return (
+      <TouchableOpacity 
+        onPress={() => setActiveTab(label)}
+        className="px-3 py-1.5 rounded-full"
+      >
+        <Text className="text-white/90 font-rubik-bold text-[13.5px]">{label}</Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView className="flex-1 bg-[#0B0C10]">
       {/* Selection Mode Top Bar */}
       {isSelectionMode && (
         <View className="bg-[#1F1F23] border-b border-white/5">
@@ -155,71 +184,55 @@ const MessagesPage = () => {
       {/* Header Section */}
       {!isSelectionMode && (
         <View className="flex-row justify-between items-center px-5 py-4">
-          <View className="flex-row items-center">
-            <TouchableOpacity 
-              onPress={() => router.canGoBack() ? router.back() : router.replace('/(protected)/(tabs)')} 
-              className="mr-3"
-              activeOpacity={0.7}
-            >
-              <Ionicons name="chevron-back" size={28} color="white" />
-            </TouchableOpacity>
-            <Text className="text-white text-3xl font-rubik-bold tracking-tight">Messages</Text>
-          </View>
-
-          <View className="flex-row items-center gap-3">
-             <TouchableOpacity 
-               className="bg-[#1F1F23] p-2.5 rounded-full"
-               activeOpacity={0.7}
-               onPress={()=>router.push('/Message/NewChat')}
-             >
-               <Ionicons name="create-outline" size={24} color="white" />
-             </TouchableOpacity>
-          </View>
+          <Text className="text-white text-2xl font-rubik-bold">Messages</Text>
+          <TouchableOpacity 
+            className="p-1"
+            activeOpacity={0.7}
+            onPress={()=>router.push('/Message/NewChat')}
+          >
+            <Ionicons name="create-outline" size={26} color="white" />
+          </TouchableOpacity>
         </View>
       )}
 
       {/* Search Section */}
       {!isSelectionMode && (
         <>
-          <View className="px-5 mb-2">
-            <View className="flex-row items-center bg-[#1F1F23] rounded-2xl px-4 py-3 border border-white/5">
-               <Ionicons name="search" size={20} color="#52525B" />
+          <View className="px-5 mb-4">
+            <View className="flex-row items-center bg-[#1C1C1E] rounded-full px-5 py-2 border border-white/5">
+               <Ionicons name="search" size={24} color="white" />
                <TextInput 
-                 placeholder="Search peoples, groups..."
-                 placeholderTextColor="#52525B"
-                 className="flex-1 ml-3 text-white text-[16px] font-rubik-regular"
+                 placeholder="Search events, people, posts..."
+                 placeholderTextColor="white"
+                 className="flex-1 ml-3 text-white text-[15px] font-rubik-regular"
                  value={searchQuery}
                  onChangeText={setSearchQuery}
                  onFocus={() => setIsSearchFocused(true)}
                />
                {isSearchFocused && (
                  <TouchableOpacity onPress={handleCancelSearch}>
-                   <Ionicons name="close-circle" size={20} color="#52525B" />
+                   <Ionicons name="close-circle" size={18} color="#71717A" />
                  </TouchableOpacity>
                )}
             </View>
           </View>
 
-          <View className="px-5 py-4 flex-row gap-3">
-             <TouchableOpacity 
-               onPress={() => setActiveTab('Personal')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'Personal' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
-             >
-               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Personal' ? 'text-black' : 'text-zinc-400'}`}>Personal</Text>
-             </TouchableOpacity>
-             <TouchableOpacity 
-               onPress={() => setActiveTab('Groups')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'Groups' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
-             >
-               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Groups' ? 'text-black' : 'text-zinc-400'}`}>Groups</Text>
-             </TouchableOpacity>
-             <TouchableOpacity 
-               onPress={() => setActiveTab('Brands')}
-               className={`px-6 py-2.5 rounded-full ${activeTab === 'Brands' ? 'bg-white' : 'bg-[#1C1C1E]'}`}
-             >
-               <Text className={`font-rubik-medium text-[14px] ${activeTab === 'Brands' ? 'text-black' : 'text-zinc-400'}`}>Brands</Text>
-             </TouchableOpacity>
+          <View className="px-5 mb-4 items-center">
+            <View className="bg-[#1C1C1E] rounded-full p-1 flex-row items-center justify-between w-[88%]">
+               <TabButton label="All" />
+               <TabButton label="Personal" />
+               <TabButton label="Groups" />
+               <TabButton label="Requests" />
+            </View>
           </View>
+          
+          <LinearGradient
+            colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0)']}
+            locations={[0, 0.33, 0.61, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{ height: 1, width: '100%', marginBottom: 8 }}
+          />
         </>
       )}
 

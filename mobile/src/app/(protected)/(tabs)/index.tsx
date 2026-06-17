@@ -31,6 +31,20 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      const firstPost = viewableItems.find((v: any) => v.item.type === 'post');
+      if (firstPost) {
+        setActivePostId(firstPost.item.id);
+      }
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 70
+  }).current;
 
   const fetchData = async (pageNum: number = 1, isRefresh: boolean = false) => {
     try {
@@ -121,6 +135,9 @@ export default function Home() {
                 rawDate: f.createdAt,
                 timestamp: f.createdAt ? new Date(f.createdAt).toLocaleDateString() : '2h ago',
                 musicTitle: f.musicTitle || 'Original Audio',
+                musicArtist: f.musicArtist || null,
+                musicPreviewUrl: f.musicPreviewUrl || null,
+                ratio: f.ratio || '4:3',
                 media: (f.mediaItems && f.mediaItems.length > 0)
                   ? f.mediaItems.map((m: any) => ({ 
                       url: typeof m === 'string' ? m : (m.url || m.mediaUrl || m.fluxMediaUrl || f.mediaUrl || f.fluxMediaUrl), 
@@ -288,7 +305,7 @@ export default function Home() {
       case 'suggested_profiles':
         return (
           <View className="mb-6">
-            <View className="flex-row justify-between items-center px-4 mb-3">
+            <View className="flex-row justify-between items-center mb-3">
               <Text className="text-white font-semibold text-[14px]">Suggested profiles</Text>
               <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/explore')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
@@ -297,14 +314,14 @@ export default function Home() {
         );
       case 'featured_event':
         return (
-          <View className="mb-6 px-4">
+          <View className="mb-6">
              <FeaturedEventCard event={item.data} />
           </View>
         );
       case 'nearby_events':
         return (
           <View className="mb-6">
-            <View className="flex-row justify-between items-center px-4 mb-3">
+            <View className="flex-row justify-between items-center mb-3">
               <Text className="text-white font-semibold text-[14px]">Nearby events</Text>
               <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/events')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
@@ -314,7 +331,7 @@ export default function Home() {
       case 'suggested_reels':
         return (
           <View className="mb-6">
-            <View className="flex-row justify-between items-center px-4 mb-3">
+            <View className="flex-row justify-between items-center mb-3">
               <Text className="text-white font-semibold text-[14px]">Suggested reels</Text>
               <TouchableOpacity><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
             </View>
@@ -348,15 +365,23 @@ export default function Home() {
       <TabHeader />
       <FlatList
         data={posts}
-        renderItem={renderItem}
+        renderItem={({ item }) => {
+          if (item.type === 'post') {
+            return <CompletePost postData={item} isActive={item.id === activePostId} />;
+          }
+          return renderItem({ item });
+        }}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 6 }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={5}
         removeClippedSubviews={true}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8b5cf6" />
         }
@@ -367,14 +392,18 @@ export default function Home() {
         }
         ListHeaderComponent={
           <View className="pt-2">
-            <View className="pl-4"><StoryList stories={stories} /></View>
-            <View className="px-4 mt-6">
+            <StoryList 
+              stories={stories} 
+              onAddStoryPress={() => router.push('/post/CreateStoryScreen')}
+              onMyStoryPress={() => router.push('/post/CreateStoryScreen')}
+            />
+            <View className="mt-6">
               <View className="flex-row justify-between items-center mb-3">
                 <Text className="text-white font-semibold text-[14px]">Event categories</Text>
                 <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/events')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
               </View>
             </View>
-            <View className="pl-4"><EventCategoryList data={EVENT_CATEGORIES} /></View>
+            <EventCategoryList data={EVENT_CATEGORIES} />
           </View>
         }
         ListFooterComponent={<View>{renderFooter()}</View>}

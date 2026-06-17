@@ -32,6 +32,12 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[Media Service] ${req.method} ${req.url}`);
+  next();
+});
+
 const developmentOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
@@ -41,24 +47,13 @@ const developmentOrigins = [
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const isAllowed = developmentOrigins.some(allowedOrigin => {
-        if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin);
-        return allowedOrigin === origin;
-      });
-      if (isAllowed || process.env.CORS_ORIGIN === '*') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true,
     credentials: true,
   }),
 );
 app.use(morgan("dev"));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ── Routes
 app.use("/api/flux/music", musicRoutes);
@@ -67,7 +62,7 @@ app.use("/api/diary", diaryRoutes);
 app.use("/api/music", musicRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/post", postRoutes);
-app.get("/health", async (_req, res) => {
+app.get("/api/health", async (_req, res) => {
   const redisOk = await redisClient.healthCheck().catch(() => false);
   res.json({
     status: "ok",
