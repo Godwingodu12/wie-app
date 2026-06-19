@@ -97,21 +97,56 @@ const attachViewerFlags = async (
   if (posts.length === 0) return posts;
   const postIds = posts.map((p) => p._id?.toString() ?? p.id?.toString());
 
-  const [likedDocs, savedDocs] = await Promise.all([
+  const [likedDocs, savedDocs, sampleLikes] = await Promise.all([
     LikeModel.find({ postId: { $in: postIds }, userId: viewerId })
       .select("postId")
       .lean(),
     SaveModel.find({ postId: { $in: postIds }, userId: viewerId })
       .select("postId")
       .lean(),
+    LikeModel.find({ postId: { $in: postIds } })
+      .sort({ createdAt: -1 })
+      .limit(postIds.length * 2) // Get a few likes to find a sample (not the viewer if possible)
+      .lean(),
   ]);
 
   const likedSet = new Set(likedDocs.map((l) => l.postId.toString()));
   const savedSet = new Set(savedDocs.map((s) => s.postId.toString()));
+  
+  // Group sample likes by postId
+  const likesByPost = new Map<string, string[]>();
+  sampleLikes.forEach(l => {
+    const pid = l.postId.toString();
+    if (!likesByPost.has(pid)) likesByPost.set(pid, []);
+    likesByPost.get(pid)!.push(l.userId.toString());
+  });
+
+  // Fetch usernames for sample likers
+  const allLikerIds = [...new Set(sampleLikes.map(l => l.userId.toString()))];
+  let likerMap = new Map<string, any>();
+  if (allLikerIds.length > 0) {
+    const likersResp = await wieUserClient.getUsersByIds(allLikerIds).catch(() => ({ users: [] }));
+    likerMap = new Map((likersResp.users ?? []).map((u: any) => [(u._id ?? u.id).toString(), u]));
+  }
 
   return posts.map((p) => {
     const id = p._id?.toString() ?? p.id?.toString();
-    return { ...p, hasLiked: likedSet.has(id), hasSaved: savedSet.has(id) };
+    const postLikerIds = likesByPost.get(id) ?? [];
+    
+    // Pick a liker that is not the viewer if possible, for variety
+    const otherLikerId = postLikerIds.find(uid => uid !== viewerId) || postLikerIds[0];
+    const otherLiker = otherLikerId ? likerMap.get(otherLikerId) : null;
+
+    return { 
+      ...p, 
+      hasLiked: likedSet.has(id), 
+      hasSaved: savedSet.has(id),
+      likedBy: otherLiker ? {
+        userId: otherLikerId,
+        username: otherLiker.username,
+        profile_picture: otherLiker.profile_picture
+      } : null
+    };
   });
 };
 
@@ -196,7 +231,11 @@ export const createPost = async (
       musicId: req.body.musicId,
       musicTitle: req.body.musicTitle,
       musicArtist: req.body.musicArtist,
+      musicAlbum: req.body.musicAlbum,
+      musicDuration: req.body.musicDuration ? Number(req.body.musicDuration) : undefined,
+      musicUrl: req.body.musicUrl,
       musicStartAt: req.body.musicStartAt ? Number(req.body.musicStartAt) : undefined,
+      musicEndAt: req.body.musicEndAt ? Number(req.body.musicEndAt) : undefined,
       musicPreviewUrl: req.body.musicPreviewUrl,
       musicAlbumArt: req.body.musicAlbumArt,
       ratio: ratio,

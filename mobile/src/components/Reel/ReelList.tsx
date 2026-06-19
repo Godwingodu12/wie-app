@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import ReelCard from './ReelCard';
 
 interface ReelHorizontalListProps {
@@ -32,7 +33,7 @@ const ReelHorizontalList = ({ sectionTitle, data }: ReelHorizontalListProps) => 
           <View className="mr-3">
             <ReelCard 
               thumbnail={item.thumbnailUrl || item.thumbnail || item.mediaUrl} 
-              onPress={() => console.log(`Play reel: ${item.id || item._id}`)}
+              onPress={() => router.push({ pathname: '/(protected)/Post/ReelsViewerScreen', params: { reelId: String(item.id || item._id) } })}
             />
           </View>
         )}

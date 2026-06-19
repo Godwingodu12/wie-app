@@ -171,7 +171,9 @@ interface MusicTrack {
   id: string;
   title: string;
   artist: string;
+  album?: string;
   duration: string;
+  durationMs?: number;
   coverUrl: string;
   audioUrl: string;
   isLiked?: boolean;
@@ -263,7 +265,9 @@ const CreatePostScreen = () => {
           id: item.id || item._id || String(item.trackId),
           title: item.title || item.trackName || 'Unknown Title',
           artist: item.artist || item.artistName || 'Unknown Artist',
+          album: item.album || item.collectionName || '',
           duration: item.duration || '0:00',
+          durationMs: item.durationMs || item.trackTimeMillis || 0,
           coverUrl: item.coverUrl || item.albumArt || item.artworkUrl100 || item.thumbnail || 'https://i.pravatar.cc/150?u=music',
           audioUrl: item.audioUrl || item.previewUrl || item.url,
           isLiked: item.isLiked || musicTab === 'liked'
@@ -605,8 +609,15 @@ const CreatePostScreen = () => {
         formData.append('musicId', selectedSong.id);
         formData.append('musicTitle', selectedSong.title);
         formData.append('musicArtist', selectedSong.artist);
+        formData.append('musicAlbum', selectedSong.album || '');
+        formData.append('musicDuration', String(selectedSong.durationMs || 0));
+        formData.append('musicUrl', selectedSong.audioUrl);
         formData.append('musicPreviewUrl', selectedSong.audioUrl);
         formData.append('musicAlbumArt', selectedSong.coverUrl);
+        // Start/End time can be added here if there's a trimmer UI, 
+        // for now we send full duration if not trimmed
+        formData.append('musicStartAt', '0');
+        formData.append('musicEndAt', String(selectedSong.durationMs || 0));
       }
 
       console.log("[Upload] Validation successful. Calling API...");
@@ -929,7 +940,7 @@ const CreatePostScreen = () => {
               {[
                 { label: '9:16', value: '9:16', icon: 'smartphone' },
                 { label: '16:9', value: '16:9', icon: 'monitor' },
-                { label: '4:3', value: '4:3', icon: 'camera' },
+                { label: '4:5', value: '4:5', icon: 'camera' },
               ].map((r) => (
                 <TouchableOpacity 
                   key={r.value} 
@@ -986,7 +997,19 @@ const CreatePostScreen = () => {
     <View className="flex-1 bg-black">
       <View className="flex-row justify-center items-center py-4 bg-black">
         {['POST', 'STORY', 'REEL'].map((type) => (
-          <TouchableOpacity key={type} onPress={() => setPostType(type.toLowerCase() as PostType)} className="mx-4">
+          <TouchableOpacity 
+            key={type} 
+            onPress={() => {
+              if (type === 'STORY') {
+                router.push('/Post/CreateStoryScreen');
+              } else if (type === 'REEL') {
+                router.push('/Post/CreateReelScreen');
+              } else {
+                setPostType(type.toLowerCase() as PostType);
+              }
+            }} 
+            className="mx-4"
+          >
             <Text className={`font-bold text-sm ${postType === type.toLowerCase() ? 'text-white' : 'text-zinc-600'}`}>{type}</Text>
           </TouchableOpacity>
         ))}

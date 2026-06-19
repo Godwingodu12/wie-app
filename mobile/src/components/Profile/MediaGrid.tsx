@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Dimensions, TouchableOpacity, StyleSheet, Modal, Pressable, FlatList, Alert } from 'react-native';
+import { View, Text, Dimensions, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
-import { Play, Layers, Image as ImageIcon, Clapperboard, Layout, UserSquare2, X } from 'lucide-react-native';
+import { Play, Layers, Image as ImageIcon, Clapperboard, Layout, UserSquare2 } from 'lucide-react-native';
 import { getImageSource } from '@/utils/imageUtils';
+import { router } from 'expo-router';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = width / 3;
 
 interface MediaGridProps {
@@ -15,9 +15,7 @@ interface MediaGridProps {
   onItemDelete?: (id: string) => void;
 }
 
-export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridProps) => {
-  const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
-
+export const MediaGrid = ({ data, activeTab }: MediaGridProps) => {
   // 1. EMPTY STATE CONFIG
   const emptyConfigs = {
     Post: { icon: ImageIcon, title: "No Posts Yet", description: "Photos you share will appear here.", buttonText: "Create Post" },
@@ -43,26 +41,6 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
     );
   }
 
-  const handleDelete = () => {
-    if (selectedMedia && onItemDelete) {
-      Alert.alert(
-        "Delete Post",
-        "Are you sure you want to permanently delete this post?",
-        [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Delete", 
-            style: "destructive", 
-            onPress: () => {
-              onItemDelete(selectedMedia.id);
-              setSelectedMedia(null);
-            }
-          }
-        ]
-      );
-    }
-  };
-
   // 2. GRID RENDERING
   return (
     <View className="flex-row flex-wrap pb-20">
@@ -76,7 +54,12 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
             style={{ width: COLUMN_WIDTH, height: itemHeight }} 
             className="p-[1px]"
             activeOpacity={0.9}
-            onPress={() => setSelectedMedia(item)}
+            onPress={() => {
+              router.push({
+                pathname: '/Post/PostDetailScreen',
+                params: { postId: item.id }
+              });
+            }}
           >
             <View className="flex-1 bg-zinc-900 overflow-hidden rounded-none">
               <Image 
@@ -104,85 +87,6 @@ export const MediaGrid = ({ data, activeTab, isReels, onItemDelete }: MediaGridP
           </TouchableOpacity>
         );
       })}
-
-      {/* FULL SCREEN MEDIA VIEWER */}
-      <Modal
-        visible={!!selectedMedia}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setSelectedMedia(null)}
-      >
-        <View className="flex-1 bg-black">
-          {/* Header Bar */}
-          <View className="absolute top-0 left-0 right-0 z-50 pt-12 pb-4 px-4 flex-row justify-between bg-black/40">
-            {onItemDelete ? (
-              <TouchableOpacity 
-                className="p-2 rounded-full bg-red-500/50"
-                onPress={handleDelete}
-              >
-                <X color="white" size={24} />
-              </TouchableOpacity>
-            ) : <View />}
-            <TouchableOpacity 
-              className="p-2 rounded-full bg-black/50"
-              onPress={() => setSelectedMedia(null)}
-            >
-              <X color="white" size={24} />
-            </TouchableOpacity>
-          </View>
-          
-          <Pressable 
-            className="flex-1 justify-center items-center"
-            onPress={() => setSelectedMedia(null)}
-          >
-            {selectedMedia && selectedMedia.type === 'reel' ? (
-               <Video
-                  source={getImageSource(selectedMedia.source?.uri || selectedMedia.image)}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode={ResizeMode.CONTAIN}
-                  shouldPlay
-                  isLooping
-                  useNativeControls
-               />
-            ) : selectedMedia && selectedMedia.type === 'album' && selectedMedia.mediaItems ? (
-              <FlatList
-                data={selectedMedia.mediaItems}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(_, index) => index.toString()}
-                renderItem={({ item }) => (
-                  <View style={{ width, height }}>
-                    {item.mediaType === 'video' ? (
-                      <Video
-                        source={getImageSource(item.url)}
-                        style={{ width: '100%', height: '100%' }}
-                        resizeMode={ResizeMode.CONTAIN}
-                        shouldPlay
-                        isLooping
-                        useNativeControls
-                      />
-                    ) : (
-                      <Image 
-                        source={getImageSource(item.url)} 
-                        style={{ width: '100%', height: '100%' }}
-                        contentFit="contain"
-                      />
-                    )}
-                  </View>
-                )}
-              />
-            ) : selectedMedia ? (
-              <Image 
-                source={getImageSource(selectedMedia.source?.uri || selectedMedia.image)} 
-                style={{ width: '100%', height: '100%' }}
-                contentFit="contain"
-                transition={300}
-              />
-            ) : null}
-          </Pressable>
-        </View>
-      </Modal>
     </View>
   );
 };

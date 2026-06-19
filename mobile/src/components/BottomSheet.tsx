@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Pressable, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
@@ -89,6 +89,119 @@ export const SelectionBottomSheet = ({
                 </View>
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+interface OptionsBottomSheetProps {
+  isVisible: boolean;
+  onClose: () => void;
+  options: {
+    label: string;
+    onPress: () => void;
+    isDestructive?: boolean;
+    icon?: keyof typeof Ionicons.glyphMap;
+  }[];
+  topActions?: {
+    label: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+  }[];
+}
+
+export const OptionsBottomSheet = ({
+  isVisible,
+  onClose,
+  options,
+  topActions,
+}: OptionsBottomSheetProps) => {
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isVisible}
+      onRequestClose={onClose}
+    >
+      <View className="flex-1">
+        {isVisible && (
+          <Pressable 
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            onPress={onClose}
+          >
+            <BlurView
+              intensity={Platform.OS === 'ios' ? 20 : 40}
+              tint="dark"
+              style={{ flex: 1 }}
+            />
+          </Pressable>
+        )}
+
+        <View className="flex-1 justify-end">
+          <View className="bg-[#1C2024] rounded-t-[24px] pb-10 border-t border-gray-800 overflow-hidden max-h-[80%]">
+            <View className="w-10 h-1.5 bg-gray-600/50 self-center rounded-full mt-3 mb-4" />
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {topActions && topActions.length > 0 && (
+                <View className="flex-row justify-around py-4 border-b border-gray-800/50 mb-2">
+                  {topActions.map((action, idx) => (
+                    <TouchableOpacity 
+                      key={idx} 
+                      className="items-center"
+                      onPress={() => {
+                        onClose();
+                        setTimeout(action.onPress, 300);
+                      }}
+                    >
+                      <View className="w-12 h-12 bg-gray-800/80 rounded-full items-center justify-center mb-1">
+                        <Ionicons name={action.icon} size={24} color="white" />
+                      </View>
+                      <Text className="text-white text-[12px] font-medium">{action.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View className="px-2">
+                {options.map((option, index) => (
+                  <TouchableOpacity 
+                    key={index}
+                    onPress={() => {
+                      onClose();
+                      setTimeout(option.onPress, 300);
+                    }}
+                    className={`flex-row items-center px-4 py-4 ${
+                      index !== options.length - 1 ? 'border-b border-gray-800/50' : ''
+                    }`}
+                  >
+                    {option.icon && (
+                      <Ionicons 
+                        name={option.icon} 
+                        size={22} 
+                        color={option.isDestructive ? '#FF3B30' : 'white'} 
+                        style={{ marginRight: 12 }}
+                      />
+                    )}
+                    <Text 
+                      className={`text-base font-semibold ${
+                        option.isDestructive ? 'text-red-500' : 'text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                
+                <TouchableOpacity 
+                  onPress={onClose}
+                  className="mt-4 mx-2 bg-gray-800/50 rounded-xl py-4 items-center"
+                >
+                  <Text className="text-white text-base font-bold">Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </View>

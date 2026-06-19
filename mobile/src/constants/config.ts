@@ -1,6 +1,6 @@
 // D:\SQARIS\new 3\wiehive-user-org-master\client\constants\config.ts
 
-export const LOCAL_IP = '192.168.1.2'; // Verified machine IP
+export const LOCAL_IP = '192.168.1.4'; // Verified machine IP
 
 export const MOCK_MODE = false; // Using REAL backend for dynamic data
 

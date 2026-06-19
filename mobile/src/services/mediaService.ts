@@ -155,7 +155,16 @@ export const mediaService = {
     }
   },
 
-  async updatePost(postId: string, body: { caption?: string; locationLabel?: string }) {
+  async getPost(postId: string) {
+    try {
+      const response = await mediaApi.get(`post/${postId}`);
+      return response.data.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async updatePost(postId: string, body: { caption?: string; locationLabel?: string; mediaItems?: any[] }) {
     try {
       const response = await mediaApi.patch(`post/${postId}`, body);
       return response.data;
@@ -167,6 +176,33 @@ export const mediaService = {
   async deletePost(postId: string) {
     try {
       const response = await mediaApi.delete(`post/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async archivePost(postId: string) {
+    try {
+      const response = await mediaApi.post(`post/${postId}/archive`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async pinPost(postId: string) {
+    try {
+      const response = await mediaApi.post(`post/${postId}/pin`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async getInsights(postId: string) {
+    try {
+      const response = await mediaApi.get(`post/${postId}/insights`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || error.message;
@@ -349,6 +385,10 @@ export const getFluxFeed = mediaService.getFluxFeed;
 export const toggleFluxLike = mediaService.toggleFluxLike;
 export const togglePostComments = mediaService.togglePostComments;
 export const sharePost = mediaService.sharePost;
+export const getPost = mediaService.getPost;
+export const archivePost = mediaService.archivePost;
+export const pinPost = mediaService.pinPost;
+export const getInsights = mediaService.getInsights;
 export const getMusic = mediaService.getMusic;
 export const getLikedMusic = mediaService.getLikedMusic;
 export const toggleMusicLike = mediaService.toggleMusicLike;

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { getImageSource } from '@/utils/imageUtils';
 
 interface ReelCardProps {
   thumbnail: string;
@@ -16,7 +17,7 @@ const ReelCard = ({ thumbnail, onPress }: ReelCardProps) => {
       className="w-40 h-72 rounded-[24px] overflow-hidden bg-[#121417]"
     >
       <Image
-        source={thumbnail || 'https://via.placeholder.com/400x700?text=Reel'}
+        source={getImageSource(thumbnail, 'https://via.placeholder.com/400x700?text=Reel')}
         className="w-full h-full"
         contentFit="cover"
         transition={300}

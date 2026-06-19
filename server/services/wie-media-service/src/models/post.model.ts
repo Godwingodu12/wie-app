@@ -41,7 +41,11 @@ export interface IPost extends Document {
   musicId?: string;
   musicTitle?: string;
   musicArtist?: string;
+  musicAlbum?: string;
+  musicDuration?: number;
+  musicUrl?: string;
   musicStartAt?: number;
+  musicEndAt?: number;
   musicPreviewUrl?: string;
   musicAlbumArt?: string;
 
@@ -114,7 +118,11 @@ const PostSchema = new Schema<IPost>(
     musicId: { type: String },
     musicTitle: { type: String },
     musicArtist: { type: String },
+    musicAlbum: { type: String },
+    musicDuration: { type: Number },
+    musicUrl: { type: String },
     musicStartAt: { type: Number },
+    musicEndAt: { type: Number },
     musicPreviewUrl: { type: String },
     musicAlbumArt: { type: String },
 

@@ -49,21 +49,23 @@ ticketApi.interceptors.request.use(
 
 export const ticketUserService = {
   async getInitialEvents() {
-    if (MOCK_MODE) return [];
+    if (MOCK_MODE) return { events: [], categories: [] };
     try {
       const response = await ticketApi.get('initial-events');
       const data = response.data.data;
-      if (data && data.eventsByCategory) {
-        // Flatten all events from all categories
-        return Object.values(data.eventsByCategory).flat();
+      if (data) {
+        return {
+          events: data.eventsByCategory ? Object.values(data.eventsByCategory).flat() : [],
+          categories: data.categories || []
+        };
       }
-      return [];
+      return { events: [], categories: [] };
     } catch (error: any) {
       console.error('getInitialEvents error:', error);
       if (error.response) {
         console.error('Server responded with:', error.response.status, error.response.data);
       }
-      return [];
+      return { events: [], categories: [] };
     }
   },
 

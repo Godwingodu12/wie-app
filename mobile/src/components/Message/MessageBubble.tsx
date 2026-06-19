@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, Video, ResizeMode } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Rect, Circle, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { getImageSource } from '@/utils/imageUtils';
+import { router } from 'expo-router';
 import Animated, { 
   useAnimatedStyle, 
   useSharedValue, 
@@ -42,12 +43,14 @@ export interface Message {
     postId: string;
     postOwnerId: string;
     postOwnerName?: string;
+    postOwnerUsername?: string;
     postOwnerAvatar?: string;
     mediaUrl: string;
     mediaType: 'image' | 'video';
     caption?: string;
     sharerName?: string;
     postUrl?: string;
+    ratio?: string;
   };
   storyShareData?: {
     fluxId: string;
@@ -301,6 +304,19 @@ export const MessageBubble = React.memo(({
   const handleDeleteMe = () => { if (onDeleteForMe) onDeleteForMe(message.id); closePopup(); };
   const handleDeleteEveryone = () => { if (onDeleteForEveryone) onDeleteForEveryone(message.id); closePopup(); };
 
+  const [localReactions, setLocalReactions] = useState<string[]>([]);
+
+  const handleReaction = (emoji: string) => {
+    setLocalReactions(prev => prev.includes(emoji) ? prev.filter(e => e !== emoji) : [...prev, emoji]);
+    setShowPopup(false);
+  };
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      runOnJS(handleReaction)('❤️');
+    });
+
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onUpdate((event) => {
@@ -312,6 +328,8 @@ export const MessageBubble = React.memo(({
       translateX.value = withSpring(0, { damping: 15, stiffness: 100 });
     });
 
+  const composedGesture = Gesture.Simultaneous(panGesture, doubleTapGesture);
+
   const rBubbleStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
@@ -320,6 +338,26 @@ export const MessageBubble = React.memo(({
     const opacity = interpolate(Math.abs(translateX.value), [0, 50], [0, 1], Extrapolate.CLAMP);
     return { opacity, transform: [{ scale: opacity }] };
   });
+
+  const renderTextWithMentions = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(@[\w\.]+)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('@') && part.length > 1) {
+        const username = part.substring(1);
+        return (
+          <Text
+            key={index}
+            style={{ color: '#3897f0', fontWeight: 'bold' }}
+            onPress={() => router.push({ pathname: '/Profile/OtherProfile', params: { username, type: 'user' } })}
+          >
+            {part}
+          </Text>
+        );
+      }
+      return <Text key={index}>{part}</Text>;
+    });
+  };
 
   const BubbleContainer = ({ children, isSent, hasReply, messageType }: { children: React.ReactNode, isSent: boolean, hasReply: boolean, messageType?: string }) => {
     const isPostShare = messageType === 'post_share';
@@ -382,6 +420,13 @@ export const MessageBubble = React.memo(({
         <Pressable className="flex-1 bg-black/70 justify-center items-center px-10" onPress={closePopup}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)} className="w-full bg-[#1c1c1e] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl">
             <View className="items-center pt-4 pb-2"><View className="w-12 h-1 bg-white/10 rounded-full" /></View>
+            <View className="flex-row justify-between px-6 py-4 border-b border-white/5">
+              {['❤️', '😂', '😮', '😢', '🙏', '👍'].map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => handleReaction(emoji)} className="p-2 bg-white/5 rounded-full">
+                  <Text className="text-[20px]">{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity onPress={handleDeleteEveryone} className="flex-row items-center justify-between px-6 py-5 active:bg-red-500/10">
               <Text className="text-red-500 text-[17px] font-semibold">Delete for Everyone</Text>
               <View className="bg-red-500/10 p-2 rounded-2xl"><Ionicons name="trash-outline" size={22} color="#ef4444" /></View>
@@ -390,6 +435,11 @@ export const MessageBubble = React.memo(({
             <TouchableOpacity onPress={handleDeleteMe} className="flex-row items-center justify-between px-6 py-5 active:bg-white/5">
               <Text className="text-white/90 text-[17px] font-medium">Delete for Me</Text>
               <View className="bg-white/10 p-2 rounded-2xl"><Ionicons name="person-outline" size={22} color="white" /></View>
+            </TouchableOpacity>
+            <View className="h-[0.5px] bg-white/5 mx-6" />
+            <TouchableOpacity onPress={() => { handleReplyTrigger(); closePopup(); }} className="flex-row items-center justify-between px-6 py-5 active:bg-white/5">
+              <Text className="text-white/90 text-[17px] font-medium">Reply</Text>
+              <View className="bg-white/10 p-2 rounded-2xl"><Ionicons name="arrow-undo-outline" size={22} color="white" /></View>
             </TouchableOpacity>
             <View className="h-[0.5px] bg-white/5 mx-6" />
             <TouchableOpacity onPress={closePopup} className="flex-row items-center justify-between px-6 py-5 mb-2 active:bg-white/5">
@@ -406,7 +456,7 @@ export const MessageBubble = React.memo(({
         </View>
       </Animated.View>
 
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View style={rBubbleStyle}>
           <View className={`flex-row w-full px-4 ${isSent ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-4' : 'mb-1'}`}>
             <View className={`flex-row items-end max-w-[85%] ${isSent ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -526,26 +576,40 @@ export const MessageBubble = React.memo(({
                       )}
 
                       {message.messageType === 'post_share' && message.postShareData && (() => {
-                        const shareRatio = message.postShareData.ratio || '4:3';
+                        const shareRatio = message.postShareData.ratio || '4:5';
                         const ratioValue = ({
                           '1:1': 1,
                           '4:5': 0.8,
                           '9:16': 9/16,
                           '16:9': 363/196,
                           '4:3': 4/3
-                        } as any)[shareRatio] || 4/3;
+                        } as any)[shareRatio] || 0.8;
                         const bubbleWidth = 240;
-                        const bubbleHeight = bubbleWidth / ratioValue;
+                        const calculatedHeight = bubbleWidth / ratioValue;
+                        // Limit height to avoid extremely tall bubbles from stretching strangely
+                        const bubbleHeight = Math.min(calculatedHeight, 320);
 
                         return (
                           <View style={{ width: bubbleWidth }} className="rounded-3xl overflow-hidden bg-zinc-900">
                             <View className="relative">
-                              <Image 
-                                source={getImageSource(message.postShareData.mediaUrl, null)} 
-                                style={{ width: bubbleWidth, height: bubbleHeight }}
-                                className="bg-zinc-900/50"
-                                resizeMode="cover"
-                              />
+                              {message.postShareData.mediaType === 'video' ? (
+                                <Video
+                                  source={{ uri: message.postShareData.mediaUrl }}
+                                  style={{ width: bubbleWidth, height: bubbleHeight, borderRadius: 24 }}
+                                  className="bg-zinc-900/50"
+                                  resizeMode={ResizeMode.COVER}
+                                  shouldPlay={true}
+                                  isLooping={true}
+                                  isMuted={true}
+                                />
+                              ) : (
+                                <Image 
+                                  source={getImageSource(message.postShareData.mediaUrl, null)} 
+                                  style={{ width: bubbleWidth, height: bubbleHeight, borderRadius: 24 }}
+                                  className="bg-zinc-900/50"
+                                  resizeMode="cover"
+                                />
+                              )}
                               
                               {/* Glass Effect Header Overlay */}
                               <View 
@@ -563,12 +627,6 @@ export const MessageBubble = React.memo(({
                                   {message.postShareData.postOwnerName || message.postShareData.postOwnerUsername || message.postShareData.sharerName || 'User'}
                                 </Text>
                               </View>
-
-                              {message.postShareData.mediaType === 'video' && (
-                                <View className="absolute inset-0 items-center justify-center bg-black/20">
-                                  <Ionicons name="play-circle" size={48} color="white" />
-                                </View>
-                              )}
                             </View>
                           </View>
                         );
@@ -577,12 +635,24 @@ export const MessageBubble = React.memo(({
                       {(message.messageType === 'flux_share' || message.messageType === 'flux_mention' || message.messageType === 'flux_remention') && message.storyShareData && (
                         <View className="w-[240px] rounded-3xl overflow-hidden bg-zinc-900">
                           <View className="relative">
-                            <Image 
-                              source={getImageSource(message.storyShareData.mediaUrl, null)} 
-                              style={{ width: 240, height: 320 }}
-                              className="bg-zinc-900/50"
-                              resizeMode="cover"
-                            />
+                            {message.storyShareData.mediaType === 'video' ? (
+                              <Video
+                                source={{ uri: message.storyShareData.mediaUrl }}
+                                style={{ width: 240, height: 320, borderRadius: 24 }}
+                                className="bg-zinc-900/50"
+                                resizeMode={ResizeMode.COVER}
+                                shouldPlay={true}
+                                isLooping={true}
+                                isMuted={true}
+                              />
+                            ) : (
+                              <Image 
+                                source={getImageSource(message.storyShareData.mediaUrl, null)} 
+                                style={{ width: 240, height: 320, borderRadius: 24 }}
+                                className="bg-zinc-900/50"
+                                resizeMode="cover"
+                              />
+                            )}
                             
                             {/* Glass Effect Header Overlay */}
                             <View 
@@ -600,12 +670,6 @@ export const MessageBubble = React.memo(({
                                 {message.storyShareData.ownerName || 'User'}
                               </Text>
                             </View>
-
-                            {message.storyShareData.mediaType === 'video' && (
-                              <View className="absolute inset-0 items-center justify-center bg-black/20">
-                                <Ionicons name="play-circle" size={48} color="white" />
-                              </View>
-                            )}
                           </View>
                         </View>
                       )}
@@ -711,11 +775,21 @@ export const MessageBubble = React.memo(({
                     ) : (
                       message.messageType !== 'post_share' && message.messageType !== 'location' && message.messageType !== 'live_location' && message.messageType !== 'image' && message.messageType !== 'video' && (
                         <Text className={`font-rubik-regular text-[16px] leading-[22px] text-white`}>
-                          {message.text}
+                          {renderTextWithMentions(message.text)}
                         </Text>
                       )
                     )}
                     </BubbleContainer>
+
+                    {localReactions.length > 0 && (
+                      <View 
+                        className={`absolute -bottom-3 ${isSent ? 'right-2' : 'left-2'} bg-[#1c1c1e] rounded-full px-1.5 py-0.5 flex-row items-center border border-white/10 z-10 shadow-lg`}
+                      >
+                        {localReactions.map((emoji, idx) => (
+                          <Text key={idx} className="text-[13px] mx-0.5">{emoji}</Text>
+                        ))}
+                      </View>
+                    )}
 
                     {!isSent && (message.messageType === 'post_share' || message.messageType === 'image' || message.messageType === 'video') && (
                       <TouchableOpacity className="ml-3 p-2 bg-zinc-800/30 rounded-full">

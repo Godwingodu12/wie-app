@@ -14,6 +14,8 @@ import { followService } from '@/services/followService';
 import { mediaService } from '@/services/mediaService';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/context/ToastContext';
+import { POST_DELETE_EVENT, POST_UPDATE_EVENT } from '@/hooks/usePostSync';
+import { DeviceEventEmitter } from 'react-native';
 
 const Profile = () => {
   const { user } = useUser();
@@ -82,10 +84,18 @@ const Profile = () => {
                 image: f.thumbnailUrl || f.mediaUrl || (f.mediaItems && f.mediaItems[0]?.url),
                 source: { uri: f.mediaUrl || (f.mediaItems && f.mediaItems[0]?.url) },
                 stats: (f.viewCount || 0).toString(),
-                mediaItems: f.mediaItems || []
+                mediaItems: f.mediaItems || [],
+                isPinned: f.isPinned || false,
+                createdAt: f.createdAt
               };
             });
-          setPosts(mappedPosts);
+          
+          const sortedPosts = mappedPosts.sort((a: any, b: any) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          setPosts(sortedPosts);
 
           // Check for ACTIVE stories (for the profile picture ring)
           const activeStoryFlux = myFluxes.find((f: any) => {
@@ -120,6 +130,29 @@ const Profile = () => {
   useEffect(() => {
     fetchProfileData();
   }, [user?.id]);
+
+  useEffect(() => {
+    const deleteSub = DeviceEventEmitter.addListener(POST_DELETE_EVENT, (data) => {
+      setPosts(prev => prev.filter(p => p.id !== data.postId));
+      setTotalPosts(prev => Math.max(0, prev - 1));
+    });
+
+    const updateSub = DeviceEventEmitter.addListener(POST_UPDATE_EVENT, (data) => {
+      setPosts(prev => {
+        const updated = prev.map(p => p.id === data.postId ? { ...p, ...data } : p);
+        return updated.sort((a: any, b: any) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+      });
+    });
+
+    return () => {
+      deleteSub.remove();
+      updateSub.remove();
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {

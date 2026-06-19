@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { FlatList, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl, Alert } from "react-native";
+import { FlatList, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl, Alert, PanResponder, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -25,6 +25,7 @@ export default function Home() {
   const [stories, setStories] = useState<any[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [eventCategories, setEventCategories] = useState<string[]>([]);
   
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,33 @@ export default function Home() {
       }
     }
   }).current;
+
+  // Instagram-like Swipe Navigation
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        const { dx, dy } = gestureState;
+        
+        // Capture only deliberate Right-to-Left swipes (dx < -20)
+        // Ensure it's primarily horizontal to not interfere with vertical scroll
+        if (dx < -20 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          return true;
+        }
+        return false;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx, vx } = gestureState;
+        const screenWidth = Dimensions.get('window').width;
+        const fullSwipeThreshold = screenWidth * 0.25; // Require a 25% swipe
+
+        // Trigger if it's a deep swipe OR a fast intentional swipe
+        if (dx < -fullSwipeThreshold || (dx < -40 && vx < -0.3)) {
+          // Swiped Left (Right-to-Left) -> Reels Section
+          router.push('/Post/ReelsViewerScreen');
+        }
+      },
+    })
+  ).current;
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 70
@@ -134,10 +162,10 @@ export default function Home() {
                 location: f.locationLabel || f.location || 'Bhopal, India',
                 rawDate: f.createdAt,
                 timestamp: f.createdAt ? new Date(f.createdAt).toLocaleDateString() : '2h ago',
-                musicTitle: f.musicTitle || 'Original Audio',
+                musicTitle: f.musicTitle || null,
                 musicArtist: f.musicArtist || null,
                 musicPreviewUrl: f.musicPreviewUrl || null,
-                ratio: f.ratio || '4:3',
+                ratio: f.ratio,
                 media: (f.mediaItems && f.mediaItems.length > 0)
                   ? f.mediaItems.map((m: any) => ({ 
                       url: typeof m === 'string' ? m : (m.url || m.mediaUrl || m.fluxMediaUrl || f.mediaUrl || f.fluxMediaUrl), 
@@ -151,6 +179,7 @@ export default function Home() {
                     }],
                 initialLikes: f.likeCount !== undefined ? f.likeCount : (f.likes?.length || 0),
                 hasLiked: f.hasLiked || false,
+                likedBy: f.likedBy || null,
                 comments: (f.commentCount !== undefined ? f.commentCount : (f.comments?.length || 0)).toString(),
                 shares: (f.shareCount || 0).toString(),
                 caption: f.caption || ""
@@ -176,9 +205,9 @@ export default function Home() {
       }));
 
       if (pageNum === 1) {
-        const [usersResp, evtsResp] = await Promise.all([
+        const [usersResp, evtsData] = await Promise.all([
           wieUserService.getSuggestedUsers().catch(() => []),
-          ticketUserService.getInitialEvents().catch(() => [])
+          ticketUserService.getInitialEvents().catch(() => ({ events: [], categories: [] }))
         ]);
         
         const rawSuggestedUsers = parseList(usersResp);
@@ -191,7 +220,7 @@ export default function Home() {
         });
         const users = Array.from(usersMap.values());
 
-        const rawEvents = parseList(evtsResp);
+        const rawEvents = parseList(evtsData?.events || evtsData || []);
         const evtsMap = new Map();
         rawEvents.forEach((e: any) => {
           const eid = String(e.id || e._id);
@@ -201,6 +230,7 @@ export default function Home() {
 
         setSuggestedUsers(users);
         setEvents(eventsList);
+        setEventCategories(evtsData?.categories || []);
 
         let feed: any[] = [];
         feed.push(...newSortedPosts.slice(0, 4));
@@ -301,7 +331,7 @@ export default function Home() {
   const renderItem = useCallback(({ item }: { item: any }) => {
     switch (item.type) {
       case 'post':
-        return <CompletePost postData={item} />;
+        return <CompletePost postData={item} isActive={item.id === activePostId} />;
       case 'suggested_profiles':
         return (
           <View className="mb-6">
@@ -361,7 +391,7 @@ export default function Home() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-black" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-black" edges={['top']} {...panResponder.panHandlers}>
       <TabHeader />
       <FlatList
         data={posts}
@@ -403,7 +433,19 @@ export default function Home() {
                 <TouchableOpacity onPress={() => router.push('/(protected)/(tabs)/events')}><Text className="text-primary text-[14px] font-normal">see all</Text></TouchableOpacity>
               </View>
             </View>
-            <EventCategoryList data={EVENT_CATEGORIES} />
+            <EventCategoryList 
+              data={eventCategories && eventCategories.length > 0 
+                ? eventCategories.map((c, i) => {
+                    const existing = EVENT_CATEGORIES.find(e => e.title.toLowerCase() === c.toLowerCase());
+                    return { 
+                      id: String(i), 
+                      title: c, 
+                      image: existing?.image || { uri: 'https://images.unsplash.com/photo-1540324155970-14e42289aa98' } 
+                    };
+                  })
+                : EVENT_CATEGORIES
+              } 
+            />
           </View>
         }
         ListFooterComponent={<View>{renderFooter()}</View>}

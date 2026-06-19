@@ -8,11 +8,12 @@ const workspaceRoot = path.resolve(projectRoot, '..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch the workspace root
+// 1. Watch the workspace root's node_modules
 // This is essential for pnpm monorepos so Metro can follow symlinks to the .pnpm store
+// We only watch node_modules to avoid "Failed to start watch mode" timeout on Windows
 config.watchFolders = [
   projectRoot,
-  workspaceRoot,
+  path.resolve(workspaceRoot, 'node_modules'),
 ];
 
 // 2. Let Metro know where to resolve packages

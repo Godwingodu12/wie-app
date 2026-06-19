@@ -251,6 +251,26 @@ export default function ChatDetailsScreen() {
     }
   };
 
+  const handleDeleteForMe = async (messageId: string) => {
+    if (!chatId) return;
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    try {
+      await chatService.deleteMessage(chatId, messageId);
+    } catch (error) {
+      console.error("Failed to delete message for me:", error);
+    }
+  };
+
+  const handleDeleteForEveryone = async (messageId: string) => {
+    if (!chatId) return;
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    try {
+      await chatService.deleteForEveryone(chatId, [messageId]);
+    } catch (error) {
+      console.error("Failed to delete message for everyone:", error);
+    }
+  };
+
   return (
     <View className="flex-1 bg-black">
       <StatusBar barStyle="light-content" />
@@ -262,7 +282,7 @@ export default function ChatDetailsScreen() {
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {loading ? (
           <View className="flex-1 items-center justify-center">
@@ -327,6 +347,8 @@ export default function ChatDetailsScreen() {
             onReply={(msg) => {
               setReplyingTo(msg);
             }} 
+            onDeleteForMe={handleDeleteForMe}
+            onDeleteForEveryone={handleDeleteForEveryone}
             currentUserAvatar={currentUser?.profile_picture || 'https://via.placeholder.com/150'}
             otherUserAvatar={avatar}
             flatListRef={flatListRef}
@@ -334,6 +356,7 @@ export default function ChatDetailsScreen() {
             onMediaPress={(media) => setSelectedMedia(media)}
           />
         )}
+
         <ChatInput 
           onSendMessage={handleSendMessage} 
           replyingTo={replyingTo} 

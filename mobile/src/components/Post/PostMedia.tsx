@@ -1,13 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, FlatList, ViewToken, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, FlatList, ViewToken, Animated, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import GradientHeartIcon from '../UI/GradientHeartIcon';
 import { getMediaSource } from '@/utils/imageUtils';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const POST_WIDTH = SCREEN_WIDTH - 12;
 
 export type MediaRatio = '1:1' | '4:5' | '9:16' | '16:9' | '4:3';
 
@@ -18,10 +16,11 @@ interface MediaItem {
 
 interface PostMediaProps {
     items: MediaItem[];
-    ratio: MediaRatio;
+    ratio?: string | number | null;
     onDoubleTap?: () => void;
     musicPreviewUrl?: string;
     isActive?: boolean;
+    isReelPost?: boolean;
 }
 
 const RATIOS = { 
@@ -32,7 +31,7 @@ const RATIOS = {
     '4:3': 4/3 
 };
 
-const VideoPlayerItem = React.memo(({ url, isMuted, containerHeight }: { url: string, isMuted: boolean, containerHeight: number }) => {
+const VideoPlayerItem = React.memo(({ url, isMuted, containerHeight, isReel }: { url: string, isMuted: boolean, containerHeight: number, isReel: boolean }) => {
     const player = useVideoPlayer(url, (player) => {
         player.loop = true;
         player.muted = isMuted;
@@ -47,14 +46,18 @@ const VideoPlayerItem = React.memo(({ url, isMuted, containerHeight }: { url: st
         <VideoView
             player={player}
             style={{ width: '100%', height: '100%' }}
-            contentFit="contain"
+            contentFit={isReel ? "cover" : "contain"}
             nativeControls={false}
             allowsPictureInPicture={false}
         />
     );
 });
 
-const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicPreviewUrl, isActive }) => {
+const PostMedia: React.FC<PostMediaProps> = React.memo((props) => {
+    const { items, ratio, onDoubleTap, musicPreviewUrl, isActive = true, isReelPost = false } = props;
+    const { width: SCREEN_WIDTH } = useWindowDimensions();
+    const POST_WIDTH = SCREEN_WIDTH - 12;
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isMuted, setIsMuted] = useState(true);
     const [lastTap, setLastTap] = useState(0);
@@ -81,20 +84,20 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
                 if (soundRef.current) {
                     await soundRef.current.unloadAsync().catch(() => {});
                 }
-                
+
                 try {
                     const { sound } = await Audio.Sound.createAsync(
                         { uri: musicPreviewUrl },
                         { shouldPlay: true, isMuted: isMuted, isLooping: true }
                     );
-                    
+
                     if (!isCancelled) {
                         soundRef.current = sound;
                     } else {
                         await sound.unloadAsync().catch(() => {});
                     }
                 } catch (audioError: any) {
-                    // Suppress AudioFocusNotAcquiredException which happens if OS denies audio control
+                    // Suppress AudioFocusNotAcquiredException which happens if OS denies audio control        
                     console.warn("Audio playback issue (focus denied by OS):", audioError.message);
                 }
             } catch (error) {
@@ -119,13 +122,36 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
             soundRef.current.setIsMutedAsync(isMuted);
         }
     }, [isMuted]);
-    
+
     // Exact mapping for ratios
     const ratioMap = RATIOS;
     
-    // Safety fallback for unexpected ratio strings (defaults to 4:3 model)
-    const currentRatio = ratioMap[ratio as keyof typeof ratioMap] || RATIOS['4:3'];
+    let isMissingRatio = false;
+    let currentRatio = RATIOS['1:1']; // baseline
+    const normalizedRatio = String(ratio).trim();
+    
+    if (ratioMap[normalizedRatio as keyof typeof ratioMap]) {
+        currentRatio = ratioMap[normalizedRatio as keyof typeof ratioMap];
+    } else {
+        const numericRatio = parseFloat(normalizedRatio);
+        if (!isNaN(numericRatio) && numericRatio > 0) {
+            currentRatio = numericRatio;
+        } else {
+            // Missing or invalid ratio (e.g. web upload without selected ratio)
+            currentRatio = RATIOS['4:5'];
+            isMissingRatio = true;
+        }
+    }
+    
+    // STRICT SEPARATION: Reels vs Normal Posts
+    // Reel posts get their own fixed styling (center-cropped to 4:5 in the feed)
+    // Normal posts retain their exact ratio and original layout without clamping.
+    if (isReelPost) {
+        currentRatio = RATIOS['4:5'];
+    }
+
     const containerHeight = POST_WIDTH / currentRatio;
+    const imageContentFit = (isReelPost || isMissingRatio) ? "cover" : "contain";
 
     const animateHeart = useCallback(() => {
         Animated.sequence([
@@ -156,8 +182,8 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
 
         if (item.type === 'video' || item.mediaType === 'video') {
             return (
-                <View className="flex-1 w-full justify-center">
-                    <VideoPlayerItem url={typeof source === 'object' ? source.uri : source} isMuted={isMuted} containerHeight={containerHeight} />
+                <View className="flex-1 w-full justify-center bg-black">
+                    <VideoPlayerItem url={typeof source === 'object' ? source.uri : source} isMuted={isMuted} containerHeight={containerHeight} isReel={isReelPost} />
                     <TouchableOpacity
                         onPress={() => setIsMuted(!isMuted)}
                         className="absolute bottom-3 right-3 bg-black/60 w-8 h-8 rounded-full items-center justify-center z-10"
@@ -169,7 +195,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
         }
 
         return (
-            <View className="flex-1 w-full justify-center items-center">
+            <View className="flex-1 w-full justify-center items-center bg-black">
                 {loadingStates[index] && !loadErrors[index] && (
                     <View className="absolute z-10">
                         <ActivityIndicator color="#3b82f6" />
@@ -185,7 +211,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
                     <Image
                         source={source}
                         style={{ width: '100%', height: '100%' }}
-                        contentFit="cover"
+                        contentFit={imageContentFit}
                         transition={300}
                         onLoadStart={() => setLoadingStates(prev => ({ ...prev, [index]: true }))}
                         onLoadEnd={() => setLoadingStates(prev => ({ ...prev, [index]: false }))}
@@ -199,7 +225,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
         );
     };
 
-    const renderItem = useCallback(({ item, index }: { item: any, index: number }) => {
+    const renderItem = ({ item, index }: { item: any, index: number }) => {
         return (
             <TouchableOpacity
                 activeOpacity={1}
@@ -213,11 +239,11 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
                     style={{ transform: [{ scale: heartScale }], position: 'absolute' }}
                     className="z-50"
                 >
-                    <Ionicons name="heart" size={80} color="#2979FF" />
+                    <GradientHeartIcon size={100} focused={true} />
                 </Animated.View>
             </TouchableOpacity>
         );
-    }, [isMuted, loadingStates, loadErrors, containerHeight, handleDoubleTap]);
+    };
 
     return (
         <View className="w-full bg-black items-center">
@@ -227,6 +253,7 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
                     renderItem={renderItem}
                     horizontal
                     pagingEnabled
+                    scrollEnabled={items?.length > 1}
                     showsHorizontalScrollIndicator={false}
                     onViewableItemsChanged={onViewableItemsChanged}
                     viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
@@ -266,6 +293,6 @@ const PostMedia: React.FC<PostMediaProps> = ({ items, ratio, onDoubleTap, musicP
             )}
         </View>
     );
-};
+});
 
 export default PostMedia;

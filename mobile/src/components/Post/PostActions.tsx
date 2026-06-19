@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import GradientHeartIcon from '../UI/GradientHeartIcon';
 
 type PostActionsProps = {
   likes: string | number;
@@ -12,6 +13,9 @@ type PostActionsProps = {
   onCommentPress?: () => void;
   onSharePress?: () => void;
   onSavePress?: () => void;
+  likesHidden?: boolean;
+  sharesHidden?: boolean;
+  commentsDisabled?: boolean;
 };
 
 const PostActions: React.FC<PostActionsProps> = ({
@@ -24,6 +28,9 @@ const PostActions: React.FC<PostActionsProps> = ({
   onCommentPress,
   onSharePress,
   onSavePress,
+  likesHidden = false,
+  sharesHidden = false,
+  commentsDisabled = false,
 }) => {
   const { width } = useWindowDimensions();
   // Adjust icon size slightly for very small screens
@@ -39,12 +46,16 @@ const PostActions: React.FC<PostActionsProps> = ({
           className="flex-row items-center px-2 py-1"
           hitSlop={8}
         >
-          <Ionicons
-            name={isLiked ? "heart" : "heart-outline"}
-            size={iconSize}
-            color={isLiked ? "#ef4444" : "white"}
-          />
-          <Text className="text-white font-normal ml-1.5 text-[12px]">{likes}</Text>
+          {isLiked ? (
+            <GradientHeartIcon size={iconSize + 2} focused={true} />
+          ) : (
+            <Ionicons
+              name="heart-outline"
+              size={iconSize}
+              color="white"
+            />
+          )}
+          {!likesHidden && <Text className="text-white font-normal ml-1.5 text-[12px]">{likes}</Text>}
         </TouchableOpacity>
 
         {/* Comment */}
@@ -52,9 +63,10 @@ const PostActions: React.FC<PostActionsProps> = ({
           onPress={onCommentPress}
           className="flex-row items-center px-2 py-1"
           hitSlop={8}
+          disabled={commentsDisabled}
         >
-          <Ionicons name="chatbubble-outline" size={iconSize - 2} color="white" />
-          <Text className="text-white font-normal ml-1.5 text-[12px]">{comments}</Text>
+          <Ionicons name="chatbubble-outline" size={iconSize - 2} color={commentsDisabled ? "#555" : "white"} />
+          {!commentsDisabled && <Text className="text-white font-normal ml-1.5 text-[12px]">{comments}</Text>}
         </TouchableOpacity>
 
         {/* Share */}
@@ -64,7 +76,7 @@ const PostActions: React.FC<PostActionsProps> = ({
           hitSlop={8}
         >
           <Ionicons name="paper-plane-outline" size={iconSize - 2} color="white" />
-          <Text className="text-white font-normal ml-1.5 text-[12px]">{shares}</Text>
+          {!sharesHidden && <Text className="text-white font-normal ml-1.5 text-[12px]">{shares}</Text>}
         </TouchableOpacity>
       </View>
 
