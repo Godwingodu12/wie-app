@@ -116,8 +116,29 @@ export const isFollowing = async (
   });
 };
 
+export const getFollowingIds = async (
+  userId: string
+): Promise<string[]> => {
+  return new Promise((resolve, reject) => {
+    const grpcClient = getClient();
+    
+    grpcClient.GetFollowingIds(
+      { userId },
+      (error: any, response: any) => {
+        if (error) {
+          console.error('❌ gRPC GetFollowingIds error:', error);
+          resolve([]);
+          return;
+        }
+        resolve(response?.followingIds || []);
+      }
+    );
+  });
+};
+
 export default {
   autoAcceptPendingRequests,
   getFollowStatus,
-  isFollowing
+  isFollowing,
+  getFollowingIds
 };

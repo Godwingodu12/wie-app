@@ -1883,14 +1883,23 @@ export const getSuggestedUsers = async (
       return;
     }
 
-    // Get more users than needed so we can filter
-    const users = await WIEUSER.findMany(1, limitNum * 2);
+    let followingIds: string[] = [];
+    if (userId) {
+      try {
+        followingIds = await followClient.getFollowingIds(userId);
+      } catch (err) {
+        console.error("Failed to get following IDs for suggested users", err);
+      }
+    }
 
-    // Filter out current user and blocked users, then limit results
+    // Get more users than needed so we can filter
+    const users = await WIEUSER.findMany(1, limitNum * 5);
+
+    // Filter out current user, followed users, and blocked users, then limit results
     const filteredUsers = users
       .filter(
         (u: WieUser) =>
-          u.id !== userId && !u.is_blocked && u.status === "active",
+          u.id !== userId && !u.is_blocked && u.status === "active" && !followingIds.includes(u.id),
       )
       .slice(0, limitNum);
 
